@@ -1,21 +1,45 @@
 import * as React from 'react';
-import {useRef, useMemo, useCallback} from 'react';
-import {Map, Marker} from '@vis.gl/react-maplibre';
-import maplibregl from 'maplibre-gl';
+import { useRef, useCallback } from 'react';
+import type { MapRef } from '@vis.gl/react-maplibre';
 // npm install @turf/turf
 import * as turf from '@turf/turf';
 
+// Components
+import { NavigationControls } from './components/NavigationControls';
+import { InteractiveMap } from './components/InteractiveMap';
+
+// Hooks
+import { useMapNavigation } from './hooks/useMapNavigation';
+import { useMapPopup } from './hooks/useMapPopup';
+import { useAnimatedLines } from './hooks/useAnimatedLines';
+
+// Constants & Types
+import { DEFAULT_VIEW_STATE } from './constants';
+import type { ViewState } from './types';
 
 const GEOFENCE = turf.circle([-74.0122106, 40.7467898], 5, {units: 'miles'});
 
 export default function App() {
-  const [viewState, setViewState] = React.useState({
-    longitude: -100,
-    latitude: 40,
-    zoom: 3.5
-  });
+  const [viewState, setViewState] = React.useState<ViewState>(DEFAULT_VIEW_STATE);
+  const mapRef = useRef<MapRef>(null);
 
-  const onMove = React.useCallback(({viewState}: {viewState: {longitude: number; latitude: number; zoom: number}}) => {
+  // Hooks
+  const { points, addPoint, clearPoints, flyToLocation, flyToPoint } = useMapNavigation(mapRef);
+  const { markerRef, popup, togglePopup } = useMapPopup();
+  const { 
+    isAnimating, 
+    createLinesToPoints, 
+    startAnimation, 
+    getLinesGeoJSON, 
+    getAnimatedPointsGeoJSON 
+  } = useAnimatedLines();
+
+  // Atualizar linhas quando pontos mudarem
+  React.useEffect(() => {
+    createLinesToPoints(points);
+  }, [points, createLinesToPoints]);
+
+  const onMove = useCallback(({ viewState }: { viewState: ViewState }) => {
     const newCenter = {
       longitude: viewState.longitude,
       latitude: viewState.latitude,
@@ -27,65 +51,37 @@ export default function App() {
     // }
   }, []);
 
-  const markerRef = useRef<maplibregl.Marker | null>(null);
-
-  const popup = useMemo(() => {
-    return new maplibregl.Popup().setText('Hello world!');
-  }, [])
-
-  const togglePopup = useCallback(() => {
-    markerRef.current?.togglePopup();
-  }, []);
-
-  const [points, setPoints] = React.useState<Array<{ lng: number; lat: number }>>([]);
-
-  const addPoint = useCallback((lng: number, lat: number) => {
-    setPoints(prev => [...prev, { lng, lat }]);
-  }, []);
-
-  const clearPoints = useCallback(() => {
-    setPoints([]);
-  }, []);
-
-  const markers = useMemo(
-    () =>
-      points.map((p, i) => (
-        <Marker key={i} longitude={p.lng} latitude={p.lat} color="blue" />
-      )),
-    [points]
-  );
-
-  const handleMapClick = useCallback((event: {lngLat: {lng: number; lat: number}}) => {
+  const handleMapClick = useCallback((event: { lngLat: { lng: number; lat: number } }) => {
     const { lng, lat } = event.lngLat;
     
     console.log('Clicou em:', { longitude: lng, latitude: lat });
-    // Adiciona um novo ponto no local clicado
     addPoint(lng, lat);
   }, [addPoint]);
 
   return (
     <main className="">
-       <div className="p-4 space-x-2">
-          <button onClick={togglePopup} className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-            Toggle popup
-          </button>
-          <button onClick={clearPoints} className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">
-            Limpar pontos ({points.length})
-          </button>
-        </div>
+      <NavigationControls
+        points={points}
+        isAnimating={isAnimating}
+        onTogglePopup={togglePopup}
+        onClearPoints={clearPoints}
+        onFlyToLocation={flyToLocation}
+        onFlyToPoint={flyToPoint}
+        onStartAnimation={startAnimation}
+      />
 
-      <div className="h-[calc(100vh-2rem)]  overflow-hidden shadow">
-        <Map
-          {...viewState}
-          onMove={onMove}
-          onClick={handleMapClick}
-          mapStyle="https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
-        >
-          <Marker longitude={-122.4} latitude={37.8} color="red" popup={popup} ref={markerRef} />
-          {markers}
-        </Map>
-       
-      </div>
+      <InteractiveMap
+        mapRef={mapRef}
+        viewState={viewState}
+        points={points}
+        markerRef={markerRef}
+        popup={popup}
+        onMove={onMove}
+        onClick={handleMapClick}
+        onFlyToPoint={flyToPoint}
+        linesGeoJSON={getLinesGeoJSON()}
+        animatedPointsGeoJSON={getAnimatedPointsGeoJSON()}
+      />
     </main>
   );
 }
