@@ -35,6 +35,11 @@ wheels/
 .installed.cfg
 *.egg
 
+# Large data files (>100MB GitHub limit)
+data/raw/*.csv
+data/interim/*.parquet
+public/flows-all.geojson
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
