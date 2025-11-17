@@ -37,21 +37,41 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   // Carregar dados baseado no tipo (LTLA ou MSOA)
   useEffect(() => {
     setLoading(true);
-    const fileName = dataSource === 'ltla' 
-      ? '/ltla_flows.geojson' 
-      : 'https://github.com/GustavoWMSilva/MapGeospatialMobilityData/releases/download/v1.0.0-data/flows-all.geojson';
     
-    fetch(fileName)
-      .then(response => response.json())
-      .then(data => {
-        setFlowsData(data.features || []);
-        setLoading(false);
-        console.log(`✅ Fluxos ${dataSource.toUpperCase()} carregados:`, data.features?.length || 0);
-      })
-      .catch(err => {
-        console.error(`❌ Erro ao carregar fluxos ${dataSource.toUpperCase()}:`, err);
-        setLoading(false);
-      });
+    // URLs para tentar carregar (local primeiro, depois GitHub Releases)
+    const urls = dataSource === 'ltla' 
+      ? ['/ltla_flows.geojson']
+      : [
+          '/flows-all.geojson', // Tenta local primeiro
+          'https://github.com/GustavoWMSilva/MapGeospatialMobilityData/releases/download/v1.0.0-data/flows-all.geojson'
+        ];
+    
+    // Função para tentar carregar de múltiplas URLs
+    const tryFetch = async (urlList: string[]) => {
+      for (const url of urlList) {
+        try {
+          console.log(`🔄 Tentando carregar de: ${url}`);
+          const response = await fetch(url);
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const data = await response.json();
+          setFlowsData(data.features || []);
+          setLoading(false);
+          console.log(`✅ Fluxos ${dataSource.toUpperCase()} carregados de ${url}:`, data.features?.length || 0);
+          return;
+        } catch (err) {
+          console.warn(`⚠️ Falha ao carregar de ${url}:`, err);
+          if (url === urlList[urlList.length - 1]) {
+            // Última URL falhou
+            console.error(`❌ Erro ao carregar fluxos ${dataSource.toUpperCase()} de todas as fontes`);
+            setLoading(false);
+          }
+        }
+      }
+    };
+    
+    tryFetch(urls);
   }, [dataSource]);
 
   // Filtrar fluxos baseado na direção e calcular estatísticas
