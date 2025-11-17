@@ -37,7 +37,9 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   // Carregar dados baseado no tipo (LTLA ou MSOA)
   useEffect(() => {
     setLoading(true);
-    const fileName = dataSource === 'ltla' ? '/ltla_flows.geojson' : '/flows-all.geojson';
+    const fileName = dataSource === 'ltla' 
+      ? '/ltla_flows.geojson' 
+      : 'https://github.com/GustavoWMSilva/MapGeospatialMobilityData/releases/download/v1.0.0-data/flows-all.geojson';
     
     fetch(fileName)
       .then(response => response.json())

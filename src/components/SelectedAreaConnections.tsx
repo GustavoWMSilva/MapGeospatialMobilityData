@@ -39,8 +39,8 @@ export const SelectedAreaConnections: React.FC<SelectedAreaConnectionsProps> = (
 
   // Carregar os dados de fluxos MSOA detalhados
   useEffect(() => {
-    // Usar arquivo com TODOS os fluxos do Reino Unido
-    const fileName = '/flows-all.geojson';
+    // Usar arquivo com TODOS os fluxos do Reino Unido do GitHub Releases
+    const fileName = 'https://github.com/GustavoWMSilva/MapGeospatialMobilityData/releases/download/v1.0.0-data/flows-all.geojson';
     console.log(`📂 Carregando arquivo completo: ${fileName} (área: ${selectedAreaCode})`);
     
     setLoading(true);
