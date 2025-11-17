@@ -171,7 +171,7 @@ export default function App() {
         {viewMode === 'ltla' ? (
           <LTLASelector
             selectedLTLA={selectedLTLA}
-            onSelectLTLA={(ltlaCode) => {
+            onSelectLTLA={(ltlaCode: string) => {
               setSelectedLTLA(ltlaCode);
               selectArea(null); // Limpa seleção MSOA
             }}
@@ -180,7 +180,7 @@ export default function App() {
         ) : (
           <AreaSelectionControls
             selectedAreaCode={selectedAreaCode}
-            onSelectArea={(code) => {
+            onSelectArea={(code: string) => {
               selectArea(code);
               setSelectedLTLA(null); // Limpa seleção LTLA
             }}
