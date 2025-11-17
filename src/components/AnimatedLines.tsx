@@ -20,9 +20,7 @@ export const AnimatedLines: React.FC<AnimatedLinesProps> = ({
     // Configurar estilo de linha tracejada
     const updateLineDash = () => {
       if (map.getLayer('animated-lines')) {
-        const dashOffset = (Date.now() / 100) % 10;
         map.setPaintProperty('animated-lines', 'line-dasharray', [2, 3]);
-        map.setPaintProperty('animated-lines', 'line-dash-offset', dashOffset);
       }
     };
 
