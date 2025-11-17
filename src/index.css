@@ -1,6 +1,26 @@
+@import "tailwindcss";
 @import "maplibre-gl/dist/maplibre-gl.css";
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
 
-/* CSS do MapLibre */
+@layer base {
+  html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+  }
+
+  body {
+    background: linear-gradient(135deg, #faf5ff 0%, #ffffff 50%, #f3e8ff 100%) !important;
+    background-attachment: fixed;
+  }
+
+  #root {
+    min-height: 100vh;
+    width: 100%;
+  }
+
+  main {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #faf5ff 0%, #ffffff 50%, #f3e8ff 100%);
+  }
+}
