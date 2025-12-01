@@ -37,16 +37,18 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   // Carregar dados baseado no tipo (LTLA ou MSOA)
   useEffect(() => {
     console.log(`🎯 FlowsVisualization useEffect disparado - dataSource: ${dataSource}, selectedCode: ${selectedCode}`);
+    
+    if (!selectedCode) {
+      return;
+    }
+    
     setLoading(true);
     
-    // URLs para tentar carregar (arquivos locais em ordem de prioridade)
+    // Para MSOA, usar API que carrega do Parquet (muito mais rápido e leve)
+    // Para LTLA, usar arquivo GeoJSON local
     const urls = dataSource === 'ltla' 
       ? ['/ltla_flows.geojson']
-      : [
-          '/flows-all.geojson',      // Tenta arquivo completo primeiro (se existir)
-          '/flows-london.geojson',   // Arquivo grande de Londres
-          '/flows.geojson'            // Arquivo menor mas com mais regiões distribuídas
-        ];
+      : [`http://localhost:5000/api/flows/${selectedCode}?direction=${flowDirection}&limit=50000`]; // Todos os fluxos possíveis
     
     console.log(`📋 URLs para carregar:`, urls);
     
