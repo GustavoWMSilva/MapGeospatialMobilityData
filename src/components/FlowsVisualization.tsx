@@ -36,29 +36,44 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
 
   // Carregar dados baseado no tipo (LTLA ou MSOA)
   useEffect(() => {
+    console.log(`🎯 FlowsVisualization useEffect disparado - dataSource: ${dataSource}, selectedCode: ${selectedCode}`);
     setLoading(true);
     
-    // URLs para tentar carregar (local primeiro, depois GitHub Releases)
+    // URLs para tentar carregar (arquivos locais em ordem de prioridade)
     const urls = dataSource === 'ltla' 
       ? ['/ltla_flows.geojson']
       : [
-          '/flows-all.geojson', // Tenta local primeiro
-          'https://github.com/GustavoWMSilva/MapGeospatialMobilityData/releases/download/v1.0.0-data/flows-all.geojson'
+          '/flows-all.geojson',      // Tenta arquivo completo primeiro (se existir)
+          '/flows-london.geojson',   // Arquivo grande de Londres
+          '/flows.geojson'            // Arquivo menor mas com mais regiões distribuídas
         ];
+    
+    console.log(`📋 URLs para carregar:`, urls);
     
     // Função para tentar carregar de múltiplas URLs
     const tryFetch = async (urlList: string[]) => {
       for (const url of urlList) {
         try {
-          console.log(`🔄 Tentando carregar de: ${url}`);
+          console.log(`🔄 Tentando carregar ${dataSource.toUpperCase()} de: ${url}`);
           const response = await fetch(url);
           if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
           }
           const data = await response.json();
+          console.log(`✅ Resposta recebida, features:`, data.features?.length || 0);
           setFlowsData(data.features || []);
           setLoading(false);
           console.log(`✅ Fluxos ${dataSource.toUpperCase()} carregados de ${url}:`, data.features?.length || 0);
+          
+          // Debug: mostrar alguns códigos de exemplo
+          if (data.features?.length > 0) {
+            const sampleCodes = new Set<string>();
+            data.features.slice(0, 50).forEach((f: FlowFeature) => {
+              sampleCodes.add(f.properties.origin_code);
+              sampleCodes.add(f.properties.dest_code);
+            });
+            console.log('📋 Exemplos de códigos nos dados:', Array.from(sampleCodes).slice(0, 10));
+          }
           return;
         } catch (err) {
           console.warn(`⚠️ Falha ao carregar de ${url}:`, err);
@@ -72,12 +87,24 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
     };
     
     tryFetch(urls);
-  }, [dataSource]);
+  }, [dataSource, selectedCode]);
 
   // Filtrar fluxos baseado na direção e calcular estatísticas
   const { flowsGeoJSON, stats } = useMemo(() => {
+    console.log(`🔍 useMemo disparado - selectedCode: ${selectedCode}, flowsData.length: ${flowsData.length}, dataSource: ${dataSource}`);
+    
     if (!selectedCode || flowsData.length === 0) {
+      console.log(`⚠️ Retornando null - selectedCode: ${selectedCode}, flowsData.length: ${flowsData.length}`);
       return { flowsGeoJSON: null, stats: null };
+    }
+
+    // Debug: mostrar alguns códigos dos primeiros fluxos
+    if (flowsData.length > 0) {
+      console.log(`📋 Primeiros 5 fluxos:`, flowsData.slice(0, 5).map(f => ({
+        origin: f.properties.origin_code,
+        dest: f.properties.dest_code,
+        count: f.properties.count
+      })));
     }
 
     // Filtrar fluxos baseado na direção
@@ -91,9 +118,18 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       }
     });
 
+    console.log(`🔎 Após filtrar por ${flowDirection} em ${selectedCode}: ${filteredFlows.length} fluxos encontrados`);
+
     if (filteredFlows.length === 0) {
       console.warn(`⚠️ Nenhum fluxo encontrado ${flowDirection === 'incoming' ? 'chegando em' : 'saindo de'}:`, selectedCode);
-      return { flowsGeoJSON: null, stats: null };
+      console.warn(`🔍 Verificando se o código existe nos dados...`);
+      
+      // Debug: verificar se o código existe em QUALQUER fluxo
+      const existsAsOrigin = flowsData.some(f => f.properties.origin_code === selectedCode);
+      const existsAsDest = flowsData.some(f => f.properties.dest_code === selectedCode);
+      console.log(`📊 Código ${selectedCode} - Existe como origem: ${existsAsOrigin}, como destino: ${existsAsDest}`);
+      
+      return { flowsGeoJSON: null, stats: null, connectedPointsGeoJSON: null };
     }
 
     const counts = filteredFlows.map(f => f.properties.count);

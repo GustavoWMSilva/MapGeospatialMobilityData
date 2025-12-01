@@ -28,11 +28,34 @@ export const LTLASelector: React.FC<LTLASelectorProps> = ({
     fetch('/data/lookup/ltla_centroids.csv')
       .then(response => response.text())
       .then(csvText => {
+        // Função para fazer parsing correto de CSV com campos entre aspas
+        const parseCSVLine = (line: string): string[] => {
+          const result: string[] = [];
+          let current = '';
+          let insideQuotes = false;
+          
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            
+            if (char === '"') {
+              insideQuotes = !insideQuotes;
+            } else if (char === ',' && !insideQuotes) {
+              result.push(current.trim());
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          
+          result.push(current.trim());
+          return result;
+        };
+
         const lines = csvText.split('\n');
         const data: LTLAOption[] = lines.slice(1)
           .filter(line => line.trim())
           .map(line => {
-            const values = line.split(',');
+            const values = parseCSVLine(line);
             return {
               code: values[0]?.trim() || '',
               name: values[1]?.trim() || '',

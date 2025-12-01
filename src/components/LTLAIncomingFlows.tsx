@@ -65,7 +65,7 @@ export const LTLAIncomingFlows: React.FC<LTLAIncomingFlowsProps> = ({
 
     if (filteredFlows.length === 0) {
       console.warn(`⚠️ Nenhum fluxo encontrado ${flowDirection === 'incoming' ? 'chegando em' : 'saindo de'}:`, selectedLTLA);
-      return { incomingFlowsGeoJSON: null, stats: null };
+      return { incomingFlowsGeoJSON: null, stats: null, connectedPointsGeoJSON: null };
     }
 
     const counts = filteredFlows.map(f => f.properties.count);

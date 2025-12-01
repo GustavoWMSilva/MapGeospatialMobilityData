@@ -32,19 +32,41 @@ export const LTLAPoints: React.FC<LTLAPointsProps> = ({
       .then(csvText => {
         const lines = csvText.split('\n');
         
+        // Função para fazer parse correto de CSV com campos quoted
+        const parseCSVLine = (line: string): string[] => {
+          const result: string[] = [];
+          let current = '';
+          let insideQuotes = false;
+          
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            
+            if (char === '"') {
+              insideQuotes = !insideQuotes;
+            } else if (char === ',' && !insideQuotes) {
+              result.push(current.trim());
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          result.push(current.trim());
+          return result;
+        };
+        
         const data: LTLACentroid[] = lines.slice(1)
           .filter(line => line.trim())
           .map(line => {
-            const values = line.split(',');
+            const values = parseCSVLine(line);
             return {
-              code: values[0]?.trim() || '',
-              name: values[1]?.trim() || '',
-              lat: parseFloat(values[2]?.trim() || '0'),
-              lon: parseFloat(values[3]?.trim() || '0'),
-              msoa_count: parseInt(values[4]?.trim() || '0')
+              code: values[0] || '',
+              name: values[1] || '',
+              lat: parseFloat(values[2] || '0'),
+              lon: parseFloat(values[3] || '0'),
+              msoa_count: parseInt(values[4] || '0')
             };
           })
-          .filter(row => row.code && row.lat && row.lon);
+          .filter(row => row.code && row.lat && row.lon && row.lat !== 0 && row.lon !== 0);
 
         // Converter para GeoJSON
         const features = data.map(ltla => ({
@@ -69,6 +91,10 @@ export const LTLAPoints: React.FC<LTLAPointsProps> = ({
         setLtlaGeoJSON(geojson);
         setLoading(false);
         console.log('✅ Pontos LTLA carregados:', features.length);
+        console.log('📍 Exemplo de pontos:', features.slice(0, 3).map(f => ({ 
+          code: f.properties.code, 
+          coords: f.geometry.coordinates 
+        })));
       })
       .catch(err => {
         console.error('❌ Erro ao carregar LTLAs:', err);
