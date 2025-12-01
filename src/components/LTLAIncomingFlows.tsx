@@ -165,7 +165,7 @@ export const LTLAIncomingFlows: React.FC<LTLAIncomingFlowsProps> = ({
         <div className="space-y-2">
           <div className="flex justify-between items-center bg-purple-50 p-2 rounded-lg">
             <span className="text-xs font-medium text-gray-700">Total de fluxos:</span>
-            <span className="text-sm font-bold text-purple-700">{stats.count}</span>
+            <span className="text-sm font-bold text-purple-700">{stats.count -1}</span>
           </div>
           <div className="flex justify-between items-center bg-purple-50 p-2 rounded-lg">
             <span className="text-xs font-medium text-gray-700">Total de pessoas:</span>
