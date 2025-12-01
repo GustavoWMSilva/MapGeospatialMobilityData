@@ -87,7 +87,6 @@ export default function App() {
       <div className="bg-gradient-to-r from-purple-600 via-purple-700 to-purple-800 shadow-lg">
         <div className="px-6 py-4">
           <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-            <span className="text-4xl">🗺️</span>
             Visualização de Mobilidade Geoespacial
           </h1>
           <p className="text-purple-100 text-sm mt-1">
@@ -95,7 +94,7 @@ export default function App() {
           </p>
         </div>
       </div>
-      )}\n      
+      )}
       {/* Controles principais */}
       {!isFullscreen && (
       <div className="px-6 py-4 bg-white shadow-md border-b border-purple-100">
@@ -136,7 +135,7 @@ export default function App() {
               : 'bg-gradient-to-r from-purple-500 to-purple-600 text-white border-2 border-purple-500 hover:from-purple-600 hover:to-purple-700'
           }`}
         >
-          {viewMode === 'ltla' ? '🏙️ Modo: Cidades (LTLA)' : '📍 Modo: Áreas (MSOA)'}
+          {viewMode === 'ltla' ? 'Modo: Cidades (LTLA)' : 'Modo: Áreas (MSOA)'}
         </button>
         
         {/* Botão para alternar direção do fluxo (visível quando área selecionada) */}
@@ -159,7 +158,7 @@ export default function App() {
           className="px-5 py-2.5 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 border-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white border-purple-600 hover:from-purple-700 hover:to-purple-800"
           title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
         >
-          {isFullscreen ? '🔲 Modo Normal' : '🔳 Tela Cheia'}
+          {isFullscreen ? 'Modo Normal' : 'Tela Cheia'}
         </button>
         </div>
       </div>
@@ -216,7 +215,7 @@ export default function App() {
               className="fixed top-4 right-4 z-[60] px-6 py-3 rounded-lg font-bold transition-all shadow-2xl bg-gradient-to-r from-purple-600 to-purple-700 text-white border-2 border-white hover:from-purple-700 hover:to-purple-800 hover:scale-105"
               title="Sair da tela cheia"
             >
-              🔲 Sair da Tela Cheia
+              Sair da Tela Cheia
             </button>
             
             {/* Painel de controles flutuante */}
@@ -235,7 +234,7 @@ export default function App() {
                     : 'bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700'
                 }`}
               >
-                {viewMode === 'ltla' ? '🏙️ Modo: Cidades (LTLA)' : '📍 Modo: Áreas (MSOA)'}
+                {viewMode === 'ltla' ? 'Modo: Cidades (LTLA)' : 'Modo: Áreas (MSOA)'}
               </button>
               
               {/* Botão de alternar direção do fluxo */}

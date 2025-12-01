@@ -102,12 +102,12 @@ export const LTLAIncomingFlows: React.FC<LTLAIncomingFlowsProps> = ({
   // Calcular intervalos dinâmicos baseados nos dados
   const intervals = [
     { value: 0, label: '0', color: '#FFFFFF' },
-    { value: Math.round(stats.max * 0.01), label: Math.round(stats.max * 0.01).toLocaleString(), color: '#FEE2E2' },
-    { value: Math.round(stats.max * 0.05), label: Math.round(stats.max * 0.05).toLocaleString(), color: '#FCA5A5' },
-    { value: Math.round(stats.max * 0.1), label: Math.round(stats.max * 0.1).toLocaleString(), color: '#F87171' },
-    { value: Math.round(stats.max * 0.2), label: Math.round(stats.max * 0.2).toLocaleString(), color: '#EF4444' },
-    { value: Math.round(stats.max * 0.5), label: Math.round(stats.max * 0.5).toLocaleString(), color: '#DC2626' },
-    { value: stats.max, label: `${stats.max.toLocaleString()}+`, color: '#991B1B' }
+    { value: Math.round(stats.max * 0.01), label: Math.round(stats.max * 0.01).toLocaleString(), color: '#FEF3C7' },
+    { value: Math.round(stats.max * 0.05), label: Math.round(stats.max * 0.05).toLocaleString(), color: '#FDE68A' },
+    { value: Math.round(stats.max * 0.1), label: Math.round(stats.max * 0.1).toLocaleString(), color: '#FCD34D' },
+    { value: Math.round(stats.max * 0.2), label: Math.round(stats.max * 0.2).toLocaleString(), color: '#FBBF24' },
+    { value: Math.round(stats.max * 0.5), label: Math.round(stats.max * 0.5).toLocaleString(), color: '#F59E0B' },
+    { value: stats.max, label: `${stats.max.toLocaleString()}+`, color: '#D97706' }
   ];
 
   return (
@@ -115,9 +115,7 @@ export const LTLAIncomingFlows: React.FC<LTLAIncomingFlowsProps> = ({
       {/* Legenda de Intensidade - Design Melhorado */}
       <div className="absolute bottom-10 right-4 bg-white/98 backdrop-blur-md rounded-xl shadow-2xl border border-gray-200 p-3 z-10" style={{ width: '220px' }}>
         <div className="flex items-center gap-2 mb-4">
-          <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-red-700 rounded-lg flex items-center justify-center">
-            <span className="text-white text-lg">🔥</span>
-          </div>
+
           <h3 className="text-base font-bold text-gray-800">
             Intensidade de Fluxo
           </h3>
@@ -127,7 +125,7 @@ export const LTLAIncomingFlows: React.FC<LTLAIncomingFlowsProps> = ({
         <div className="mb-4">
           <div className="h-6 rounded-lg shadow-inner relative overflow-hidden" 
                style={{ 
-                 background: 'linear-gradient(to right, #FFFFFF 0%, #FEE2E2 14%, #FCA5A5 28%, #F87171 42%, #EF4444 57%, #DC2626 71%, #991B1B 100%)'
+                 background: 'linear-gradient(to right, #FFFFFF 0%, #FEF3C7 14%, #FDE68A 28%, #FCD34D 42%, #FBBF24 57%, #F59E0B 71%, #D97706 100%)'
                }}>
             <div className="absolute inset-0 border-2 border-gray-300 rounded-lg pointer-events-none"></div>
           </div>
@@ -158,9 +156,7 @@ export const LTLAIncomingFlows: React.FC<LTLAIncomingFlowsProps> = ({
       {/* Estatísticas Compactas */}
       <div className="absolute bottom-4 left-4 bg-white/98 backdrop-blur-md rounded-xl shadow-2xl border border-purple-200 p-3 z-10" style={{ width: '200px' }}>
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-7 h-7 bg-gradient-to-br from-purple-600 to-purple-700 rounded-lg flex items-center justify-center">
-            <span className="text-white text-base">📊</span>
-          </div>
+
           <h3 className="text-sm font-bold text-gray-800">
             Estatísticas de Fluxo
           </h3>
@@ -183,9 +179,8 @@ export const LTLAIncomingFlows: React.FC<LTLAIncomingFlowsProps> = ({
 
         <div className="mt-3 pt-3 border-t border-gray-200">
           <div className="flex items-start gap-2">
-            <span className="text-purple-600 text-sm">💡</span>
             <p className="text-xs text-gray-600 leading-relaxed">
-              Linhas mais grossas e vermelhas = maior volume
+              Linhas mais grossas e amarelas = maior volume
             </p>
           </div>
         </div>
@@ -202,18 +197,18 @@ export const LTLAIncomingFlows: React.FC<LTLAIncomingFlowsProps> = ({
           id="ltla-flow-lines"
           type="line"
           paint={{
-            // Cor: gradiente de branco a vermelho escuro
+            // Cor: gradiente de branco a amarelo/laranja escuro
             'line-color': [
               'interpolate',
               ['linear'],
               ['get', 'count'],
               0, '#FFFFFF',      // Branco - fluxos muito baixos
-              100, '#FEE2E2',    // Vermelho muito claro
-              500, '#FCA5A5',    // Vermelho claro
-              1000, '#F87171',   // Vermelho médio-claro
-              2000, '#EF4444',   // Vermelho
-              5000, '#DC2626',   // Vermelho escuro
-              10000, '#991B1B'   // Vermelho muito escuro
+              100, '#FEF3C7',    // Amarelo muito claro
+              500, '#FDE68A',    // Amarelo claro
+              1000, '#FCD34D',   // Amarelo médio
+              2000, '#FBBF24',   // Amarelo intenso
+              5000, '#F59E0B',   // Âmbar
+              10000, '#D97706'   // Âmbar escuro
             ],
             // Espessura: proporcional ao volume
             'line-width': [
@@ -239,12 +234,12 @@ export const LTLAIncomingFlows: React.FC<LTLAIncomingFlowsProps> = ({
               'interpolate',
               ['linear'],
               ['get', 'count'],
-              0, '#FEE2E2',
-              100, '#FCA5A5',
-              500, '#F87171',
-              1000, '#EF4444',
-              2000, '#DC2626',
-              5000, '#991B1B'
+              0, '#FEF3C7',
+              100, '#FDE68A',
+              500, '#FCD34D',
+              1000, '#FBBF24',
+              2000, '#F59E0B',
+              5000, '#D97706'
             ],
             'line-width': [
               'interpolate',

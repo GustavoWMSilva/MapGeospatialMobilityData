@@ -84,7 +84,6 @@ export const LTLASelector: React.FC<LTLASelectorProps> = ({
       {/* Header */}
       <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-5 py-3">
         <h3 className="text-white font-bold text-lg flex items-center gap-2">
-          <span className="text-2xl">🏙️</span>
           Seleção por Distrito
         </h3>
         <p className="text-purple-100 text-xs mt-1">
@@ -99,7 +98,7 @@ export const LTLASelector: React.FC<LTLASelectorProps> = ({
           <div className="relative">
             <input
               type="text"
-              placeholder="🔍 Buscar cidade... (ex: London, Manchester, Birmingham)"
+              placeholder="Buscar cidade... (ex: London, Manchester, Birmingham)"
               className="w-full pl-4 pr-10 py-3 border-2 border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-gray-800 placeholder-gray-400 font-medium"
               value={searchTerm}
               onChange={(e) => {
@@ -197,7 +196,6 @@ export const LTLASelector: React.FC<LTLASelectorProps> = ({
         ) : (
           <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
             <div className="flex items-start gap-2">
-              <span className="text-blue-500 text-lg flex-shrink-0">💡</span>
               <div>
                 <p className="text-sm text-blue-800 font-medium">Como usar</p>
                 <p className="text-xs text-blue-600 mt-1">

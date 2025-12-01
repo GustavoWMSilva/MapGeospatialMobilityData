@@ -136,9 +136,7 @@ export const LTLAHeatmap: React.FC<LTLAHeatmapProps> = ({
       {/* Legenda do Heatmap */}
       <div className="absolute top-20 right-4 bg-white/98 backdrop-blur-md rounded-xl shadow-2xl border border-gray-200 p-5 z-10" style={{ width: '280px' }}>
         <div className="flex items-center gap-2 mb-4">
-          <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-red-600 rounded-lg flex items-center justify-center">
-            <span className="text-white text-lg">🔥</span>
-          </div>
+
           <h3 className="text-base font-bold text-gray-800">
             Heatmap de Intensidade
           </h3>

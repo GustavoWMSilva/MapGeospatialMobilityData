@@ -83,12 +83,12 @@ export const MobilityFlows: React.FC<MobilityFlowsProps> = ({
               'interpolate',
               ['linear'],
               ['get', 'count'],
-              0, '#fee5d9',      // Rosa claro - baixo volume
-              100, '#fcae91',    // Laranja claro
-              500, '#fb6a4a',    // Laranja
-              1000, '#de2d26',   // Vermelho
-              5000, '#a50f15',   // Vermelho escuro
-              10000, '#67000d'   // Vinho - alto volume
+              0, '#FFFBEB',      // Amarelo muito claro - baixo volume
+              100, '#FEF3C7',    // Amarelo claro
+              500, '#FDE68A',    // Amarelo médio-claro
+              1000, '#FCD34D',   // Amarelo médio
+              5000, '#FBBF24',   // Amarelo intenso
+              10000, '#D97706'   // Âmbar escuro - alto volume
             ],
             'line-width': [
               'interpolate',

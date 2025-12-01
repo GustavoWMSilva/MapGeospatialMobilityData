@@ -16,7 +16,6 @@ export const AreaSelectionControls: React.FC<AreaSelectionControlsProps> = ({
       {/* Header */}
       <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-5 py-3">
         <h3 className="text-white font-bold text-lg flex items-center gap-2">
-          <span className="text-2xl">🎯</span>
           Seleção por Área (MSOA)
         </h3>
         <p className="text-purple-100 text-xs mt-1">
@@ -72,7 +71,6 @@ export const AreaSelectionControls: React.FC<AreaSelectionControlsProps> = ({
         ) : (
           <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
             <div className="flex items-start gap-2">
-              <span className="text-blue-500 text-lg flex-shrink-0">💡</span>
               <div>
                 <p className="text-sm text-blue-800 font-medium">Como usar</p>
                 <p className="text-xs text-blue-600 mt-1">
