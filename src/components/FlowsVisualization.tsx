@@ -44,11 +44,15 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
     
     setLoading(true);
     
-    // Para MSOA, usar API que carrega do Parquet (muito mais rápido e leve)
-    // Para LTLA, usar arquivo GeoJSON local
+    // Para MSOA: usar API local (desenvolvimento) ou arquivos GeoJSON (produção)
+    // Para LTLA: usar arquivo GeoJSON local
+    const isDevelopment = window.location.hostname === 'localhost';
+    
     const urls = dataSource === 'ltla' 
       ? ['/ltla_flows.geojson']
-      : [`http://localhost:5000/api/flows/${selectedCode}?direction=${flowDirection}&limit=50000`]; // Todos os fluxos possíveis
+      : isDevelopment
+        ? [`http://localhost:5000/api/flows/${selectedCode}?direction=${flowDirection}&limit=50000`]
+        : ['/flows-london.geojson']; // Em produção, usar arquivo estático
     
     console.log(`📋 URLs para carregar:`, urls);
     
@@ -89,7 +93,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
     };
     
     tryFetch(urls);
-  }, [dataSource, selectedCode]);
+  }, [dataSource, selectedCode, flowDirection]);
 
   // Filtrar fluxos baseado na direção e calcular estatísticas
   const { flowsGeoJSON, stats } = useMemo(() => {
