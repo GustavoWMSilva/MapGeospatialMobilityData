@@ -1,0 +1,6 @@
+pandas
+pyarrow
+duckdb
+geopandas
+shapely
+pyyaml

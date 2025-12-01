@@ -38,6 +38,7 @@ wheels/
 # Large data files (>100MB GitHub limit)
 data/raw/*.csv
 data/interim/*.parquet
+data/processed/all-flows.geojson
 public/flows-all.geojson
 
 # Editor directories and files

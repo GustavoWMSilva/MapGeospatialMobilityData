@@ -1,0 +1,31 @@
+paths:
+  raw_csv: "data/raw/ODWP01EW_MSOA.csv" # ou um CSV extraído do ZIP
+  parquet: "data/interim/odwp01ew.parquet"
+  lookup_areas: "data/lookup/areas_centroids.csv" # code, name, lat, lon
+  processed_dir: "data/processed"
+
+columns:
+  origin_code: "origin_code" # mapearemos no script
+  origin_name: "origin_name"
+  dest_code: "dest_code"
+  dest_name: "dest_name"
+  count: "count"
+
+export:
+  # cenários principais que você quer publicar
+  scenarios:
+    - name: "top1000-geral"
+      filter: {}
+      top_n: 1000
+    - name: "cardiff-outflows-top500"
+      filter: { origin_code: "W06000015" } # exemplo: Cardiff LA code
+      top_n: 500
+    - name: "london-inflows-top500"
+      filter: { dest_code: "E09000001" } # exemplo: City of London
+      top_n: 500
+    - name: "london-center-inflows-all"
+      filter: {} # Será filtrado no script para áreas centrais de Londres
+      top_n: 50000 # Número alto para pegar todos os fluxos significativos
+    - name: "all-flows"
+      filter: {}
+      top_n: 2000000 # Todos os fluxos (mais que o total de 1.8M)

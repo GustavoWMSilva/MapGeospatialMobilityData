@@ -63,7 +63,7 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
         <span className="text-sm font-medium text-gray-700 self-center">
           Viajar para:
         </span>
-        {LOCATIONS.map((location) => (
+        {LOCATIONS.map((location: Location) => (
           <button
             key={location.name}
             onClick={() => onFlyToLocation(location)}
