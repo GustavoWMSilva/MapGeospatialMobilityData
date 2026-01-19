@@ -62,9 +62,9 @@ export async function initDuckDB(): Promise<void> {
         parquetUrl = '/data/ODWP01EW_MSOA.parquet';
         console.log('📁 Modo local - carregando de:', parquetUrl);
       } else {
-        // Produção: usar GitHub Releases
-        parquetUrl = 'https://github.com/GustavoWMSilva/MapGeospatialMobilityData/releases/download/v1.0.0-data/ODWP01EW_MSOA.parquet';
-        console.log('🌐 Modo produção - carregando do GitHub Releases');
+        // Produção: usar jsdelivr CDN (sem CORS)
+        parquetUrl = 'https://cdn.jsdelivr.net/gh/GustavoWMSilva/MapGeospatialMobilityData@main/ODWP01EW_MSOA.parquet';
+        console.log('🌐 Modo produção - carregando do jsdelivr CDN');
       }
 
       // Baixar e registrar arquivo Parquet
