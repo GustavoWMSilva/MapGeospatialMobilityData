@@ -51,19 +51,9 @@ export async function initDuckDB(): Promise<void> {
       // Conectar
       conn = await db.connect();
       
-      // Determinar origem do arquivo
-      const isLocalhost = window.location.hostname === 'localhost' || 
-                          window.location.hostname === '127.0.0.1';
-
-      let parquetUrl: string;
-      
-      if (isLocalhost) {
-        parquetUrl = `${window.location.origin}/data/ODWP01EW_MSOA.parquet`;
-        console.log('📁 Modo local - carregando de:', parquetUrl);
-      } else {
-        parquetUrl = 'https://github.com/GustavoWMSilva/MapGeospatialMobilityData/releases/download/v1.0.0-data/ODWP01EW_MSOA.parquet';
-        console.log('🌐 Modo produção - carregando de GitHub Releases');
-      }
+      // Usar arquivo local (já está em /public/data/)
+      const parquetUrl = '/data/ODWP01EW_MSOA.parquet';
+      console.log('📁 Carregando Parquet de:', parquetUrl);
 
       // Baixar e registrar arquivo Parquet
       console.log('📥 Baixando Parquet...');
