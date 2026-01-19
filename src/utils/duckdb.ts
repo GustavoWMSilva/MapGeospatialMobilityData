@@ -62,7 +62,7 @@ export async function initDuckDB(): Promise<void> {
         parquetUrl = '/data/ODWP01EW_MSOA.parquet';
         console.log('📁 Modo local - carregando de:', parquetUrl);
       } else {
-        // Produção: usar jsdelivr CDN (sem CORS)
+        // Produção: usar jsdelivr CDN (solução definitiva)
         parquetUrl = 'https://cdn.jsdelivr.net/gh/GustavoWMSilva/MapGeospatialMobilityData@main/ODWP01EW_MSOA.parquet';
         console.log('🌐 Modo produção - carregando do jsdelivr CDN');
       }
