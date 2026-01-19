@@ -33,7 +33,7 @@ export const LTLAIncomingFlows: React.FC<LTLAIncomingFlowsProps> = ({
   // Carregar dados de fluxos LTLA
   useEffect(() => {
     setLoading(true);
-    fetch('/ltla_flows.geojson')
+    fetch('/ltla_flows_complete.geojson')
       .then(response => response.json())
       .then(data => {
         setFlowsData(data.features || []);

@@ -75,7 +75,7 @@ export const LTLAHeatmap: React.FC<LTLAHeatmapProps> = ({
 
   // Carregar dados de fluxos
   useEffect(() => {
-    fetch('/ltla_flows.geojson')
+    fetch('/ltla_flows_complete.geojson')
       .then(response => response.json())
       .then(data => {
         setFlowsData(data.features || []);

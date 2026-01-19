@@ -1,21 +1,25 @@
 # Python files
-*.py
-__pycache__/
+
+\*.py
+**pycache**/
 venv/
 requirements.txt
 api/
 scripts/
 
 # Data files
+
 data/
-*.parquet
-*.csv
-*.geojson
+_.parquet
+_.csv
+\*.geojson
 
 # Config files
+
 config.yaml
-*.cjs
+\*.cjs
 
 # Documentation
-*.md
+
+\*.md
 !README.md

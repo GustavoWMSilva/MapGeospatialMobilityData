@@ -18,7 +18,7 @@ parquet_path = os.path.join(project_root, "data/interim/odwp01ew.parquet")
 lookup_path = os.path.join(project_root, "data/lookup/areas_centroids.csv")
 
 df = pd.read_parquet(parquet_path)
-print(f"✅ Carregado: {len(df):,} fluxos")
+print(f"✅ Carregado: {len(df):,} fluxos MSOA")
 
 # Carregar centróides
 lut = pd.read_csv(lookup_path, dtype={"code":"string"})
@@ -33,13 +33,13 @@ print(f"✅ Pronto para servir dados!")
 
 @app.route('/api/flows/<area_code>')
 def get_flows(area_code):
-    """Retorna fluxos que chegam ou saem de uma área específica"""
+    """Retorna fluxos MSOA que chegam ou saem de uma área específica"""
     direction = request.args.get('direction', 'incoming')  # incoming ou outgoing
     limit = int(request.args.get('limit', 1000))
     
     print(f"📊 Requisição: {area_code}, direção: {direction}, limit: {limit}")
     
-    # Filtrar fluxos
+    # Filtrar fluxos MSOA
     if direction == 'incoming':
         filtered = df[df['dest_code'] == area_code]
     else:

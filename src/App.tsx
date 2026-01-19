@@ -6,6 +6,7 @@ import type { MapRef } from '@vis.gl/react-maplibre';
 import { InteractiveMap } from './components/InteractiveMap';
 import { AreaSelectionControls } from './components/AreaSelectionControls';
 import { LTLASelector } from './components/LTLASelector';
+import { DuckDBTest } from './components/DuckDBTest';
 
 // Hooks
 import { useSelectedArea } from './hooks/useSelectedArea';
@@ -254,6 +255,9 @@ export default function App() {
           </>
         )}
       </div>
+      
+      {/* DuckDB Test Component (remover após testar) */}
+      <DuckDBTest />
     </main>
   );
 }

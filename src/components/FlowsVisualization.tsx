@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Source, Layer } from '@vis.gl/react-maplibre';
+import { FlowFilters } from './FlowFilters';
+import { loadFlows } from '../utils/dataService';
 
 interface FlowFeature {
   type: 'Feature';
@@ -33,66 +35,58 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   const [loading, setLoading] = useState(true);
   const [isIntensityMinimized, setIsIntensityMinimized] = useState(false);
   const [isStatsMinimized, setIsStatsMinimized] = useState(false);
+  const [isFiltersMinimized, setIsFiltersMinimized] = useState(false);
+  
+  // Estados dos filtros - valores padrão dependem do tipo de dados
+  const [maxFlows, setMaxFlows] = useState(dataSource === 'ltla' ? 200 : 500);
+  const [minCount, setMinCount] = useState(dataSource === 'ltla' ? 50 : 10);
+  const [showInternal, setShowInternal] = useState(false);
 
-  // Carregar dados baseado no tipo (LTLA ou MSOA)
+  // Carregar dados usando dataService (DuckDB-WASM ou API)
   useEffect(() => {
     console.log(`🎯 FlowsVisualization useEffect disparado - dataSource: ${dataSource}, selectedCode: ${selectedCode}`);
     
     if (!selectedCode) {
+      setFlowsData([]);
+      setLoading(false);
       return;
     }
     
     setLoading(true);
     
-    // Para MSOA: usar API local (desenvolvimento) ou arquivos GeoJSON (produção)
-    // Para LTLA: usar arquivo GeoJSON local
-    const isDevelopment = window.location.hostname === 'localhost';
-    
-    const urls = dataSource === 'ltla' 
-      ? ['/ltla_flows.geojson']
-      : isDevelopment
-        ? [`http://localhost:5000/api/flows/${selectedCode}?direction=${flowDirection}&limit=50000`]
-        : ['/flows-london.geojson']; // Em produção, usar arquivo estático
-    
-    console.log(`📋 URLs para carregar:`, urls);
-    
-    // Função para tentar carregar de múltiplas URLs
-    const tryFetch = async (urlList: string[]) => {
-      for (const url of urlList) {
-        try {
-          console.log(`🔄 Tentando carregar ${dataSource.toUpperCase()} de: ${url}`);
-          const response = await fetch(url);
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-          }
-          const data = await response.json();
-          console.log(`✅ Resposta recebida, features:`, data.features?.length || 0);
-          setFlowsData(data.features || []);
-          setLoading(false);
-          console.log(`✅ Fluxos ${dataSource.toUpperCase()} carregados de ${url}:`, data.features?.length || 0);
-          
-          // Debug: mostrar alguns códigos de exemplo
-          if (data.features?.length > 0) {
-            const sampleCodes = new Set<string>();
-            data.features.slice(0, 50).forEach((f: FlowFeature) => {
-              sampleCodes.add(f.properties.origin_code);
-              sampleCodes.add(f.properties.dest_code);
-            });
-            console.log('📋 Exemplos de códigos nos dados:', Array.from(sampleCodes).slice(0, 10));
-          }
-          return;
-        } catch (err) {
-          console.warn(`⚠️ Falha ao carregar de ${url}:`, err);
-          if (url === urlList[urlList.length - 1]) {
-            // Última URL falhou
-            console.error(`❌ Erro ao carregar fluxos ${dataSource.toUpperCase()} de todas as fontes`);
-            setLoading(false);
-          }
+    const loadData = async () => {
+      try {
+        console.log(`🔄 Carregando flows para ${selectedCode} (${dataSource})...`);
+        
+        // dataService escolhe automaticamente a melhor fonte
+        const data = await loadFlows(
+          selectedCode,
+          flowDirection,
+          50000,
+          dataSource
+        );
+        
+        console.log(`✅ Fluxos carregados:`, data.features?.length || 0);
+        setFlowsData(data.features as FlowFeature[] || []);
+        
+        // Debug: mostrar alguns códigos de exemplo
+        if (data.features?.length > 0) {
+          const sampleCodes = new Set<string>();
+          (data.features as FlowFeature[]).slice(0, 50).forEach((f) => {
+            sampleCodes.add(f.properties.origin_code);
+            sampleCodes.add(f.properties.dest_code);
+          });
+          console.log('📋 Exemplos de códigos nos dados:', Array.from(sampleCodes).slice(0, 10));
         }
+      } catch (error) {
+        console.error(`❌ Erro ao carregar flows:`, error);
+        setFlowsData([]);
+      } finally {
+        setLoading(false);
       }
     };
     
-    tryFetch(urls);
+    loadData();
   }, [dataSource, selectedCode, flowDirection]);
 
   // Filtrar fluxos baseado na direção e calcular estatísticas
@@ -114,7 +108,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
     }
 
     // Filtrar fluxos baseado na direção
-    const filteredFlows = flowsData.filter(feature => {
+    let filteredFlows = flowsData.filter(feature => {
       if (flowDirection === 'incoming') {
         // Fluxos que CHEGAM no código selecionado
         return feature.properties.dest_code === selectedCode;
@@ -125,6 +119,33 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
     });
 
     console.log(`🔎 Após filtrar por ${flowDirection} em ${selectedCode}: ${filteredFlows.length} fluxos encontrados`);
+    
+    // Calcular o máximo real de pessoas nos flows filtrados
+    const maxCountInFiltered = filteredFlows.length > 0 
+      ? Math.max(...filteredFlows.map(f => f.properties.count))
+      : 0;
+    
+    // Aplicar filtros adicionais
+    // 1. Filtro de fluxos internos
+    if (!showInternal) {
+      filteredFlows = filteredFlows.filter(f => 
+        f.properties.origin_code !== f.properties.dest_code
+      );
+    }
+    
+    // 2. Filtro de mínimo de pessoas (ignorar se estiver no valor máximo)
+    // Considera "no máximo" se for >= 95% do valor máximo real
+    const isAtMaximum = minCount >= (maxCountInFiltered * 0.95);
+    if (minCount > 0 && !isAtMaximum) {
+      filteredFlows = filteredFlows.filter(f => f.properties.count >= minCount);
+    }
+    
+    // 3. Ordenar por contagem e limitar quantidade
+    filteredFlows = filteredFlows
+      .sort((a, b) => b.properties.count - a.properties.count)
+      .slice(0, maxFlows);
+    
+    console.log(`📊 Após aplicar filtros (min: ${minCount}${isAtMaximum ? ' [no máximo, ignorado]' : ''}, max: ${maxFlows}, internal: ${showInternal}): ${filteredFlows.length} fluxos`);
 
     if (filteredFlows.length === 0) {
       console.warn(`⚠️ Nenhum fluxo encontrado ${flowDirection === 'incoming' ? 'chegando em' : 'saindo de'}:`, selectedCode);
@@ -163,9 +184,36 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
         count: filteredFlows.length
       }
     };
-  }, [selectedCode, flowsData, flowDirection, dataSource]);
+  }, [selectedCode, flowsData, flowDirection, dataSource, maxFlows, minCount, showInternal]);
 
-  if (loading || !flowsGeoJSON || !stats || !isVisible || !selectedCode) {
+  // Contar total de flows disponíveis e máximo de pessoas (antes dos filtros)
+  const { totalAvailableFlows, maxPeopleCount } = useMemo(() => {
+    if (!selectedCode || flowsData.length === 0) return { totalAvailableFlows: 0, maxPeopleCount: 0 };
+    
+    const relevantFlows = flowsData.filter(feature => {
+      if (flowDirection === 'incoming') {
+        return feature.properties.dest_code === selectedCode;
+      } else {
+        return feature.properties.origin_code === selectedCode;
+      }
+    });
+    
+    const maxCount = relevantFlows.length > 0 
+      ? Math.max(...relevantFlows.map(f => f.properties.count))
+      : 0;
+    
+    return {
+      totalAvailableFlows: relevantFlows.length,
+      maxPeopleCount: maxCount
+    };
+  }, [selectedCode, flowsData, flowDirection]);
+
+  if (loading || !isVisible || !selectedCode) {
+    return null;
+  }
+
+  // Se não houver dados após os filtros, não renderizar
+  if (!flowsGeoJSON || !stats) {
     return null;
   }
 
@@ -182,6 +230,21 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
 
   return (
     <>
+      {/* Filtros de Fluxos */}
+      <FlowFilters
+        maxFlows={maxFlows}
+        onMaxFlowsChange={setMaxFlows}
+        minCount={minCount}
+        onMinCountChange={setMinCount}
+        showInternal={showInternal}
+        onShowInternalChange={setShowInternal}
+        totalAvailable={totalAvailableFlows}
+        totalFiltered={stats?.count || 0}
+        maxPeopleCount={maxPeopleCount}
+        isMinimized={isFiltersMinimized}
+        onToggleMinimize={() => setIsFiltersMinimized(!isFiltersMinimized)}
+      />
+
       {/* Legenda de Intensidade - Design Melhorado */}
       <div className="absolute bottom-10 right-4 bg-white/98 backdrop-blur-md rounded-xl shadow-2xl border border-gray-200 p-3 z-10" style={{ width: isIntensityMinimized ? '200px' : '220px' }}>
         <div className="flex items-center gap-2">
