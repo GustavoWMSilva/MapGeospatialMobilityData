@@ -1,6 +1,6 @@
-# Python files
+# Python files\*
 
-\*.py
+\.py
 **pycache**/
 venv/
 requirements.txt
@@ -9,20 +9,26 @@ scripts/
 
 # Data files - Ignorar /data/ da raiz mas permitir /public/data/
 
-/data/
-\*.parquet
+/
+data/
+\*\.parquet
 
-# Permitir CSVs do public/data/lookup/
+#
 
-_.csv
-!public/data/lookup/_.csv
+Permitir CSVs do public/data/lookup/
+
+- \_csv
+  !public/data/lookup/\*\_csv
 
 # Config files
 
 config.yaml
-\*.cjs
+\*\.cjs
 
 # Documentation
+
+\*\.md
+Documentation
 
 \*.md
 !README.md
