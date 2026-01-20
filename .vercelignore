@@ -1,25 +1,22 @@
 # Python files
-
-\*.py
+*.py
 **pycache**/
 venv/
 requirements.txt
 api/
 scripts/
 
-# Data files
-
-data/
-_.parquet
-_.csv
-\*.geojson
+# Data files - Ignorar /data/ da raiz mas permitir /public/data/
+/data/
+*.parquet
+# Permitir CSVs do public/data/lookup/
+*.csv
+!public/data/lookup/*.csv
 
 # Config files
-
 config.yaml
-\*.cjs
+*.cjs
 
 # Documentation
-
-\*.md
+*.md
 !README.md
