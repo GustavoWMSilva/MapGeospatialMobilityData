@@ -1,5 +1,6 @@
 # Python files
-*.py
+
+\*.py
 **pycache**/
 venv/
 requirements.txt
@@ -7,16 +8,21 @@ api/
 scripts/
 
 # Data files - Ignorar /data/ da raiz mas permitir /public/data/
+
 /data/
-*.parquet
-# IMPORTANTE: Exceções devem vir ANTES das regras bloqueadoras
-!public/data/lookup/*.csv
-*.csv
+\*.parquet
+
+# Permitir CSVs do public/data/lookup/
+
+_.csv
+!public/data/lookup/_.csv
 
 # Config files
+
 config.yaml
-*.cjs
+\*.cjs
 
 # Documentation
-*.md
+
+\*.md
 !README.md

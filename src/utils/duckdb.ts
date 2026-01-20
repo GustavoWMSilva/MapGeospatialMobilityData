@@ -1,6 +1,6 @@
 /**
  * DuckDB-WASM Client
- * Carrega Parquet direto do GitHub Releases e executa queries SQL no navegador
+ * Carrega Parquet direto do jsdelivr CDN e executa queries SQL no navegador
  */
 import * as duckdb from '@duckdb/duckdb-wasm';
 
@@ -8,6 +8,19 @@ let db: duckdb.AsyncDuckDB | null = null;
 let conn: duckdb.AsyncDuckDBConnection | null = null;
 let initialized = false;
 let initPromise: Promise<void> | null = null;
+
+/**
+ * Verifica se o arquivo está disponível no jsdelivr
+ */
+async function isJsdelivrReady(): Promise<boolean> {
+  try {
+    const url = 'https://cdn.jsdelivr.net/gh/GustavoWMSilva/MapGeospatialMobilityData@main/ODWP01EW_MSOA.parquet';
+    const response = await fetch(url, { method: 'HEAD' });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Inicializa DuckDB-WASM (apenas uma vez)
@@ -51,24 +64,20 @@ export async function initDuckDB(): Promise<void> {
       // Conectar
       conn = await db.connect();
       
-      // Determinar origem do arquivo
-      const isLocalhost = window.location.hostname === 'localhost' || 
-                          window.location.hostname === '127.0.0.1';
-
+      // Verificar se jsdelivr está disponível
       let parquetUrl: string;
+      const jsdelivrReady = await isJsdelivrReady();
       
-      if (isLocalhost) {
-        // Localhost: usar arquivo local
-        parquetUrl = '/data/ODWP01EW_MSOA.parquet';
-        console.log('📁 Modo local - carregando de:', parquetUrl);
-      } else {
-        // Produção: usar jsdelivr CDN (solução definitiva)
+      if (jsdelivrReady) {
         parquetUrl = 'https://cdn.jsdelivr.net/gh/GustavoWMSilva/MapGeospatialMobilityData@main/ODWP01EW_MSOA.parquet';
-        console.log('🌐 Modo produção - carregando do jsdelivr CDN');
+        console.log('✅ jsdelivr CDN disponível!');
+      } else {
+        parquetUrl = '/data/ODWP01EW_MSOA.parquet';
+        console.log('⚠️ jsdelivr ainda não disponível, usando fallback local');
       }
 
       // Baixar e registrar arquivo Parquet
-      console.log('📥 Baixando Parquet...');
+      console.log('📥 Baixando Parquet de:', parquetUrl);
       const response = await fetch(parquetUrl);
       
       if (!response.ok) {
@@ -162,9 +171,7 @@ export async function getMSOAFlows(
  */
 export async function getLTLAFlows(
   _areaCode: string,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _direction: 'incoming' | 'outgoing' = 'incoming',
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _limit: number = 500
 ): Promise<FlowResult[]> {
   await initDuckDB();
