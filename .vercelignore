@@ -1,6 +1,5 @@
 # Python files
-
-\*.py
+*.py
 **pycache**/
 venv/
 requirements.txt
@@ -8,18 +7,19 @@ api/
 scripts/
 
 # Data files
-
-data/
-_.parquet
-_.csv
-\*.geojson
+/data/
+*.parquet
+# Permitir CSVs minificados do public/data/lookup/
+*.csv
+!public/data/lookup/*.csv
+# Permitir GeoJSONs necessários
+*.geojson
+!public/*.geojson
 
 # Config files
-
 config.yaml
-\*.cjs
+*.cjs
 
 # Documentation
-
-\*.md
+*.md
 !README.md
