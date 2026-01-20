@@ -9,9 +9,9 @@ scripts/
 # Data files - Ignorar /data/ da raiz mas permitir /public/data/
 /data/
 *.parquet
-# Permitir CSVs do public/data/lookup/
-*.csv
+# IMPORTANTE: Exceções devem vir ANTES das regras bloqueadoras
 !public/data/lookup/*.csv
+*.csv
 
 # Config files
 config.yaml

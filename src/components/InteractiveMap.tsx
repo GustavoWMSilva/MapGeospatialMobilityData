@@ -99,12 +99,12 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           fillOpacity={0.05}
         />
         
-        {/* LTLA Boundaries - Administrative Boundaries */}
-        {showLTLAs && (
+        {/* LTLA Boundaries - Temporariamente desabilitado (requer Stadia Maps API key) */}
+        {/* {showLTLAs && (
           <LTLABoundaries 
             selectedLTLA={selectedLTLA}
           />
-        )}
+        )} */}
         
         {/* LTLA Flows Visualization - renderizar ANTES dos pontos */}
         {showLTLAs && selectedLTLA && (
