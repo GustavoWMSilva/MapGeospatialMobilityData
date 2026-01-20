@@ -1,29 +1,28 @@
-# Python files\*
+# Python files
 
-\.py
+\*.py
 **pycache**/
 venv/
 requirements.txt
 api/
 scripts/
 
-# Data files - Ignorar /data/ da raiz mas permitir /public/data/
+# Data files
 
-/
-data/
-\*\.parquet
+/data/
+\*.parquet
 
-#
+# CSV files - exceções DEVEM vir ANTES das regras globais
 
-Permitir CSVs do public/data/lookup/
-
-- \_csv
-  !public/data/lookup/\*\_csv
+!public/data/lookup/areas_centroids.csv
+!public/data/lookup/ltla_centroids.csv
+!public/data/lookup/ltla_lookup.csv
+\*.csv
 
 # Config files
 
 config.yaml
-\*\.cjs
+\*.cjs
 
 # Documentation
 
