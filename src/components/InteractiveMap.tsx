@@ -7,7 +7,7 @@ import { CityBoundaries } from './CityBoundaries';
 import { AllAreaPoints } from './AllAreaPoints';
 import { LTLAPoints } from './LTLAPoints';
 import { FlowsVisualization } from './FlowsVisualization';
-import { LTLABoundaries } from './LTLABoundaries';
+// import { LTLABoundaries } from './LTLABoundaries'; // Temporariamente desabilitado
 
 interface InteractiveMapProps {
   mapRef: React.RefObject<MapRef | null>;
