@@ -72,9 +72,9 @@ export async function loadFlows(
   limit: number = 2000,
   dataSource: 'msoa' | 'ltla' = 'msoa'
 ): Promise<{ type: string; features: unknown[] }> {
-  // Se for LTLA, usar GeoJSON estático (por enquanto)
+  // Se for LTLA, agregar MSOA dinamicamente
   if (dataSource === 'ltla') {
-    return loadLTLAFlowsStatic();
+    return loadLTLAFlowsAggregated(areaCode, direction, limit);
   }
 
   // MSOA: escolher fonte baseado no ambiente
@@ -172,17 +172,195 @@ async function loadFlowsFromDuckDB(
 }
 
 /**
- * Carregar flows LTLA do GeoJSON estático
+ * Carregar e cachear o lookup MSOA→LTLA
  */
-async function loadLTLAFlowsStatic(): Promise<{ type: string; features: unknown[] }> {
+let ltlaLookupCache: Map<string, string> | null = null;
+
+async function loadLTLALookup(): Promise<Map<string, string>> {
+  if (ltlaLookupCache) {
+    return ltlaLookupCache;
+  }
+
   try {
-    console.log(`📄 Carregando LTLA do GeoJSON estático...`);
-    const response = await fetch('/ltla_flows_complete.geojson');
-    const data = await response.json();
-    console.log(`✅ Carregado GeoJSON com ${data.features?.length || 0} flows`);
-    return data;
+    const response = await fetch('/data/lookup/ltla_lookup.csv');
+    const text = await response.text();
+    const lines = text.split('\n');
+    
+    const lookup = new Map<string, string>();
+    
+    // Pular header
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      const parts = line.split(',');
+      if (parts.length >= 3) {
+        const msoaCode = parts[0].replace(/"/g, '');
+        const ltlaCode = parts[2].replace(/"/g, '');
+        lookup.set(msoaCode, ltlaCode);
+      }
+    }
+    
+    ltlaLookupCache = lookup;
+    console.log(`✅ Carregado lookup MSOA→LTLA: ${lookup.size} entradas`);
+    return lookup;
   } catch (error) {
-    console.error('❌ Erro ao carregar LTLA:', error);
+    console.error('❌ Erro ao carregar LTLA lookup:', error);
+    throw error;
+  }
+}
+
+/**
+ * Carregar coordenadas LTLA
+ */
+let ltlaCoordsCache: Coordinates | null = null;
+
+async function loadLTLACoordinates(): Promise<Coordinates> {
+  if (ltlaCoordsCache) {
+    return ltlaCoordsCache;
+  }
+
+  try {
+    const response = await fetch('/data/lookup/ltla_centroids.csv');
+    const text = await response.text();
+    const lines = text.split('\n');
+    
+    const coords: Coordinates = {};
+    
+    // Pular header
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      const parts = line.split(',');
+      if (parts.length >= 4) {
+        const code = parts[0].replace(/"/g, '');
+        const name = parts[1].replace(/"/g, '');
+        const lat = parseFloat(parts[2]);
+        const lon = parseFloat(parts[3]);
+        
+        coords[code] = { lat, lon, name };
+      }
+    }
+    
+    ltlaCoordsCache = coords;
+    console.log(`✅ Carregadas ${Object.keys(coords).length} coordenadas LTLA`);
+    return coords;
+  } catch (error) {
+    console.error('❌ Erro ao carregar coordenadas LTLA:', error);
+    throw error;
+  }
+}
+
+/**
+ * Carregar flows LTLA agregando MSOA dinamicamente
+ */
+async function loadLTLAFlowsAggregated(
+  ltlaCode: string,
+  direction: 'incoming' | 'outgoing',
+  limit: number
+): Promise<{ type: string; features: unknown[] }> {
+  try {
+    console.log(`📊 Agregando MSOA→LTLA para ${ltlaCode}...`);
+    
+    // Carregar lookup e coordenadas em paralelo
+    const [lookup, ltlaCoords] = await Promise.all([
+      loadLTLALookup(),
+      loadLTLACoordinates()
+    ]);
+    
+    // Encontrar todos os MSOAs que pertencem a este LTLA
+    const msoasInLTLA: string[] = [];
+    lookup.forEach((ltla, msoa) => {
+      if (ltla === ltlaCode) {
+        msoasInLTLA.push(msoa);
+      }
+    });
+    
+    console.log(`📍 Encontrados ${msoasInLTLA.length} MSOAs no LTLA ${ltlaCode}`);
+    
+    if (msoasInLTLA.length === 0) {
+      return { type: 'FeatureCollection', features: [] };
+    }
+    
+    // Carregar flows de TODOS os MSOAs neste LTLA
+    const allFlows: { origin_code: string; dest_code: string; count: number }[] = [];
+    
+    // Carregar em lotes pequenos para não sobrecarregar
+    const batchSize = 10;
+    for (let i = 0; i < msoasInLTLA.length; i += batchSize) {
+      const batch = msoasInLTLA.slice(i, i + batchSize);
+      const batchPromises = batch.map(msoaCode => 
+        getMSOAFlows(msoaCode, direction, 50000).catch(err => {
+          console.warn(`⚠️ Erro ao carregar ${msoaCode}:`, err);
+          return [];
+        })
+      );
+      
+      const batchResults = await Promise.all(batchPromises);
+      batchResults.forEach(flows => allFlows.push(...flows));
+      
+      console.log(`⏳ Processados ${Math.min(i + batchSize, msoasInLTLA.length)}/${msoasInLTLA.length} MSOAs`);
+    }
+    
+    console.log(`📦 Total de flows MSOA carregados: ${allFlows.length}`);
+    
+    // Agregar por LTLA
+    const ltlaAggregation = new Map<string, number>();
+    
+    allFlows.forEach(flow => {
+      const originLTLA = lookup.get(flow.origin_code);
+      const destLTLA = lookup.get(flow.dest_code);
+      
+      if (!originLTLA || !destLTLA) return;
+      
+      const key = `${originLTLA}|${destLTLA}`;
+      ltlaAggregation.set(key, (ltlaAggregation.get(key) || 0) + flow.count);
+    });
+    
+    console.log(`🔗 Agregações LTLA criadas: ${ltlaAggregation.size}`);
+    
+    // Converter para GeoJSON
+    const features: unknown[] = [];
+    ltlaAggregation.forEach((count, key) => {
+      const [originLTLA, destLTLA] = key.split('|');
+      
+      const originCoord = ltlaCoords[originLTLA];
+      const destCoord = ltlaCoords[destLTLA];
+      
+      if (!originCoord || !destCoord) return;
+      
+      features.push({
+        type: 'Feature',
+        properties: {
+          origin_code: originLTLA,
+          origin_name: originCoord.name || originLTLA,
+          dest_code: destLTLA,
+          dest_name: destCoord.name || destLTLA,
+          count: count,
+        },
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [originCoord.lon, originCoord.lat],
+            [destCoord.lon, destCoord.lat],
+          ],
+        },
+      });
+    });
+    
+    // Ordenar por contagem e limitar
+    features.sort((a: any, b: any) => b.properties.count - a.properties.count);
+    const limitedFeatures = features.slice(0, limit);
+    
+    console.log(`✅ Retornando ${limitedFeatures.length} flows LTLA agregados`);
+    
+    return {
+      type: 'FeatureCollection',
+      features: limitedFeatures,
+    };
+  } catch (error) {
+    console.error('❌ Erro ao agregar LTLA:', error);
     throw error;
   }
 }
