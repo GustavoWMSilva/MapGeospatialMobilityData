@@ -102,8 +102,8 @@ export default function App() {
       
       // Se clicou em um boundary MSOA
       if (feature.layer.id === 'msoa-boundaries-clickable') {
-        const msoaCode = String(feature.properties.msoa_code || feature.properties.code || '');
-        const msoaName = String(feature.properties.name || '');
+        const msoaCode = String(feature.properties.MSOA21CD || feature.properties.msoa_code || feature.properties.code || '');
+        const msoaName = String(feature.properties.MSOA21NM || feature.properties.name || '');
         console.log('Boundary MSOA clicado:', msoaName, msoaCode);
         selectArea(msoaCode);
         setSelectedLTLA(null); // Limpa seleção LTLA
