@@ -41,6 +41,10 @@ data/interim/*.parquet
 data/processed/all-flows.geojson
 public/flows-all.geojson
 
+# Allow specific boundary GeoJSON files (needed for map)
+!public/data/lookup/boundaries.geojson
+!public/data/lookup/ltla_boundaries.geojson
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

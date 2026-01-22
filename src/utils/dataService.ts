@@ -4,6 +4,7 @@
  * - Produção: DuckDB-WASM + GitHub Releases
  */
 import { getMSOAFlows } from './duckdb';
+import { cacheService } from './cacheService';
 
 interface Coordinates {
   [code: string]: {
@@ -32,6 +33,16 @@ async function loadCoordinates(): Promise<Coordinates> {
   }
 
   try {
+    // Tentar buscar do cache IndexedDB primeiro
+    const cacheKey = 'areas_centroids';
+    const cached = await cacheService.get(cacheKey) as Coordinates | null;
+    if (cached) {
+      coordinatesCache = cached;
+      console.log(`Coordenadas carregadas do cache (${Object.keys(cached).length} áreas)`);
+      return cached;
+    }
+
+    // Se não tiver no cache, fazer fetch
     const response = await fetch('/data/lookup/areas_centroids.csv');
     const text = await response.text();
     const lines = text.split('\n');
@@ -54,11 +65,13 @@ async function loadCoordinates(): Promise<Coordinates> {
       }
     }
     
+    // Salvar no cache
+    await cacheService.set(cacheKey, coords);
     coordinatesCache = coords;
-    console.log(`✅ Carregadas ${Object.keys(coords).length} coordenadas`);
+    console.log(`Carregadas ${Object.keys(coords).length} coordenadas`);
     return coords;
   } catch (error) {
-    console.error('❌ Erro ao carregar coordenadas:', error);
+    console.error('Erro ao carregar coordenadas:', error);
     throw error;
   }
 }
@@ -103,10 +116,10 @@ async function loadFlowsFromAPI(
     }
     
     const data = await response.json();
-    console.log(`✅ Carregados ${data.features?.length || 0} flows da API`);
+    console.log(`Carregados ${data.features?.length || 0} flows da API`);
     return data;
   } catch (error) {
-    console.error('❌ Erro ao carregar da API:', error);
+    console.error('Erro ao carregar da API:', error);
     // Fallback para DuckDB se API falhar
     return loadFlowsFromDuckDB(areaCode, direction as 'incoming' | 'outgoing', limit);
   }
@@ -159,14 +172,14 @@ async function loadFlowsFromDuckDB(
         };
       });
     
-    console.log(`✅ Criados ${features.length} features GeoJSON`);
+    console.log(`Criados ${features.length} features GeoJSON`);
     
     return {
       type: 'FeatureCollection',
-      features,
+      features
     };
   } catch (error) {
-    console.error('❌ Erro ao carregar com DuckDB:', error);
+    console.error('Erro ao carregar com DuckDB:', error);
     throw error;
   }
 }
@@ -176,15 +189,22 @@ async function loadFlowsFromDuckDB(
  */
 let ltlaLookupCache: Map<string, string> | null = null;
 
-// Cache de flows agregados
-const flowsCache = new Map<string, { type: string; features: unknown[] }>();
-
 async function loadLTLALookup(): Promise<Map<string, string>> {
   if (ltlaLookupCache) {
     return ltlaLookupCache;
   }
 
   try {
+    // Tentar buscar do cache IndexedDB primeiro
+    const cacheKey = 'ltla_lookup';
+    const cached = await cacheService.get(cacheKey) as Record<string, string> | null;
+    if (cached) {
+      ltlaLookupCache = new Map(Object.entries(cached));
+      console.log(`Lookup MSOA→LTLA carregado do cache (${ltlaLookupCache.size} entradas)`);
+      return ltlaLookupCache;
+    }
+
+    // Se não tiver no cache, fazer fetch
     const response = await fetch('/data/lookup/ltla_lookup.csv');
     const text = await response.text();
     const lines = text.split('\n');
@@ -204,11 +224,15 @@ async function loadLTLALookup(): Promise<Map<string, string>> {
       }
     }
     
+    // Salvar no cache (converter Map para objeto)
+    const lookupObj = Object.fromEntries(lookup);
+    await cacheService.set(cacheKey, lookupObj);
+    
     ltlaLookupCache = lookup;
-    console.log(`✅ Carregado lookup MSOA→LTLA: ${lookup.size} entradas`);
+    console.log(`Carregado lookup MSOA→LTLA: ${lookup.size} entradas`);
     return lookup;
   } catch (error) {
-    console.error('❌ Erro ao carregar LTLA lookup:', error);
+    console.error('Erro ao carregar LTLA lookup:', error);
     throw error;
   }
 }
@@ -224,6 +248,16 @@ async function loadLTLACoordinates(): Promise<Coordinates> {
   }
 
   try {
+    // Tentar buscar do cache IndexedDB primeiro
+    const cacheKey = 'ltla_centroids';
+    const cached = await cacheService.get(cacheKey) as Coordinates | null;
+    if (cached) {
+      ltlaCoordsCache = cached;
+      console.log(`Coordenadas LTLA carregadas do cache (${Object.keys(cached).length} áreas)`);
+      return cached;
+    }
+
+    // Se não tiver no cache, fazer fetch
     const response = await fetch('/data/lookup/ltla_centroids.csv');
     const text = await response.text();
     const lines = text.split('\n');
@@ -268,11 +302,14 @@ async function loadLTLACoordinates(): Promise<Coordinates> {
       }
     }
     
+    // Salvar no cache
+    await cacheService.set(cacheKey, coords);
+    
     ltlaCoordsCache = coords;
-    console.log(`✅ Carregadas ${Object.keys(coords).length} coordenadas LTLA`);
+    console.log(`Carregadas ${Object.keys(coords).length} coordenadas LTLA`);
     return coords;
   } catch (error) {
-    console.error('❌ Erro ao carregar coordenadas LTLA:', error);
+    console.error('Erro ao carregar coordenadas LTLA:', error);
     throw error;
   }
 }
@@ -285,15 +322,16 @@ async function loadLTLAFlowsAggregated(
   direction: 'incoming' | 'outgoing',
   limit: number
 ): Promise<{ type: string; features: unknown[] }> {
-  // Verificar cache primeiro
-  const cacheKey = `${ltlaCode}|${direction}|${limit}`;
-  if (flowsCache.has(cacheKey)) {
-    console.log(`⚡ Usando flows do cache para ${ltlaCode}`);
-    return flowsCache.get(cacheKey)!;
+  // Verificar cache IndexedDB primeiro
+  const cacheKey = `ltla_flows:${ltlaCode}|${direction}|${limit}`;
+  const cached = await cacheService.get(cacheKey) as { type: string; features: unknown[] } | null;
+  if (cached) {
+    console.log(`Flows LTLA carregados do cache para ${ltlaCode}`);
+    return cached;
   }
 
   try {
-    console.log(`📊 Agregando MSOA→LTLA para ${ltlaCode}...`);
+    console.log(`Agregando MSOA→LTLA para ${ltlaCode}...`);
     
     // Carregar lookup e coordenadas em paralelo
     const [lookup, ltlaCoords] = await Promise.all([
@@ -309,13 +347,13 @@ async function loadLTLAFlowsAggregated(
       }
     });
     
-    console.log(`📍 Encontrados ${msoasInLTLA.length} MSOAs no LTLA ${ltlaCode}`);
+    console.log(`Encontrados ${msoasInLTLA.length} MSOAs no LTLA ${ltlaCode}`);
     
     if (msoasInLTLA.length === 0) {
       return { type: 'FeatureCollection', features: [] };
     }
     
-    // ⚡ OTIMIZAÇÃO: Uma única query SQL em vez de múltiplas queries
+    // Otimização: Uma única query SQL em vez de múltiplas queries
     const { aggregateMSOAToLTLAFlows } = await import('./duckdb');
     const aggregatedFlows = await aggregateMSOAToLTLAFlows(
       msoasInLTLA,
@@ -324,7 +362,7 @@ async function loadLTLAFlowsAggregated(
       50000
     );
     
-    console.log(`🔗 Agregações LTLA criadas: ${aggregatedFlows.length}`);
+    console.log(`Agregações LTLA criadas: ${aggregatedFlows.length}`);
     
     // Converter para GeoJSON
     const features: unknown[] = [];
@@ -358,19 +396,19 @@ async function loadLTLAFlowsAggregated(
     features.sort((a: any, b: any) => b.properties.count - a.properties.count);
     const limitedFeatures = features.slice(0, limit);
     
-    console.log(`✅ Retornando ${limitedFeatures.length} flows LTLA agregados`);
+    console.log(`Retornando ${limitedFeatures.length} flows LTLA agregados`);
     
     const result = {
       type: 'FeatureCollection',
       features: limitedFeatures,
     };
 
-    // Salvar no cache
-    flowsCache.set(cacheKey, result);
+    // Salvar no cache IndexedDB
+    await cacheService.set(cacheKey, result);
     
     return result;
   } catch (error) {
-    console.error('❌ Erro ao agregar LTLA:', error);
+    console.error('Erro ao agregar LTLA:', error);
     throw error;
   }
 }

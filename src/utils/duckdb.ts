@@ -70,10 +70,10 @@ export async function initDuckDB(): Promise<void> {
       
       if (jsdelivrReady) {
         parquetUrl = 'https://cdn.jsdelivr.net/gh/GustavoWMSilva/MapGeospatialMobilityData@main/ODWP01EW_MSOA.parquet';
-        console.log('✅ jsdelivr CDN disponível!');
+        console.log('jsdelivr CDN disponível!');
       } else {
         parquetUrl = '/data/ODWP01EW_MSOA.parquet';
-        console.log('⚠️ jsdelivr ainda não disponível, usando fallback local');
+        console.log('jsdelivr ainda não disponível, usando fallback local');
       }
 
       // Baixar e registrar arquivo Parquet
@@ -87,11 +87,11 @@ export async function initDuckDB(): Promise<void> {
       const arrayBuffer = await response.arrayBuffer();
       const uint8Array = new Uint8Array(arrayBuffer);
       
-      console.log(`✅ Parquet baixado: ${(uint8Array.length / 1024 / 1024).toFixed(2)} MB`);
+      console.log(`Parquet baixado: ${(uint8Array.length / 1024 / 1024).toFixed(2)} MB`);
 
       // Registrar arquivo no DuckDB filesystem
       await db.registerFileBuffer('flows.parquet', uint8Array);
-      console.log('✅ Arquivo registrado no DuckDB filesystem');
+      console.log('Arquivo registrado no DuckDB filesystem');
 
       // Criar tabela a partir do arquivo registrado
       await conn.query(`
@@ -101,11 +101,11 @@ export async function initDuckDB(): Promise<void> {
 
       const count = await conn.query('SELECT COUNT(*) as total FROM flows');
       const total = count.toArray()[0].total;
-      console.log(`✅ DuckDB-WASM inicializado! ${total.toLocaleString()} registros carregados`);
+      console.log(`DuckDB-WASM inicializado! ${total.toLocaleString()} registros carregados`);
       
       initialized = true;
     } catch (error) {
-      console.error('❌ Erro ao inicializar DuckDB:', error);
+      console.error('Erro ao inicializar DuckDB:', error);
       initPromise = null;
       throw error;
     }
@@ -136,7 +136,7 @@ export async function getMSOAFlows(
 
   const filterCol = direction === 'incoming' ? 'dest_code' : 'origin_code';
 
-  console.log(`🔍 Carregando ${limit} flows ${direction} para ${areaCode}...`);
+  console.log(`Carregando ${limit} flows ${direction} para ${areaCode}...`);
 
   try {
     // Query SQL na tabela já carregada em memória
@@ -158,10 +158,10 @@ export async function getMSOAFlows(
       count: row.count,
     }));
 
-    console.log(`✅ Carregados ${data.length} flows`);
+    console.log(`Carregados ${data.length} flows`);
     return data;
   } catch (error) {
-    console.error('❌ Erro ao carregar flows:', error);
+    console.error('Erro ao carregar flows:', error);
     throw error;
   }
 }
@@ -206,7 +206,7 @@ export async function aggregateMSOAToLTLAFlows(
     const result = await conn.query(query);
     const flows = result.toArray();
 
-    console.log(`✅ Query retornou ${flows.length} flows MSOA`);
+    console.log(`Query retornou ${flows.length} flows MSOA`);
 
     // Agregar por LTLA em memória (rápido)
     const ltlaAggregation = new Map<string, number>();
@@ -229,11 +229,11 @@ export async function aggregateMSOAToLTLAFlows(
       })
       .sort((a, b) => b.count - a.count);
 
-    console.log(`🔗 Agregados ${aggregated.length} flows LTLA únicos`);
+    console.log(`Agregados ${aggregated.length} flows LTLA únicos`);
 
     return aggregated;
   } catch (error) {
-    console.error('❌ Erro ao agregar flows:', error);
+    console.error('Erro ao agregar flows:', error);
     throw error;
   }
 }
@@ -253,7 +253,7 @@ export async function getLTLAFlows(
   }
 
   // TODO: Implementar quando tivermos lookup MSOA->LTLA no GitHub
-  console.warn('⚠️ LTLA flows ainda não implementado com DuckDB-WASM');
+  console.warn('LTLA flows ainda não implementado com DuckDB-WASM');
   return [];
 }
 
@@ -271,7 +271,7 @@ export async function executeQuery(query: string): Promise<unknown[]> {
     const result = await conn.query(query);
     return result.toArray();
   } catch (error) {
-    console.error('❌ Erro ao executar query:', error);
+    console.error('Erro ao executar query:', error);
     throw error;
   }
 }
@@ -290,5 +290,5 @@ export async function closeDuckDB(): Promise<void> {
   }
   initialized = false;
   initPromise = null;
-  console.log('🔒 DuckDB fechado');
+  console.log('DuckDB fechado');
 }

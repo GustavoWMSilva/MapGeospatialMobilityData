@@ -19,6 +19,12 @@ scripts/
 !public/data/lookup/ltla_lookup.csv
 \*.csv
 
+# GeoJSON files - permitir boundaries necessários para o mapa
+
+!public/data/lookup/boundaries.geojson
+!public/data/lookup/ltla_boundaries.geojson
+\*.geojson
+
 # Config files
 
 config.yaml

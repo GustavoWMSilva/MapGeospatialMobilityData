@@ -77,7 +77,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           'ltla-points-layer',
           'ltla-points-selected',
           'ltla-heatmap-circles',
-          'all-area-points-layer'
+          'all-area-points-layer',
+          'ltla-boundaries-clickable',  // Boundaries LTLA clicáveis
+          'msoa-boundaries-clickable'   // Boundaries MSOA clicáveis
         ]}
         cursor="pointer"
       >
@@ -90,13 +92,15 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           pointSize={3}
         />
         
-        {/* City Boundaries - Bordas das áreas/cidades */}
+        {/* City Boundaries - Bordas das áreas/cidades - varia entre LTLA e MSOA */}
         <CityBoundaries 
+          key={showLTLAs ? 'ltla' : 'msoa'}  // Forçar re-montagem ao mudar
           isVisible={true}
-          borderColor="#4A90E2"
+          borderColor="#FF6B6B"
           borderWidth={1.5}
-          fillColor="#4A90E2"
-          fillOpacity={0.05}
+          fillColor="#FF6B6B"
+          fillOpacity={0}
+          dataSource={showLTLAs ? 'ltla' : 'msoa'}  // Alterar baseado no modo
         />
         
         {/* LTLA Boundaries - Temporariamente desabilitado (requer Stadia Maps API key) */}

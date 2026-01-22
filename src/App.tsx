@@ -6,6 +6,7 @@ import type { MapRef } from '@vis.gl/react-maplibre';
 import { InteractiveMap } from './components/InteractiveMap';
 import { AreaSelectionControls } from './components/AreaSelectionControls';
 import { LTLASelector } from './components/LTLASelector';
+import { CacheDebugPanel } from './components/CacheDebugPanel';
 
 // Hooks
 import { useSelectedArea } from './hooks/useSelectedArea';
@@ -73,7 +74,17 @@ export default function App() {
           feature.layer.id === 'ltla-points-selected') {
         const ltlaCode = String(feature.properties.code || '');
         const ltlaName = String(feature.properties.name || '');
-        console.log('✅ Distrito LTLA selecionado:', ltlaName, ltlaCode);
+        console.log('Distrito LTLA selecionado:', ltlaName, ltlaCode);
+        setSelectedLTLA(ltlaCode);
+        selectArea(null); // Limpa seleção MSOA
+        return;
+      }
+      
+      // Se clicou em um boundary LTLA
+      if (feature.layer.id === 'ltla-boundaries-clickable') {
+        const ltlaCode = String(feature.properties.ltla_code || feature.properties.code || '');
+        const ltlaName = String(feature.properties.ltla_name || feature.properties.name || '');
+        console.log('Boundary LTLA clicado:', ltlaName, ltlaCode);
         setSelectedLTLA(ltlaCode);
         selectArea(null); // Limpa seleção MSOA
         return;
@@ -83,7 +94,17 @@ export default function App() {
       if (feature.layer.id === 'all-area-points-layer') {
         const msoaCode = String(feature.properties.code || '');
         const msoaName = String(feature.properties.name || '');
-        console.log('✅ Área MSOA selecionada:', msoaName, msoaCode);
+        console.log('Área MSOA selecionada:', msoaName, msoaCode);
+        selectArea(msoaCode);
+        setSelectedLTLA(null); // Limpa seleção LTLA
+        return;
+      }
+      
+      // Se clicou em um boundary MSOA
+      if (feature.layer.id === 'msoa-boundaries-clickable') {
+        const msoaCode = String(feature.properties.msoa_code || feature.properties.code || '');
+        const msoaName = String(feature.properties.name || '');
+        console.log('Boundary MSOA clicado:', msoaName, msoaCode);
         selectArea(msoaCode);
         setSelectedLTLA(null); // Limpa seleção LTLA
         return;
@@ -270,7 +291,8 @@ export default function App() {
         )}
       </div>
       
-
+      {/* Painel de Debug do Cache */}
+      <CacheDebugPanel />
     </main>
   );
 }

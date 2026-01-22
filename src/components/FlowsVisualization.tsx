@@ -50,7 +50,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   // Resetar minCount quando mudar de área selecionada (ANTES de carregar dados)
   useEffect(() => {
     if (selectedCode !== previousSelectedCode.current) {
-      console.log(`🔄 Nova área selecionada (${previousSelectedCode.current} → ${selectedCode}), resetando minCount para 0`);
+      console.log(`Nova área selecionada (${previousSelectedCode.current} → ${selectedCode}), resetando minCount para 0`);
       setMinCount(0); // Sempre resetar para 0 ao mudar de área
       previousSelectedCode.current = selectedCode;
     }
@@ -65,7 +65,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       return;
     }
 
-    console.log(`🎯 FlowsVisualization useEffect disparado - dataSource: ${dataSource}, selectedCode: ${selectedCode}`);
+    console.log(`FlowsVisualization useEffect disparado - dataSource: ${dataSource}, selectedCode: ${selectedCode}`);
     
     if (!selectedCode) {
       setFlowsData([]);
@@ -79,7 +79,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
     
     const loadData = async () => {
       try {
-        console.log(`🔄 Carregando flows para ${selectedCode} (${dataSource})...`);
+        console.log(`Carregando flows para ${selectedCode} (${dataSource})...`);
         
         // dataService escolhe automaticamente a melhor fonte
         const data = await loadFlows(
@@ -89,7 +89,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
           dataSource
         );
         
-        console.log(`✅ Fluxos carregados:`, data.features?.length || 0);
+        console.log(`Fluxos carregados:`, data.features?.length || 0);
         setFlowsData(data.features as FlowFeature[] || []);
         
         // Debug: mostrar alguns códigos de exemplo
@@ -99,10 +99,10 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
             sampleCodes.add(f.properties.origin_code);
             sampleCodes.add(f.properties.dest_code);
           });
-          console.log('📋 Exemplos de códigos nos dados:', Array.from(sampleCodes).slice(0, 10));
+          console.log('Exemplos de códigos nos dados:', Array.from(sampleCodes).slice(0, 10));
         }
       } catch (error) {
-        console.error(`❌ Erro ao carregar flows:`, error);
+        console.error(`Erro ao carregar flows:`, error);
         setFlowsData([]);
       } finally {
         setLoading(false);
@@ -115,16 +115,16 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
 
   // Filtrar fluxos baseado na direção e calcular estatísticas
   const { flowsGeoJSON, stats } = useMemo(() => {
-    console.log(`🔍 useMemo disparado - selectedCode: ${selectedCode}, flowsData.length: ${flowsData.length}, dataSource: ${dataSource}`);
+    console.log(`useMemo disparado - selectedCode: ${selectedCode}, flowsData.length: ${flowsData.length}, dataSource: ${dataSource}`);
     
     if (!selectedCode || flowsData.length === 0) {
-      console.log(`⚠️ Retornando null - selectedCode: ${selectedCode}, flowsData.length: ${flowsData.length}`);
+      console.log(`Retornando null - selectedCode: ${selectedCode}, flowsData.length: ${flowsData.length}`);
       return { flowsGeoJSON: null, stats: null };
     }
 
     // Debug: mostrar alguns códigos dos primeiros fluxos
     if (flowsData.length > 0) {
-      console.log(`📋 Primeiros 5 fluxos:`, flowsData.slice(0, 5).map(f => ({
+      console.log(`Primeiros 5 fluxos:`, flowsData.slice(0, 5).map(f => ({
         origin: f.properties.origin_code,
         dest: f.properties.dest_code,
         count: f.properties.count
@@ -142,7 +142,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       }
     });
 
-    console.log(`🔎 Após filtrar por ${flowDirection} em ${selectedCode}: ${filteredFlows.length} fluxos encontrados`);
+    console.log(`Após filtrar por ${flowDirection} em ${selectedCode}: ${filteredFlows.length} fluxos encontrados`);
     
     // Calcular o máximo real de pessoas nos flows filtrados
     const maxCountInFiltered = filteredFlows.length > 0 
@@ -169,16 +169,16 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       .sort((a, b) => b.properties.count - a.properties.count)
       .slice(0, maxFlows);
     
-    console.log(`📊 Após aplicar filtros (min: ${minCount}${isAtMaximum ? ' [no máximo, ignorado]' : ''}, max: ${maxFlows}, internal: ${showInternal}): ${filteredFlows.length} fluxos`);
+    console.log(`Após aplicar filtros (min: ${minCount}${isAtMaximum ? ' [no máximo, ignorado]' : ''}, max: ${maxFlows}, internal: ${showInternal}): ${filteredFlows.length} fluxos`);
 
     if (filteredFlows.length === 0) {
-      console.warn(`⚠️ Nenhum fluxo encontrado ${flowDirection === 'incoming' ? 'chegando em' : 'saindo de'}:`, selectedCode);
-      console.warn(`🔍 Verificando se o código existe nos dados...`);
+      console.warn(`Nenhum fluxo encontrado ${flowDirection === 'incoming' ? 'chegando em' : 'saindo de'}:`, selectedCode);
+      console.warn(`Verificando se o código existe nos dados...`);
       
       // Debug: verificar se o código existe em QUALQUER fluxo
       const existsAsOrigin = flowsData.some(f => f.properties.origin_code === selectedCode);
       const existsAsDest = flowsData.some(f => f.properties.dest_code === selectedCode);
-      console.log(`📊 Código ${selectedCode} - Existe como origem: ${existsAsOrigin}, como destino: ${existsAsDest}`);
+      console.log(`Código ${selectedCode} - Existe como origem: ${existsAsOrigin}, como destino: ${existsAsDest}`);
       
       return { flowsGeoJSON: null, stats: null, connectedPointsGeoJSON: null };
     }
@@ -190,10 +190,10 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
     const avgFlow = totalFlow / counts.length;
     
     const directionText = flowDirection === 'incoming' ? 'chegando em' : 'saindo de';
-    console.log(`✅ ${filteredFlows.length} fluxos ${directionText} ${selectedCode} (${dataSource.toUpperCase()})`);
-    console.log(`📊 Total de pessoas: ${totalFlow.toLocaleString()}`);
-    console.log(`📈 Fluxo máximo: ${maxFlow.toLocaleString()}`);
-    console.log(`📉 Fluxo mínimo: ${minFlow.toLocaleString()}`);
+    console.log(`${filteredFlows.length} fluxos ${directionText} ${selectedCode} (${dataSource.toUpperCase()})`);
+    console.log(`Total de pessoas: ${totalFlow.toLocaleString()}`);
+    console.log(`Fluxo máximo: ${maxFlow.toLocaleString()}`);
+    console.log(`Fluxo mínimo: ${minFlow.toLocaleString()}`);
 
     return {
       flowsGeoJSON: {
@@ -242,8 +242,8 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       ? Math.max(...topFlows.map(f => f.properties.count))
       : 0;
     
-    console.log(`📊 maxPeopleCount calculado para ${selectedCode}: ${maxCount} pessoas (maior fluxo após filtros)`);
-    console.log(`📊 Total antes dos filtros: ${totalBeforeFilters}, após filtros: ${topFlows.length}`);
+    console.log(`maxPeopleCount calculado para ${selectedCode}: ${maxCount} pessoas (maior fluxo após filtros)`);
+    console.log(`Total antes dos filtros: ${totalBeforeFilters}, após filtros: ${topFlows.length}`);
     
     return {
       totalAvailableFlows: totalBeforeFilters,
@@ -302,7 +302,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
             className="w-7 h-7 flex items-center justify-center rounded-lg bg-yellow-100 hover:bg-yellow-200 transition-colors text-amber-700 font-bold"
             title={isIntensityMinimized ? "Expandir" : "Minimizar"}
           >
-            {isIntensityMinimized ? '▼' : '▲'}
+            {isIntensityMinimized ? '▾' : '▴'}
           </button>
         </div>
         
@@ -352,7 +352,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
             className="w-7 h-7 flex items-center justify-center rounded-lg bg-purple-100 hover:bg-purple-200 transition-colors text-purple-700 font-bold"
             title={isStatsMinimized ? "Expandir" : "Minimizar"}
           >
-            {isStatsMinimized ? '▼' : '▲'}
+            {isStatsMinimized ? '▾' : '▴'}
           </button>
         </div>
         

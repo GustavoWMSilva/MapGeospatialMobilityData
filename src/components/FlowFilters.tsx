@@ -40,11 +40,11 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
 
   // Resetar minCount se o maxPeopleCount mudar drasticamente (nova área)
   useEffect(() => {
-    console.log(`🔄 FlowFilters: maxPeopleCount = ${maxPeopleCount}, minCount = ${minCount}`);
+    console.log(`FlowFilters: maxPeopleCount = ${maxPeopleCount}, minCount = ${minCount}`);
     
     // Se o minCount atual for maior que o novo máximo, resetar para 0
     if (minCount > maxPeopleCount && maxPeopleCount > 0) {
-      console.log(`🔄 FlowFilters: minCount (${minCount}) > maxPeopleCount (${maxPeopleCount}), resetando para 0`);
+      console.log(`FlowFilters: minCount (${minCount}) > maxPeopleCount (${maxPeopleCount}), resetando para 0`);
       onMinCountChange(0);
     }
     
@@ -56,7 +56,7 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
     const safeMax = Math.max(maxPeopleCount, 100);
     const safeValue = Math.max(0, Math.min(value, safeMax));
     
-    console.log(`🎚️ Slider minCount: ${value} → safeValue: ${safeValue} (max permitido: ${safeMax})`);
+    console.log(`Slider minCount: ${value} → safeValue: ${safeValue} (max permitido: ${safeMax})`);
     
     // Atualizar imediatamente (sem debounce)
     onMinCountChange(safeValue);
