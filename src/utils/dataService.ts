@@ -176,6 +176,9 @@ async function loadFlowsFromDuckDB(
  */
 let ltlaLookupCache: Map<string, string> | null = null;
 
+// Cache de flows agregados
+const flowsCache = new Map<string, { type: string; features: unknown[] }>();
+
 async function loadLTLALookup(): Promise<Map<string, string>> {
   if (ltlaLookupCache) {
     return ltlaLookupCache;
@@ -227,12 +230,34 @@ async function loadLTLACoordinates(): Promise<Coordinates> {
     
     const coords: Coordinates = {};
     
+    // Função para fazer parse correto de CSV com campos quoted
+    const parseCSVLine = (line: string): string[] => {
+      const result: string[] = [];
+      let current = '';
+      let insideQuotes = false;
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        
+        if (char === '"') {
+          insideQuotes = !insideQuotes;
+        } else if (char === ',' && !insideQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    };
+    
     // Pular header
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
       
-      const parts = line.split(',');
+      const parts = parseCSVLine(line);
       if (parts.length >= 4) {
         const code = parts[0].replace(/"/g, '');
         const name = parts[1].replace(/"/g, '');
@@ -260,6 +285,13 @@ async function loadLTLAFlowsAggregated(
   direction: 'incoming' | 'outgoing',
   limit: number
 ): Promise<{ type: string; features: unknown[] }> {
+  // Verificar cache primeiro
+  const cacheKey = `${ltlaCode}|${direction}|${limit}`;
+  if (flowsCache.has(cacheKey)) {
+    console.log(`⚡ Usando flows do cache para ${ltlaCode}`);
+    return flowsCache.get(cacheKey)!;
+  }
+
   try {
     console.log(`📊 Agregando MSOA→LTLA para ${ltlaCode}...`);
     
@@ -283,47 +315,20 @@ async function loadLTLAFlowsAggregated(
       return { type: 'FeatureCollection', features: [] };
     }
     
-    // Carregar flows de TODOS os MSOAs neste LTLA
-    const allFlows: { origin_code: string; dest_code: string; count: number }[] = [];
+    // ⚡ OTIMIZAÇÃO: Uma única query SQL em vez de múltiplas queries
+    const { aggregateMSOAToLTLAFlows } = await import('./duckdb');
+    const aggregatedFlows = await aggregateMSOAToLTLAFlows(
+      msoasInLTLA,
+      direction,
+      lookup,
+      50000
+    );
     
-    // Carregar em lotes pequenos para não sobrecarregar
-    const batchSize = 10;
-    for (let i = 0; i < msoasInLTLA.length; i += batchSize) {
-      const batch = msoasInLTLA.slice(i, i + batchSize);
-      const batchPromises = batch.map(msoaCode => 
-        getMSOAFlows(msoaCode, direction, 50000).catch(err => {
-          console.warn(`⚠️ Erro ao carregar ${msoaCode}:`, err);
-          return [];
-        })
-      );
-      
-      const batchResults = await Promise.all(batchPromises);
-      batchResults.forEach(flows => allFlows.push(...flows));
-      
-      console.log(`⏳ Processados ${Math.min(i + batchSize, msoasInLTLA.length)}/${msoasInLTLA.length} MSOAs`);
-    }
-    
-    console.log(`📦 Total de flows MSOA carregados: ${allFlows.length}`);
-    
-    // Agregar por LTLA
-    const ltlaAggregation = new Map<string, number>();
-    
-    allFlows.forEach(flow => {
-      const originLTLA = lookup.get(flow.origin_code);
-      const destLTLA = lookup.get(flow.dest_code);
-      
-      if (!originLTLA || !destLTLA) return;
-      
-      const key = `${originLTLA}|${destLTLA}`;
-      ltlaAggregation.set(key, (ltlaAggregation.get(key) || 0) + flow.count);
-    });
-    
-    console.log(`🔗 Agregações LTLA criadas: ${ltlaAggregation.size}`);
+    console.log(`🔗 Agregações LTLA criadas: ${aggregatedFlows.length}`);
     
     // Converter para GeoJSON
     const features: unknown[] = [];
-    ltlaAggregation.forEach((count, key) => {
-      const [originLTLA, destLTLA] = key.split('|');
+    aggregatedFlows.forEach(({ originLTLA, destLTLA, count }) => {
       
       const originCoord = ltlaCoords[originLTLA];
       const destCoord = ltlaCoords[destLTLA];
@@ -355,10 +360,15 @@ async function loadLTLAFlowsAggregated(
     
     console.log(`✅ Retornando ${limitedFeatures.length} flows LTLA agregados`);
     
-    return {
+    const result = {
       type: 'FeatureCollection',
       features: limitedFeatures,
     };
+
+    // Salvar no cache
+    flowsCache.set(cacheKey, result);
+    
+    return result;
   } catch (error) {
     console.error('❌ Erro ao agregar LTLA:', error);
     throw error;

@@ -1,12 +1,11 @@
 import * as React from 'react';
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import type { MapRef } from '@vis.gl/react-maplibre';
 
 // Components
 import { InteractiveMap } from './components/InteractiveMap';
 import { AreaSelectionControls } from './components/AreaSelectionControls';
 import { LTLASelector } from './components/LTLASelector';
-import { DuckDBTest } from './components/DuckDBTest';
 
 // Hooks
 import { useSelectedArea } from './hooks/useSelectedArea';
@@ -38,6 +37,21 @@ export default function App() {
   const [flowDirection, setFlowDirection] = React.useState<'incoming' | 'outgoing'>('incoming');
   const [isFullscreen, setIsFullscreen] = React.useState(false);
   const mapRef = useRef<MapRef>(null);
+
+  // Pré-inicializar DuckDB para evitar delay na primeira seleção
+  useEffect(() => {
+    const preinitDB = async () => {
+      try {
+        const { initDuckDB } = await import('./utils/duckdb');
+        console.log('⚡ Pré-inicializando DuckDB...');
+        await initDuckDB();
+        console.log('✅ DuckDB pré-inicializado!');
+      } catch (err) {
+        console.warn('⚠️ Erro ao pré-inicializar DuckDB:', err);
+      }
+    };
+    preinitDB();
+  }, []);
 
   // Hooks
   const { selectedAreaCode, selectArea, clearSelection } = useSelectedArea();
@@ -256,8 +270,7 @@ export default function App() {
         )}
       </div>
       
-      {/* DuckDB Test Component (remover após testar) */}
-      <DuckDBTest />
+
     </main>
   );
 }

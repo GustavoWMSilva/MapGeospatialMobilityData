@@ -167,6 +167,78 @@ export async function getMSOAFlows(
 }
 
 /**
+ * Agregar flows de MSOA para LTLA usando lookup (UMA ÚNICA QUERY OTIMIZADA)
+ */
+export async function aggregateMSOAToLTLAFlows(
+  msoaCodes: string[],
+  direction: 'incoming' | 'outgoing',
+  lookupMap: Map<string, string>, // MSOA -> LTLA
+  limit: number = 10000
+): Promise<{ originLTLA: string; destLTLA: string; count: number }[]> {
+  await initDuckDB();
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  if (msoaCodes.length === 0) {
+    return [];
+  }
+
+  const filterCol = direction === 'incoming' ? 'dest_code' : 'origin_code';
+  const msoaList = msoaCodes.map(code => `'${code}'`).join(',');
+
+  console.log(`🚀 Agregando ${msoaCodes.length} MSOAs para LTLA com query única...`);
+
+  try {
+    // Query única que pega todos os flows dos MSOAs de interesse
+    const query = `
+      SELECT 
+        origin_code,
+        dest_code,
+        count
+      FROM flows
+      WHERE ${filterCol} IN (${msoaList})
+      ORDER BY count DESC
+      LIMIT ${limit}
+    `;
+
+    const result = await conn.query(query);
+    const flows = result.toArray();
+
+    console.log(`✅ Query retornou ${flows.length} flows MSOA`);
+
+    // Agregar por LTLA em memória (rápido)
+    const ltlaAggregation = new Map<string, number>();
+
+    flows.forEach((row: any) => {
+      const originLTLA = lookupMap.get(row.origin_code);
+      const destLTLA = lookupMap.get(row.dest_code);
+
+      if (!originLTLA || !destLTLA) return;
+
+      const key = `${originLTLA}|${destLTLA}`;
+      ltlaAggregation.set(key, (ltlaAggregation.get(key) || 0) + row.count);
+    });
+
+    // Converter para array e ordenar
+    const aggregated = Array.from(ltlaAggregation.entries())
+      .map(([key, count]) => {
+        const [originLTLA, destLTLA] = key.split('|');
+        return { originLTLA, destLTLA, count };
+      })
+      .sort((a, b) => b.count - a.count);
+
+    console.log(`🔗 Agregados ${aggregated.length} flows LTLA únicos`);
+
+    return aggregated;
+  } catch (error) {
+    console.error('❌ Erro ao agregar flows:', error);
+    throw error;
+  }
+}
+
+/**
  * Obter flows LTLA agregados
  */
 export async function getLTLAFlows(

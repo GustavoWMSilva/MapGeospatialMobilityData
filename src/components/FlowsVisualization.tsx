@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Source, Layer } from '@vis.gl/react-maplibre';
 import { FlowFilters } from './FlowFilters';
 import { loadFlows } from '../utils/dataService';
@@ -42,8 +42,29 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   const [minCount, setMinCount] = useState(dataSource === 'ltla' ? 50 : 10);
   const [showInternal, setShowInternal] = useState(false);
 
+  // Usar useRef para evitar re-execuções duplicadas
+  const loadingRef = useRef(false);
+  const currentLoadRef = useRef<string>('');
+  const previousSelectedCode = useRef<string | null>(null);
+
+  // Resetar minCount quando mudar de área selecionada (ANTES de carregar dados)
+  useEffect(() => {
+    if (selectedCode !== previousSelectedCode.current) {
+      console.log(`🔄 Nova área selecionada (${previousSelectedCode.current} → ${selectedCode}), resetando minCount para 0`);
+      setMinCount(0); // Sempre resetar para 0 ao mudar de área
+      previousSelectedCode.current = selectedCode;
+    }
+  }, [selectedCode]);
+
   // Carregar dados usando dataService (DuckDB-WASM ou API)
   useEffect(() => {
+    const loadKey = `${dataSource}|${selectedCode}|${flowDirection}`;
+    
+    // Evitar carregamentos duplicados
+    if (loadingRef.current && currentLoadRef.current === loadKey) {
+      return;
+    }
+
     console.log(`🎯 FlowsVisualization useEffect disparado - dataSource: ${dataSource}, selectedCode: ${selectedCode}`);
     
     if (!selectedCode) {
@@ -52,6 +73,8 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       return;
     }
     
+    loadingRef.current = true;
+    currentLoadRef.current = loadKey;
     setLoading(true);
     
     const loadData = async () => {
@@ -83,6 +106,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
         setFlowsData([]);
       } finally {
         setLoading(false);
+        loadingRef.current = false;
       }
     };
     
@@ -186,11 +210,11 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
     };
   }, [selectedCode, flowsData, flowDirection, dataSource, maxFlows, minCount, showInternal]);
 
-  // Contar total de flows disponíveis e máximo de pessoas (antes dos filtros)
+  // Contar total de flows disponíveis e máximo de pessoas (APÓS aplicar filtros)
   const { totalAvailableFlows, maxPeopleCount } = useMemo(() => {
     if (!selectedCode || flowsData.length === 0) return { totalAvailableFlows: 0, maxPeopleCount: 0 };
     
-    const relevantFlows = flowsData.filter(feature => {
+    let relevantFlows = flowsData.filter(feature => {
       if (flowDirection === 'incoming') {
         return feature.properties.dest_code === selectedCode;
       } else {
@@ -198,15 +222,34 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       }
     });
     
-    const maxCount = relevantFlows.length > 0 
-      ? Math.max(...relevantFlows.map(f => f.properties.count))
+    // Total ANTES dos filtros
+    const totalBeforeFilters = relevantFlows.length;
+    
+    // Aplicar filtro de fluxos internos (igual ao useMemo principal)
+    if (!showInternal) {
+      relevantFlows = relevantFlows.filter(f => 
+        f.properties.origin_code !== f.properties.dest_code
+      );
+    }
+    
+    // Ordenar e limitar pela quantidade máxima (igual ao useMemo principal)
+    const topFlows = relevantFlows
+      .sort((a, b) => b.properties.count - a.properties.count)
+      .slice(0, maxFlows);
+    
+    // Pegar o MAIOR valor de count nos fluxos QUE REALMENTE SERÃO EXIBIDOS
+    const maxCount = topFlows.length > 0 
+      ? Math.max(...topFlows.map(f => f.properties.count))
       : 0;
     
+    console.log(`📊 maxPeopleCount calculado para ${selectedCode}: ${maxCount} pessoas (maior fluxo após filtros)`);
+    console.log(`📊 Total antes dos filtros: ${totalBeforeFilters}, após filtros: ${topFlows.length}`);
+    
     return {
-      totalAvailableFlows: relevantFlows.length,
+      totalAvailableFlows: totalBeforeFilters,
       maxPeopleCount: maxCount
     };
-  }, [selectedCode, flowsData, flowDirection]);
+  }, [selectedCode, flowsData, flowDirection, showInternal, maxFlows]);
 
   if (loading || !isVisible || !selectedCode) {
     return null;
@@ -251,6 +294,8 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
 
           <h3 className="text-base font-bold text-gray-800 flex-1">
             Intensidade de Fluxo
+                  {isFiltersMinimized.valueOf() ? ' (Filtros Minimizado)' : ''}
+
           </h3>
           <button
             onClick={() => setIsIntensityMinimized(!isIntensityMinimized)}

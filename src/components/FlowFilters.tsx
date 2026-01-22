@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { ChevronDown, ChevronUp, Filter } from 'lucide-react';
 
 interface FlowFiltersProps {
@@ -27,19 +27,39 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
   onToggleMinimize
 }) => {
   const minCountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previousMaxPeopleCount = useRef<number>(maxPeopleCount);
   
-  const handleMinCountChange = (value: number) => {
-    // Debounce para evitar muitas atualizações
-    if (minCountTimeoutRef.current) {
-      clearTimeout(minCountTimeoutRef.current);
+  // Cleanup do timeout quando o componente desmontar
+  useEffect(() => {
+    return () => {
+      if (minCountTimeoutRef.current) {
+        clearTimeout(minCountTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Resetar minCount se o maxPeopleCount mudar drasticamente (nova área)
+  useEffect(() => {
+    console.log(`🔄 FlowFilters: maxPeopleCount = ${maxPeopleCount}, minCount = ${minCount}`);
+    
+    // Se o minCount atual for maior que o novo máximo, resetar para 0
+    if (minCount > maxPeopleCount && maxPeopleCount > 0) {
+      console.log(`🔄 FlowFilters: minCount (${minCount}) > maxPeopleCount (${maxPeopleCount}), resetando para 0`);
+      onMinCountChange(0);
     }
     
-    minCountTimeoutRef.current = setTimeout(() => {
-      const safeMax = Math.max(maxPeopleCount || 100, 100);
-      const safeValue = Math.max(0, Math.min(value, safeMax));
-      console.log(`FlowFilters: Atualizando minCount de ${minCount} para ${safeValue} (max: ${safeMax})`);
-      onMinCountChange(safeValue);
-    }, 100);
+    previousMaxPeopleCount.current = maxPeopleCount;
+  }, [maxPeopleCount, minCount, onMinCountChange]);
+  
+  const handleMinCountChange = (value: number) => {
+    // Validar e limitar valor
+    const safeMax = Math.max(maxPeopleCount, 100);
+    const safeValue = Math.max(0, Math.min(value, safeMax));
+    
+    console.log(`🎚️ Slider minCount: ${value} → safeValue: ${safeValue} (max permitido: ${safeMax})`);
+    
+    // Atualizar imediatamente (sem debounce)
+    onMinCountChange(safeValue);
   };
 
   return (
@@ -112,12 +132,12 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
             </div>
             <input
               type="range"
-              min="0"
-              max={Math.max(maxPeopleCount || 100, 100)}
-              step={Math.max(1, Math.floor((maxPeopleCount || 100) / 100))}
-              value={Math.max(0, Math.min(minCount || 0, Math.max(maxPeopleCount || 100, 100)))}
+              min={0}
+              max={Math.max(maxPeopleCount, 100)}
+              step={Math.max(1, Math.floor(Math.max(maxPeopleCount, 100) / 100))}
+              value={Math.min(minCount, Math.max(maxPeopleCount, 100))}
               onChange={(e) => {
-                const val = parseInt(e.target.value);
+                const val = parseInt(e.target.value, 10);
                 if (!isNaN(val) && val >= 0) {
                   handleMinCountChange(val);
                 }
@@ -126,9 +146,9 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
             />
             <div className="flex justify-between text-xs text-gray-500">
               <span>0</span>
-              <span>{Math.round((maxPeopleCount || 0) * 0.33).toLocaleString()}</span>
-              <span>{Math.round((maxPeopleCount || 0) * 0.67).toLocaleString()}</span>
-              <span>{(maxPeopleCount || 0).toLocaleString()}</span>
+              <span>{Math.round(Math.max(maxPeopleCount, 0) * 0.33).toLocaleString()}</span>
+              <span>{Math.round(Math.max(maxPeopleCount, 0) * 0.67).toLocaleString()}</span>
+              <span>{Math.max(maxPeopleCount, 0).toLocaleString()}</span>
             </div>
           </div>
         </div>

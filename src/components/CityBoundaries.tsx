@@ -26,27 +26,26 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
     fetch('/data/lookup/boundaries.geojson')
       .then(response => {
         if (!response.ok) {
-          throw new Error('Erro ao carregar boundaries das cidades');
+          // Arquivo não existe, falhar silenciosamente
+          setLoading(false);
+          return null;
         }
         return response.json();
       })
       .then(data => {
-        setBoundariesData(data);
+        if (data) {
+          setBoundariesData(data);
+          console.log('✅ Boundaries carregadas:', data.features?.length || 0, 'áreas');
+        }
         setLoading(false);
-        console.log('✅ Boundaries carregadas:', data.features?.length || 0, 'áreas');
       })
-      .catch(err => {
-        console.error('❌ Erro ao carregar boundaries:', err);
-        setError(err.message);
+      .catch(() => {
+        // Falha silenciosa - boundaries são opcionais
         setLoading(false);
       });
   }, []);
 
   if (loading || error || !boundariesData || !isVisible) {
-    if (loading) console.log('⏳ Carregando boundaries...');
-    if (error) console.log('❌ Erro:', error);
-    if (!boundariesData) console.log('⚠️ Sem dados de boundaries');
-    if (!isVisible) console.log('👁️ Boundaries invisíveis');
     return null;
   }
 
