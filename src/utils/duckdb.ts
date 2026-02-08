@@ -1,6 +1,9 @@
 /**
- * DuckDB-WASM Client
- * Carrega Parquet direto do jsdelivr CDN e executa queries SQL no navegador
+ * DuckDB-WASM Client - Updated with optional datasets
+ * Carrega múltiplos Parquets do jsdelivr CDN:
+ * - ODWP01EW_MSOA.parquet (flows básicos) - OBRIGATÓRIO
+ * - ODWP09EW_MSOA.parquet (social grade) - OPCIONAL
+ * - ODWP04EW_MSOA.parquet (age) - OPCIONAL
  */
 import * as duckdb from '@duckdb/duckdb-wasm';
 
@@ -8,6 +11,13 @@ let db: duckdb.AsyncDuckDB | null = null;
 let conn: duckdb.AsyncDuckDBConnection | null = null;
 let initialized = false;
 let initPromise: Promise<void> | null = null;
+
+// URLs dos datasets
+const DATASETS = {
+  flows: 'ODWP01EW_MSOA.parquet',
+  socialGrade: 'ODWP09EW_MSOA.parquet',
+  age: 'ODWP04EW_MSOA.parquet',
+};
 
 /**
  * Verifica se o arquivo está disponível no jsdelivr
@@ -65,44 +75,60 @@ export async function initDuckDB(): Promise<void> {
       conn = await db.connect();
       
       // Verificar se jsdelivr está disponível
-      let parquetUrl: string;
       const jsdelivrReady = await isJsdelivrReady();
+      const baseUrl = jsdelivrReady 
+        ? 'https://cdn.jsdelivr.net/gh/GustavoWMSilva/MapGeospatialMobilityData@main/'
+        : '/data/processed/';
       
-      if (jsdelivrReady) {
-        parquetUrl = 'https://cdn.jsdelivr.net/gh/GustavoWMSilva/MapGeospatialMobilityData@main/ODWP01EW_MSOA.parquet';
-        console.log('jsdelivr CDN disponível!');
-      } else {
-        parquetUrl = '/data/ODWP01EW_MSOA.parquet';
-        console.log('jsdelivr ainda não disponível, usando fallback local');
+      console.log(jsdelivrReady ? '📡 jsdelivr CDN disponível!' : '📁 Usando fallback local');
+
+      // Função auxiliar para carregar dataset
+      async function loadDataset(filename: string, tableName: string, optional: boolean = false) {
+        const url = baseUrl + filename;
+        console.log(`📥 Baixando ${filename}...`);
+        
+        try {
+          const response = await fetch(url);
+          if (!response.ok) {
+            if (optional) {
+              console.warn(`   ⚠️ ${filename} não disponível (${response.status}) - pulando`);
+              return false;
+            }
+            throw new Error(`Falha ao baixar ${filename}: ${response.status}`);
+          }
+
+          const arrayBuffer = await response.arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
+          
+          console.log(`   ✓ ${filename}: ${(uint8Array.length / 1024 / 1024).toFixed(1)} MB`);
+
+          await db!.registerFileBuffer(filename, uint8Array);
+          await conn!.query(`
+            CREATE TABLE IF NOT EXISTS ${tableName} AS 
+            SELECT * FROM read_parquet('${filename}')
+          `);
+
+          const count = await conn!.query(`SELECT COUNT(*) as total FROM ${tableName}`);
+          const total = count.toArray()[0].total;
+          console.log(`   ✓ Tabela ${tableName}: ${total.toLocaleString()} registros`);
+          return true;
+        } catch (error) {
+          if (optional) {
+            console.warn(`   ⚠️ Erro ao carregar ${filename} - pulando:`, error);
+            return false;
+          }
+          throw error;
+        }
       }
 
-      // Baixar e registrar arquivo Parquet
-      console.log('📥 Baixando Parquet de:', parquetUrl);
-      const response = await fetch(parquetUrl);
+      // Carregar todos os datasets
+      console.log('\n🚀 Carregando datasets...');
+      await loadDataset(DATASETS.flows, 'flows', false); // Obrigatório
+      const hasSocialGrade = await loadDataset(DATASETS.socialGrade, 'flows_social_grade', true); // Opcional
+      const hasAge = await loadDataset(DATASETS.age, 'flows_age', true); // Opcional
       
-      if (!response.ok) {
-        throw new Error(`Falha ao baixar Parquet: ${response.status} ${response.statusText}`);
-      }
-
-      const arrayBuffer = await response.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
-      
-      console.log(`Parquet baixado: ${(uint8Array.length / 1024 / 1024).toFixed(2)} MB`);
-
-      // Registrar arquivo no DuckDB filesystem
-      await db.registerFileBuffer('flows.parquet', uint8Array);
-      console.log('Arquivo registrado no DuckDB filesystem');
-
-      // Criar tabela a partir do arquivo registrado
-      await conn.query(`
-        CREATE TABLE IF NOT EXISTS flows AS 
-        SELECT * FROM read_parquet('flows.parquet')
-      `);
-
-      const count = await conn.query('SELECT COUNT(*) as total FROM flows');
-      const total = count.toArray()[0].total;
-      console.log(`DuckDB-WASM inicializado! ${total.toLocaleString()} registros carregados`);
-      
+      const loadedCount = 1 + (hasSocialGrade ? 1 : 0) + (hasAge ? 1 : 0);
+      console.log(`\n✅ DuckDB-WASM inicializado com ${loadedCount} dataset(s)!`);
       initialized = true;
     } catch (error) {
       console.error('Erro ao inicializar DuckDB:', error);
@@ -115,12 +141,22 @@ export async function initDuckDB(): Promise<void> {
 }
 
 /**
- * Obter flows MSOA para uma área específica
+ * Interfaces de Resultados
  */
 interface FlowResult {
   origin_code: string;
   dest_code: string;
   count: number;
+}
+
+interface SocialGradeFlowResult extends FlowResult {
+  social_grade_code: number;
+  social_grade: string;
+}
+
+interface AgeFlowResult extends FlowResult {
+  age_code: number;
+  age_group: string;
 }
 
 export async function getMSOAFlows(
@@ -188,10 +224,10 @@ export async function aggregateMSOAToLTLAFlows(
   const filterCol = direction === 'incoming' ? 'dest_code' : 'origin_code';
   const msoaList = msoaCodes.map(code => `'${code}'`).join(',');
 
-  console.log(`🚀 Agregando ${msoaCodes.length} MSOAs para LTLA com query única...`);
+  console.log(`🚀 Agregando ${msoaCodes.length} MSOAs para LTLA (SEM LIMIT - métricas precisas)...`);
 
   try {
-    // Query única que pega todos os flows dos MSOAs de interesse
+    // Query única que pega TODOS os flows dos MSOAs de interesse (sem limit)
     const query = `
       SELECT 
         origin_code,
@@ -200,7 +236,6 @@ export async function aggregateMSOAToLTLAFlows(
       FROM flows
       WHERE ${filterCol} IN (${msoaList})
       ORDER BY count DESC
-      LIMIT ${limit}
     `;
 
     const result = await conn.query(query);
@@ -234,6 +269,240 @@ export async function aggregateMSOAToLTLAFlows(
     return aggregated;
   } catch (error) {
     console.error('Erro ao agregar flows:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obter flows MSOA por Social Grade
+ */
+export async function getMSOAFlowsBySocialGrade(
+  areaCode: string,
+  socialGrade: 'AB' | 'C1' | 'C2' | 'DE' | 'all' = 'all',
+  direction: 'incoming' | 'outgoing' = 'incoming',
+  limit: number = 2000
+): Promise<SocialGradeFlowResult[]> {
+  await initDuckDB();
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  // Verificar se tabela existe
+  try {
+    await conn.query(`SELECT 1 FROM flows_social_grade LIMIT 1`);
+  } catch {
+    console.warn('Tabela flows_social_grade não disponível');
+    return [];
+  }
+
+  const filterCol = direction === 'incoming' ? 'dest_code' : 'origin_code';
+  const gradeFilter = socialGrade === 'all' 
+    ? "social_grade != 'Does not apply'"
+    : `social_grade LIKE '%${socialGrade}%'`;
+
+  console.log(`Carregando flows ${direction} para ${areaCode} (grade: ${socialGrade})...`);
+
+  try {
+    const query = `
+      SELECT 
+        origin_code,
+        dest_code,
+        social_grade_code,
+        social_grade,
+        count
+      FROM flows_social_grade
+      WHERE ${filterCol} = '${areaCode}' AND ${gradeFilter}
+      ORDER BY count DESC
+      LIMIT ${limit}
+    `;
+
+    const result = await conn.query(query);
+    const data = result.toArray().map((row: any) => ({
+      origin_code: row.origin_code,
+      dest_code: row.dest_code,
+      social_grade_code: row.social_grade_code,
+      social_grade: row.social_grade,
+      count: row.count,
+    }));
+
+    console.log(`Carregados ${data.length} flows (social grade)`);
+    return data;
+  } catch (error) {
+    console.error('Erro ao carregar flows por social grade:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obter flows MSOA por Age Group
+ */
+export async function getMSOAFlowsByAge(
+  areaCode: string,
+  ageGroup: string | 'all' = 'all',
+  direction: 'incoming' | 'outgoing' = 'incoming',
+  limit: number = 2000
+): Promise<AgeFlowResult[]> {
+  await initDuckDB();
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  // Verificar se tabela existe
+  try {
+    await conn.query(`SELECT 1 FROM flows_age LIMIT 1`);
+  } catch {
+    console.warn('Tabela flows_age não disponível');
+    return [];
+  }
+
+  const filterCol = direction === 'incoming' ? 'dest_code' : 'origin_code';
+  const ageFilter = ageGroup === 'all' 
+    ? "1=1"
+    : `age_group = '${ageGroup}'`;
+
+  console.log(`Carregando flows ${direction} para ${areaCode} (age: ${ageGroup})...`);
+
+  try {
+    const query = `
+      SELECT 
+        origin_code,
+        dest_code,
+        age_code,
+        age_group,
+        count
+      FROM flows_age
+      WHERE ${filterCol} = '${areaCode}' AND ${ageFilter}
+      ORDER BY count DESC
+      LIMIT ${limit}
+    `;
+
+    const result = await conn.query(query);
+    const data = result.toArray().map((row: any) => ({
+      origin_code: row.origin_code,
+      dest_code: row.dest_code,
+      age_code: row.age_code,
+      age_group: row.age_group,
+      count: row.count,
+    }));
+
+    console.log(`Carregados ${data.length} flows (age)`);
+    return data;
+  } catch (error) {
+    console.error('Erro ao carregar flows por age:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obter estatísticas agregadas de Social Grade para uma área
+ */
+export async function getSocialGradeStats(
+  areaCode: string,
+  direction: 'incoming' | 'outgoing' = 'incoming'
+): Promise<Array<{ grade: string; total: number; percentage: number }>> {
+  await initDuckDB();
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  // Verificar se tabela existe
+  try {
+    await conn.query(`SELECT 1 FROM flows_social_grade LIMIT 1`);
+  } catch {
+    console.warn('Tabela flows_social_grade não disponível');
+    return [];
+  }
+
+  const filterCol = direction === 'incoming' ? 'dest_code' : 'origin_code';
+
+  try {
+    const query = `
+      WITH totals AS (
+        SELECT 
+          social_grade,
+          SUM(count) as total
+        FROM flows_social_grade
+        WHERE ${filterCol} = '${areaCode}' AND social_grade != 'Does not apply'
+        GROUP BY social_grade
+      ),
+      grand_total AS (
+        SELECT SUM(total) as gt FROM totals
+      )
+      SELECT 
+        t.social_grade as grade,
+        t.total,
+        ROUND((t.total * 100.0) / g.gt, 2) as percentage
+      FROM totals t, grand_total g
+      ORDER BY t.total DESC
+    `;
+
+    const result = await conn.query(query);
+    return result.toArray().map((row: any) => ({
+      grade: row.grade,
+      total: row.total,
+      percentage: row.percentage,
+    }));
+  } catch (error) {
+    console.error('Erro ao calcular estatísticas de social grade:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obter estatísticas agregadas de Age para uma área
+ */
+export async function getAgeStats(
+  areaCode: string,
+  direction: 'incoming' | 'outgoing' = 'incoming'
+): Promise<Array<{ ageGroup: string; total: number; percentage: number }>> {
+  await initDuckDB();
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  // Verificar se tabela existe
+  try {
+    await conn.query(`SELECT 1 FROM flows_age LIMIT 1`);
+  } catch {
+    console.warn('Tabela flows_age não disponível');
+    return [];
+  }
+
+  const filterCol = direction === 'incoming' ? 'dest_code' : 'origin_code';
+
+  try {
+    const query = `
+      WITH totals AS (
+        SELECT 
+          age_group,
+          SUM(count) as total
+        FROM flows_age
+        WHERE ${filterCol} = '${areaCode}'
+        GROUP BY age_group
+      ),
+      grand_total AS (
+        SELECT SUM(total) as gt FROM totals
+      )
+      SELECT 
+        t.age_group as ageGroup,
+        t.total,
+        ROUND((t.total * 100.0) / g.gt, 2) as percentage
+      FROM totals t, grand_total g
+      ORDER BY t.total DESC
+    `;
+
+    const result = await conn.query(query);
+    return result.toArray().map((row: any) => ({
+      ageGroup: row.ageGroup,
+      total: row.total,
+      percentage: row.percentage,
+    }));
+  } catch (error) {
+    console.error('Erro ao calcular estatísticas de age:', error);
     throw error;
   }
 }

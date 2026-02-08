@@ -1,3 +1,4 @@
+// Mobility Flows Visualization App - Fixed ltlaName state
 import * as React from 'react';
 import { useRef, useCallback, useEffect } from 'react';
 import type { MapRef } from '@vis.gl/react-maplibre';
@@ -7,12 +8,14 @@ import { InteractiveMap } from './components/InteractiveMap';
 import { AreaSelectionControls } from './components/AreaSelectionControls';
 import { LTLASelector } from './components/LTLASelector';
 import { CacheDebugPanel } from './components/CacheDebugPanel';
+import { AnalyticsDashboard } from './components/analytics';
 
 // Hooks
 import { useSelectedArea } from './hooks/useSelectedArea';
 
 // Constants & Types
 import type { ViewState } from './types';
+
 
 const DEFAULT_VIEW_STATE: ViewState = {
   longitude: -1.5,
@@ -34,6 +37,7 @@ export default function App() {
   const [showAllPoints, setShowAllPoints] = React.useState(false);
   const [showLTLAs, setShowLTLAs] = React.useState(true);
   const [selectedLTLA, setSelectedLTLA] = React.useState<string | null>(null);
+  const [selectedLTLAName, setSelectedLTLAName] = React.useState<string>('');
   const [viewMode, setViewMode] = React.useState<'msoa' | 'ltla'>('ltla');
   const [flowDirection, setFlowDirection] = React.useState<'incoming' | 'outgoing'>('incoming');
   const [isFullscreen, setIsFullscreen] = React.useState(false);
@@ -76,6 +80,7 @@ export default function App() {
         const ltlaName = String(feature.properties.name || '');
         console.log('Distrito LTLA selecionado:', ltlaName, ltlaCode);
         setSelectedLTLA(ltlaCode);
+        setSelectedLTLAName(ltlaName);
         selectArea(null); // Limpa seleção MSOA
         return;
       }
@@ -86,6 +91,7 @@ export default function App() {
         const ltlaName = String(feature.properties.ltla_name || feature.properties.name || '');
         console.log('Boundary LTLA clicado:', ltlaName, ltlaCode);
         setSelectedLTLA(ltlaCode);
+        setSelectedLTLAName(ltlaName);
         selectArea(null); // Limpa seleção MSOA
         return;
       }
@@ -97,6 +103,7 @@ export default function App() {
         console.log('Área MSOA selecionada:', msoaName, msoaCode);
         selectArea(msoaCode);
         setSelectedLTLA(null); // Limpa seleção LTLA
+        setSelectedLTLAName(''); // Limpa nome LTLA
         return;
       }
       
@@ -107,6 +114,7 @@ export default function App() {
         console.log('Boundary MSOA clicado:', msoaName, msoaCode);
         selectArea(msoaCode);
         setSelectedLTLA(null); // Limpa seleção LTLA
+        setSelectedLTLAName(''); // Limpa nome LTLA
         return;
       }
     }
@@ -199,18 +207,25 @@ export default function App() {
         </div>
       </div>
       )}
-      
+<AnalyticsDashboard 
+  selectedArea={selectedLTLA || undefined}
+  areaName={selectedLTLAName}
+/>
       {/* Controles de seleção baseados no modo */}
       {!isFullscreen && (
       <div className="px-6 py-4 pb-6">
         {viewMode === 'ltla' ? (
           <LTLASelector
             selectedLTLA={selectedLTLA}
-            onSelectLTLA={(ltlaCode) => {
+            onSelectLTLA={(ltlaCode, ltlaName) => {
               setSelectedLTLA(ltlaCode);
+              setSelectedLTLAName(ltlaName);
               selectArea(null); // Limpa seleção MSOA
             }}
-            onClearSelection={() => setSelectedLTLA(null)}
+            onClearSelection={() => {
+              setSelectedLTLA(null);
+              setSelectedLTLAName('');
+            }}
           />
         ) : (
           <AreaSelectionControls
@@ -218,6 +233,7 @@ export default function App() {
             onSelectArea={(code) => {
               selectArea(code);
               setSelectedLTLA(null); // Limpa seleção LTLA
+              setSelectedLTLAName(''); // Limpa nome LTLA
             }}
             onClearSelection={clearSelection}
           />

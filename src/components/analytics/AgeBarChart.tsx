@@ -1,0 +1,149 @@
+import { useEffect, useState } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { getAgeStats } from '../../utils/duckdb';
+
+interface AgeBarChartProps {
+  areaCode: string;
+  direction?: 'incoming' | 'outgoing';
+}
+
+const AGE_COLORS: Record<string, string> = {
+  '16-24': '#8b5cf6', // Roxo
+  '25-34': '#3b82f6', // Azul
+  '35-44': '#10b981', // Verde
+  '45-54': '#f59e0b', // Amarelo
+  '55-64': '#f97316', // Laranja
+  '65+': '#ef4444',   // Vermelho
+};
+
+function getAgeColor(ageGroup: string): string {
+  if (ageGroup.includes('16 to 24')) return AGE_COLORS['16-24'];
+  if (ageGroup.includes('25 to 34')) return AGE_COLORS['25-34'];
+  if (ageGroup.includes('35 to 44')) return AGE_COLORS['35-44'];
+  if (ageGroup.includes('45 to 54')) return AGE_COLORS['45-54'];
+  if (ageGroup.includes('55 to 64')) return AGE_COLORS['55-64'];
+  if (ageGroup.includes('65')) return AGE_COLORS['65+'];
+  return '#666';
+}
+
+function simplifyAgeLabel(ageGroup: string): string {
+  if (ageGroup.includes('16 to 24')) return '16-24';
+  if (ageGroup.includes('25 to 34')) return '25-34';
+  if (ageGroup.includes('35 to 44')) return '35-44';
+  if (ageGroup.includes('45 to 54')) return '45-54';
+  if (ageGroup.includes('55 to 64')) return '55-64';
+  if (ageGroup.includes('65')) return '65+';
+  return ageGroup;
+}
+
+export function AgeBarChart({ areaCode, direction = 'incoming' }: AgeBarChartProps) {
+  const [data, setData] = useState<Array<{ name: string; total: number; percentage: number; color: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadStats() {
+      if (!areaCode) return;
+      
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const stats = await getAgeStats(areaCode, direction);
+        
+        const chartData = stats.map(s => ({
+          name: simplifyAgeLabel(s.ageGroup),
+          fullName: s.ageGroup,
+          total: s.total,
+          percentage: s.percentage,
+          color: getAgeColor(s.ageGroup),
+        }));
+        
+        // Ordenar por faixa etária
+        const ageOrder = ['16-24', '25-34', '35-44', '45-54', '55-64', '65+'];
+        chartData.sort((a, b) => ageOrder.indexOf(a.name) - ageOrder.indexOf(b.name));
+        
+        setData(chartData);
+      } catch (err) {
+        console.error('Erro ao carregar estatísticas de age:', err);
+        setError('Erro ao carregar dados');
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    loadStats();
+  }, [areaCode, direction]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64 text-red-600">
+        {error}
+      </div>
+    );
+  }
+
+  if (data.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-gray-500 p-4 text-center">
+        <p className="font-semibold">Dados de Age Group não disponíveis</p>
+        <p className="text-sm mt-2">Dataset ODWP04EW_MSOA não carregado</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full">
+      <div className="mb-4">
+        <h3 className="text-lg font-semibold text-gray-800">
+          Age Groups Distribution
+        </h3>
+        <p className="text-sm text-gray-600">
+          {direction === 'incoming' ? 'Incoming' : 'Outgoing'} commuters by age group
+        </p>
+      </div>
+
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="name" />
+          <YAxis />
+          <Tooltip 
+            formatter={(value: number, name: string, props: any) => [
+              `${(value as number).toLocaleString()} (${props.payload.percentage}%)`,
+              'Commuters'
+            ]}
+          />
+          <Legend formatter={() => 'Commuters'} />
+          <Bar dataKey="total" fill="#8884d8">
+            {data.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={entry.color} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+
+      <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
+        {data.map((item) => (
+          <div key={item.name} className="flex items-center gap-2">
+            <div 
+              className="w-3 h-3 rounded-full" 
+              style={{ backgroundColor: item.color }}
+            />
+            <span className="text-gray-700">
+              {item.name}: <strong>{item.total.toLocaleString()}</strong>
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
