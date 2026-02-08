@@ -188,10 +188,10 @@ export async function aggregateMSOAToLTLAFlows(
   const filterCol = direction === 'incoming' ? 'dest_code' : 'origin_code';
   const msoaList = msoaCodes.map(code => `'${code}'`).join(',');
 
-  console.log(`🚀 Agregando ${msoaCodes.length} MSOAs para LTLA com query única...`);
+  console.log(`🚀 Agregando ${msoaCodes.length} MSOAs para LTLA (SEM LIMIT - todos os flows)...`);
 
   try {
-    // Query única que pega todos os flows dos MSOAs de interesse
+    // Query única que pega TODOS os flows dos MSOAs de interesse (sem limit)
     const query = `
       SELECT 
         origin_code,
@@ -200,7 +200,6 @@ export async function aggregateMSOAToLTLAFlows(
       FROM flows
       WHERE ${filterCol} IN (${msoaList})
       ORDER BY count DESC
-      LIMIT ${limit}
     `;
 
     const result = await conn.query(query);
