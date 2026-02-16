@@ -3,8 +3,9 @@
  * - Localhost: API Flask
  * - Produção: DuckDB-WASM + GitHub Releases
  */
-import { getMSOAFlows } from './duckdb';
+import { getMSOAFlows, getMSOAFlowsBySocialGrade, getMSOAFlowsByAge } from './duckdb';
 import { cacheService } from './cacheService';
+import type { SocialGrade, SocialGradeFlowResult, AgeFlowResult } from '../types';
 
 interface Coordinates {
   [code: string]: {
@@ -96,6 +97,143 @@ export async function loadFlows(
   } else {
     return loadFlowsFromDuckDB(areaCode, direction, limit);
   }
+}
+
+/**
+ * Carregar flows com filtros demográficos aplicados
+ */
+export async function loadFlowsFiltered(
+  areaCode: string,
+  direction: 'incoming' | 'outgoing' = 'incoming',
+  limit: number = 2000,
+  dataSource: 'msoa' | 'ltla' = 'msoa',
+  socialGrade: string = 'all',
+  ageGroup: string = 'all'
+): Promise<{ type: string; features: unknown[] }> {
+  // Se nenhum filtro está ativo, usar função normal
+  if (socialGrade === 'all' && ageGroup === 'all') {
+    return loadFlows(areaCode, direction, limit, dataSource);
+  }
+
+  console.log(`🔍 Carregando flows filtrados - SocialGrade: ${socialGrade}, Age: ${ageGroup}, DataSource: ${dataSource}`);
+
+  let flows: (SocialGradeFlowResult | AgeFlowResult)[] = [];
+
+  // Prioridade: se ambos filtros ativos, usar social grade
+  // TODO: Futuramente criar query que combina ambos filtros simultaneamente
+  if (socialGrade !== 'all' && ageGroup !== 'all') {
+    console.warn('⚠️ Ambos filtros ativos! Usando apenas Social Grade no mapa. Age será usado apenas nos gráficos.');
+    flows = await getMSOAFlowsBySocialGrade(areaCode, socialGrade as SocialGrade, direction, limit);
+  } else if (socialGrade !== 'all') {
+    console.log(`📊 Filtrando por Social Grade: ${socialGrade}`);
+    flows = await getMSOAFlowsBySocialGrade(areaCode, socialGrade as SocialGrade, direction, limit);
+  } else if (ageGroup !== 'all') {
+    console.log(`👥 Filtrando por Age Group: ${ageGroup}`);
+    flows = await getMSOAFlowsByAge(areaCode, ageGroup, direction, limit);
+  }
+
+  console.log(`📦 Flows MSOA carregados: ${flows.length}`);
+
+  // Se dataSource é LTLA, agregar MSOA→LTLA
+  if (dataSource === 'ltla') {
+    console.log(`🔄 Agregando ${flows.length} flows MSOA para LTLA...`);
+    
+    const lookup = await loadLTLALookup();
+    const ltlaCoords = await loadLTLACoordinates();
+
+    // Agregar flows por LTLA origin e dest
+    const aggregation = new Map<string, number>();
+    
+    flows.forEach(flow => {
+      const originLTLA = lookup.get(flow.origin_code);
+      const destLTLA = lookup.get(flow.dest_code);
+      
+      if (!originLTLA || !destLTLA) return;
+      
+      const key = `${originLTLA}|${destLTLA}`;
+      const currentCount = aggregation.get(key) || 0;
+      aggregation.set(key, currentCount + flow.count);
+    });
+
+    console.log(`✅ Agregados ${flows.length} flows MSOA → ${aggregation.size} flows LTLA únicos`);
+
+    // Converter agregação para features GeoJSON
+    const features = Array.from(aggregation.entries())
+      .map(([key, count]) => {
+        const [originLTLA, destLTLA] = key.split('|');
+        const originCoord = ltlaCoords[originLTLA];
+        const destCoord = ltlaCoords[destLTLA];
+        
+        if (!originCoord || !destCoord) return null;
+        
+        return {
+          type: 'Feature',
+          properties: {
+            origin_code: originLTLA,
+            origin_name: originCoord.name || originLTLA,
+            dest_code: destLTLA,
+            dest_name: destCoord.name || destLTLA,
+            count: count,
+          },
+          geometry: {
+            type: 'LineString',
+            coordinates: [
+              [originCoord.lon, originCoord.lat],
+              [destCoord.lon, destCoord.lat],
+            ],
+          },
+        };
+      })
+      .filter((f): f is NonNullable<typeof f> => f !== null)
+      .sort((a, b) => b.properties.count - a.properties.count)
+      .slice(0, limit); // Aplicar limite após agregação
+
+    console.log(`✅ Criados ${features.length} features GeoJSON LTLA filtrados`);
+    
+    return {
+      type: 'FeatureCollection',
+      features,
+    };
+  }
+
+  // Se dataSource é MSOA, usar coordenadas MSOA normalmente
+  const coords = await loadCoordinates();
+  
+  const features = flows
+    .filter(flow => {
+      const originCoord = coords[flow.origin_code];
+      const destCoord = coords[flow.dest_code];
+      return originCoord && destCoord;
+    })
+    .map(flow => {
+      const originCoord = coords[flow.origin_code];
+      const destCoord = coords[flow.dest_code];
+      
+      return {
+        type: 'Feature',
+        properties: {
+          origin_code: flow.origin_code,
+          origin_name: originCoord.name,
+          dest_code: flow.dest_code,
+          dest_name: destCoord.name,
+          count: flow.count,
+        },
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [originCoord.lon, originCoord.lat],
+            [destCoord.lon, destCoord.lat],
+          ],
+        },
+      };
+    });
+
+  console.log(`✅ Criados ${features.length} features GeoJSON MSOA filtrados`);
+  
+  return {
+    type: 'FeatureCollection',
+    features
+  };
 }
 
 /**
@@ -365,7 +503,22 @@ async function loadLTLAFlowsAggregated(
     console.log(`Agregações LTLA criadas: ${aggregatedFlows.length}`);
     
     // Converter para GeoJSON
-    const features: unknown[] = [];
+    interface FlowFeature {
+      type: 'Feature';
+      properties: {
+        origin_code: string;
+        origin_name: string;
+        dest_code: string;
+        dest_name: string;
+        count: number;
+      };
+      geometry: {
+        type: 'LineString';
+        coordinates: number[][];
+      };
+    }
+    
+    const features: FlowFeature[] = [];
     aggregatedFlows.forEach(({ originLTLA, destLTLA, count }) => {
       
       const originCoord = ltlaCoords[originLTLA];
@@ -393,7 +546,7 @@ async function loadLTLAFlowsAggregated(
     });
     
     // Ordenar por contagem e limitar
-    features.sort((a: any, b: any) => b.properties.count - a.properties.count);
+    features.sort((a, b) => b.properties.count - a.properties.count);
     const limitedFeatures = features.slice(0, limit);
     
     console.log(`Retornando ${limitedFeatures.length} flows LTLA agregados`);

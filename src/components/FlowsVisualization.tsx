@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Source, Layer } from '@vis.gl/react-maplibre';
 import { FlowFilters } from './FlowFilters';
-import { loadFlows } from '../utils/dataService';
+import { loadFlows, loadFlowsFiltered } from '../utils/dataService';
 
 interface FlowFeature {
   type: 'Feature';
@@ -23,13 +23,17 @@ interface FlowsVisualizationProps {
   isVisible?: boolean;
   flowDirection?: 'incoming' | 'outgoing';
   dataSource: 'ltla' | 'msoa';
+  socialGrade?: string;
+  ageGroup?: string;
 }
 
 export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   selectedCode,
   isVisible = true,
   flowDirection = 'incoming',
-  dataSource
+  dataSource,
+  socialGrade = 'all',
+  ageGroup = 'all'
 }) => {
   const [flowsData, setFlowsData] = useState<FlowFeature[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,14 +62,14 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
 
   // Carregar dados usando dataService (DuckDB-WASM ou API)
   useEffect(() => {
-    const loadKey = `${dataSource}|${selectedCode}|${flowDirection}`;
+    const loadKey = `${dataSource}|${selectedCode}|${flowDirection}|${socialGrade}|${ageGroup}`;
     
     // Evitar carregamentos duplicados
     if (loadingRef.current && currentLoadRef.current === loadKey) {
       return;
     }
 
-    console.log(`FlowsVisualization useEffect disparado - dataSource: ${dataSource}, selectedCode: ${selectedCode}`);
+    console.log(`FlowsVisualization useEffect disparado - dataSource: ${dataSource}, selectedCode: ${selectedCode}, filters: SocialGrade=${socialGrade}, Age=${ageGroup}`);
     
     if (!selectedCode) {
       setFlowsData([]);
@@ -81,13 +85,11 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       try {
         console.log(`Carregando flows para ${selectedCode} (${dataSource})...`);
         
-        // dataService escolhe automaticamente a melhor fonte
-        const data = await loadFlows(
-          selectedCode,
-          flowDirection,
-          50000,
-          dataSource
-        );
+        // Usar loadFlowsFiltered se há filtros demográficos
+        const hasFilters = socialGrade !== 'all' || ageGroup !== 'all';
+        const data = hasFilters
+          ? await loadFlowsFiltered(selectedCode, flowDirection, 50000, dataSource, socialGrade, ageGroup)
+          : await loadFlows(selectedCode, flowDirection, 50000, dataSource);
         
         console.log(`Fluxos carregados:`, data.features?.length || 0);
         setFlowsData(data.features as FlowFeature[] || []);
@@ -111,7 +113,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
     };
     
     loadData();
-  }, [dataSource, selectedCode, flowDirection]);
+  }, [dataSource, selectedCode, flowDirection, socialGrade, ageGroup]);
 
   // Filtrar fluxos baseado na direção e calcular estatísticas
   const { flowsGeoJSON, stats } = useMemo(() => {
@@ -286,6 +288,8 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
         maxPeopleCount={maxPeopleCount}
         isMinimized={isFiltersMinimized}
         onToggleMinimize={() => setIsFiltersMinimized(!isFiltersMinimized)}
+        socialGrade={socialGrade}
+        ageGroup={ageGroup}
       />
 
       {/* Legenda de Intensidade - Design Melhorado */}

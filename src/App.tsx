@@ -14,7 +14,7 @@ import { AnalyticsDashboard } from './components/analytics';
 import { useSelectedArea } from './hooks/useSelectedArea';
 
 // Constants & Types
-import type { ViewState } from './types';
+import type { ViewState, SocialGrade, AgeGroup } from './types';
 
 
 const DEFAULT_VIEW_STATE: ViewState = {
@@ -38,9 +38,15 @@ export default function App() {
   const [showLTLAs, setShowLTLAs] = React.useState(true);
   const [selectedLTLA, setSelectedLTLA] = React.useState<string | null>(null);
   const [selectedLTLAName, setSelectedLTLAName] = React.useState<string>('');
+  const [selectedMSOAName, setSelectedMSOAName] = React.useState<string>('');
   const [viewMode, setViewMode] = React.useState<'msoa' | 'ltla'>('ltla');
   const [flowDirection, setFlowDirection] = React.useState<'incoming' | 'outgoing'>('incoming');
   const [isFullscreen, setIsFullscreen] = React.useState(false);
+  
+  // Filtros demográficos (compartilhados entre Dashboard e Mapa)
+  const [socialGrade, setSocialGrade] = React.useState<SocialGrade>('all');
+  const [ageGroup, setAgeGroup] = React.useState<AgeGroup>('all');
+  
   const mapRef = useRef<MapRef>(null);
 
   // Pré-inicializar DuckDB para evitar delay na primeira seleção
@@ -82,6 +88,7 @@ export default function App() {
         setSelectedLTLA(ltlaCode);
         setSelectedLTLAName(ltlaName);
         selectArea(null); // Limpa seleção MSOA
+        setSelectedMSOAName(''); // Limpa nome MSOA
         return;
       }
       
@@ -93,6 +100,7 @@ export default function App() {
         setSelectedLTLA(ltlaCode);
         setSelectedLTLAName(ltlaName);
         selectArea(null); // Limpa seleção MSOA
+        setSelectedMSOAName(''); // Limpa nome MSOA
         return;
       }
       
@@ -102,6 +110,7 @@ export default function App() {
         const msoaName = String(feature.properties.name || '');
         console.log('Área MSOA selecionada:', msoaName, msoaCode);
         selectArea(msoaCode);
+        setSelectedMSOAName(msoaName); // Salva nome MSOA
         setSelectedLTLA(null); // Limpa seleção LTLA
         setSelectedLTLAName(''); // Limpa nome LTLA
         return;
@@ -113,6 +122,7 @@ export default function App() {
         const msoaName = String(feature.properties.MSOA21NM || feature.properties.name || '');
         console.log('Boundary MSOA clicado:', msoaName, msoaCode);
         selectArea(msoaCode);
+        setSelectedMSOAName(msoaName); // Salva nome MSOA
         setSelectedLTLA(null); // Limpa seleção LTLA
         setSelectedLTLAName(''); // Limpa nome LTLA
         return;
@@ -172,6 +182,14 @@ export default function App() {
             setViewMode(newMode);
             setShowAllPoints(newMode === 'msoa');
             setShowLTLAs(newMode === 'ltla');
+            // Limpar seleções ao trocar modo
+            if (newMode === 'ltla') {
+              selectArea(null);
+              setSelectedMSOAName('');
+            } else {
+              setSelectedLTLA(null);
+              setSelectedLTLAName('');
+            }
           }}
           className={`px-5 py-2.5 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 ${
             viewMode === 'ltla'
@@ -208,8 +226,14 @@ export default function App() {
       </div>
       )}
 <AnalyticsDashboard 
-  selectedArea={selectedLTLA || undefined}
-  areaName={selectedLTLAName}
+  selectedArea={viewMode === 'ltla' ? (selectedLTLA || undefined) : (selectedAreaCode || undefined)}
+  areaName={viewMode === 'ltla' ? selectedLTLAName : selectedMSOAName}
+  socialGrade={socialGrade}
+  ageGroup={ageGroup}
+  direction={flowDirection}
+  onSocialGradeChange={setSocialGrade}
+  onAgeGroupChange={setAgeGroup}
+  onDirectionChange={setFlowDirection}
 />
       {/* Controles de seleção baseados no modo */}
       {!isFullscreen && (
@@ -221,6 +245,7 @@ export default function App() {
               setSelectedLTLA(ltlaCode);
               setSelectedLTLAName(ltlaName);
               selectArea(null); // Limpa seleção MSOA
+              setSelectedMSOAName(''); // Limpa nome MSOA
             }}
             onClearSelection={() => {
               setSelectedLTLA(null);
@@ -232,10 +257,14 @@ export default function App() {
             selectedAreaCode={selectedAreaCode}
             onSelectArea={(code) => {
               selectArea(code);
+              setSelectedMSOAName(''); // Nome será atualizado ao clicar no mapa
               setSelectedLTLA(null); // Limpa seleção LTLA
               setSelectedLTLAName(''); // Limpa nome LTLA
             }}
-            onClearSelection={clearSelection}
+            onClearSelection={() => {
+              clearSelection();
+              setSelectedMSOAName(''); // Limpa nome MSOA
+            }}
           />
         )}
       </div>
@@ -256,6 +285,8 @@ export default function App() {
           selectedLTLA={selectedLTLA}
           flowDirection={flowDirection}
           isFullscreen={isFullscreen}
+          socialGrade={socialGrade}
+          ageGroup={ageGroup}
         />
         
         {/* Controles flutuantes no modo fullscreen */}

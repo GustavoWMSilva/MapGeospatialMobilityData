@@ -13,6 +13,8 @@ interface FlowFiltersProps {
   maxPeopleCount: number;
   isMinimized: boolean;
   onToggleMinimize: () => void;
+  socialGrade?: string;
+  ageGroup?: string;
 }
 
 export const FlowFilters: React.FC<FlowFiltersProps> = ({
@@ -24,10 +26,15 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
   totalFiltered,
   maxPeopleCount,
   isMinimized,
-  onToggleMinimize
+  onToggleMinimize,
+  socialGrade = 'all',
+  ageGroup = 'all'
 }) => {
   const minCountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousMaxPeopleCount = useRef<number>(maxPeopleCount);
+  
+  // Verificar se há filtros demográficos ativos
+  const hasDemographicFilters = socialGrade !== 'all' || ageGroup !== 'all';
   
   // Cleanup do timeout quando o componente desmontar
   useEffect(() => {
@@ -72,6 +79,11 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-blue-600" />
           <h3 className="font-semibold text-sm text-gray-800">Filtros de Fluxos</h3>
+          {hasDemographicFilters && (
+            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
+              Demografia Ativa
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-600">
@@ -88,6 +100,47 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
       {/* Content */}
       {!isMinimized && (
         <div className="p-4 space-y-4">
+          {/* Filtros Demográficos Ativos */}
+          {hasDemographicFilters && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 space-y-1">
+              <div className="flex items-center gap-2 mb-2">
+                <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+                <span className="text-xs font-semibold text-purple-800">Filtros Demográficos</span>
+              </div>
+              {socialGrade !== 'all' && (
+                <div className="text-xs text-purple-700 flex items-center gap-1">
+                  <strong>Social Grade:</strong> {socialGrade}
+                  {socialGrade !== 'all' && ageGroup !== 'all' && (
+                    <span className="text-green-600">✓ Ativo no mapa</span>
+                  )}
+                </div>
+              )}
+              {ageGroup !== 'all' && (
+                <div className="text-xs text-purple-700 flex items-center gap-1">
+                  <strong>Grupo Etário:</strong> {ageGroup}
+                  {socialGrade === 'all' && (
+                    <span className="text-green-600">✓ Ativo no mapa</span>
+                  )}
+                </div>
+              )}
+              {socialGrade !== 'all' && ageGroup !== 'all' && (
+                <div className="bg-yellow-100 border border-yellow-300 rounded px-2 py-1 mt-2">
+                  <div className="text-xs text-yellow-800 font-medium">
+                    ⚠️ Ambos ativos: apenas Social Grade no mapa
+                  </div>
+                  <div className="text-xs text-yellow-700 mt-0.5">
+                    Age usado apenas nos gráficos
+                  </div>
+                </div>
+              )}
+              <div className="text-xs text-purple-600 mt-1 italic">
+                Use o Analytics Dashboard para alterar
+              </div>
+            </div>
+          )}
+          
           {/* Top N Flows */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">

@@ -25,6 +25,8 @@ interface InteractiveMapProps {
   selectedLTLA?: string | null;
   flowDirection?: 'incoming' | 'outgoing';
   isFullscreen?: boolean;
+  socialGrade?: string;
+  ageGroup?: string;
 }
 
 export const InteractiveMap: React.FC<InteractiveMapProps> = ({
@@ -42,7 +44,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   showLTLAs = false,
   selectedLTLA = null,
   flowDirection = 'incoming',
-  isFullscreen = false
+  isFullscreen = false,
+  socialGrade = 'all',
+  ageGroup = 'all'
 }) => {
   const markers = useMemo(
     () =>
@@ -117,6 +121,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             isVisible={true}
             flowDirection={flowDirection}
             dataSource="ltla"
+            socialGrade={socialGrade}
+            ageGroup={ageGroup}
           />
         )}
         
@@ -129,6 +135,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
               isVisible={true}
               flowDirection={flowDirection}
               dataSource="msoa"
+              socialGrade={socialGrade}
+              ageGroup={ageGroup}
             />
           </>
         )}

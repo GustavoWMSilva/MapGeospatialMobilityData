@@ -2,6 +2,30 @@
 
 Sistema interativo de visualização de dados de mobilidade e fluxos de deslocamento casa-trabalho (commuting) no Reino Unido, utilizando dados do censo de 2021.
 
+## ✨ Novidade: Analytics Demográficos!
+
+🎉 **Os dados demográficos (Social Grade e Age) agora suportam tanto MSOA quanto LTLA!**
+
+- ✅ **Social Grade (NS-SeC)**: Perfil socioeconômico dos trabalhadores
+- ✅ **Age Groups**: Distribuição etária dos fluxos de mobilidade
+- ✅ **Direção**: Análise separada de incoming (quem chega) vs outgoing (quem sai)
+- ✅ **Agregação Automática**: Para LTLA, dados de todos os MSOAs são agregados automaticamente
+- 🆕 **Filtros no Mapa**: Filtros demográficos aplicados em tempo real nas linhas do mapa!
+
+📚 **Guias Completos**:
+
+- [DEMOGRAPHIC_DATA_GUIDE.md](DEMOGRAPHIC_DATA_GUIDE.md) - Como funcionam os dados
+- [DEMOGRAPHIC_FILTERS_USAGE.md](DEMOGRAPHIC_FILTERS_USAGE.md) - Como usar os filtros
+
+### Como habilitar dados demográficos
+
+Os arquivos necessários são:
+
+- `ODWP09EW_MSOA.parquet` (Social Grade) - Opcional
+- `ODWP04EW_MSOA.parquet` (Age) - Opcional
+
+**Status no UI**: O Analytics Dashboard agora mostra um painel visual indicando quais datasets estão disponíveis.
+
 ## 🎯 Objetivo do Projeto
 
 Este projeto tem como objetivo visualizar e analisar padrões de mobilidade urbana no Reino Unido através de mapas interativos, permitindo:
