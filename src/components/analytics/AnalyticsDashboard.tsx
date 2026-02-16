@@ -6,6 +6,7 @@ import { DirectionDebugPanel } from './DirectionDebugPanel';
 import { DataAvailabilityCheck } from './DataAvailabilityCheck';
 import { getMSOAFlowsBySocialGrade, getMSOAFlowsByAge } from '../../utils/duckdb';
 import type { SocialGrade, AgeGroup } from '../../types';
+import { debugLog, getAnalyticsErrorMessage, isDevMode } from './analyticsUtils';
 
 interface AnalyticsDashboardProps {
   selectedArea?: string;
@@ -30,23 +31,27 @@ export function AnalyticsDashboard({
 }: AnalyticsDashboardProps) {
   const [flowCount, setFlowCount] = useState<number>(0);
   const [loading, setLoading] = useState(false);
+  const [flowCountError, setFlowCountError] = useState<string | null>(null);
 
-  // Log para debug de mudanças de direção
   useEffect(() => {
-    console.log(`📊 AnalyticsDashboard: direction mudou para "${direction}"`);
+    debugLog(`[AnalyticsDashboard] direction=${direction}`);
   }, [direction]);
 
-  // Log para debug de mudanças de área
   useEffect(() => {
-    console.log(`🎯 AnalyticsDashboard: selectedArea="${selectedArea}", areaName="${areaName}"`);
+    debugLog(`[AnalyticsDashboard] selectedArea=${selectedArea} areaName=${areaName}`);
   }, [selectedArea, areaName]);
 
   // Atualizar contagem de flows quando filtros mudarem
   useEffect(() => {
     async function updateFlowCount() {
-      if (!selectedArea) return;
+      if (!selectedArea) {
+        setFlowCount(0);
+        setFlowCountError(null);
+        return;
+      }
       
       setLoading(true);
+      setFlowCountError(null);
       try {
         let flows;
         
@@ -61,9 +66,13 @@ export function AnalyticsDashboard({
         } else if (ageGroup !== 'all') {
           flows = await getMSOAFlowsByAge(selectedArea, ageGroup, direction, 5000);
           setFlowCount(flows.length);
+        } else {
+          setFlowCount(0);
         }
       } catch (error) {
-        console.error('Erro ao atualizar contagem:', error);
+        console.error('[AnalyticsDashboard] erro ao atualizar contagem', error);
+        setFlowCountError(getAnalyticsErrorMessage(error));
+        setFlowCount(0);
       } finally {
         setLoading(false);
       }
@@ -114,11 +123,17 @@ export function AnalyticsDashboard({
         onDirectionChange={onDirectionChange || (() => {})}
       />
 
+      {flowCountError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <strong>Erro no dashboard:</strong> {flowCountError}
+        </div>
+      )}
+
       {/* Verificação de Disponibilidade de Dados */}
       <DataAvailabilityCheck />
 
       {/* Painel de Diagnóstico */}
-      <DirectionDebugPanel areaCode={selectedArea} />
+      {isDevMode && <DirectionDebugPanel areaCode={selectedArea} />}
 
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

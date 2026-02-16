@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { getSocialGradeStats } from '../../utils/duckdb';
+import { debugLog, debugWarn, getAnalyticsErrorMessage } from './analyticsUtils';
 
 interface SocialGradePieChartProps {
   areaCode: string;
   direction?: 'incoming' | 'outgoing';
+}
+
+interface SocialGradeChartDatum {
+  name: string;
+  value: number;
+  percentage: number;
+  color: string;
 }
 
 const COLORS = {
@@ -22,12 +30,12 @@ const GRADE_LABELS: Record<string, string> = {
 };
 
 export function SocialGradePieChart({ areaCode, direction = 'incoming' }: SocialGradePieChartProps) {
-  const [data, setData] = useState<Array<{ name: string; value: number; percentage: number }>>([]);
+  const [data, setData] = useState<SocialGradeChartDatum[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log(`🔄 SocialGradePieChart: useEffect disparado - areaCode: ${areaCode}, direction: ${direction}`);
+    debugLog(`[SocialGradePieChart] useEffect areaCode=${areaCode} direction=${direction}`);
     
     // Limpar dados imediatamente ao trocar de área
     setData([]);
@@ -36,22 +44,22 @@ export function SocialGradePieChart({ areaCode, direction = 'incoming' }: Social
     
     async function loadStats() {
       if (!areaCode) {
-        console.log('🔵 SocialGradePieChart: Aguardando seleção de área');
+        debugLog('[SocialGradePieChart] aguardando selecao de area');
         setLoading(false);
         return;
       }
       
-      console.log(`🔵 SocialGradePieChart: Carregando stats para ${areaCode} (${direction})...`);
+      debugLog(`[SocialGradePieChart] carregando stats para ${areaCode} (${direction})`);
       
       try {
         setLoading(true);
         setError(null);
         
         const stats = await getSocialGradeStats(areaCode, direction);
-        console.log(`🔵 SocialGradePieChart: Stats recebidas:`, stats);
+        debugLog('[SocialGradePieChart] stats recebidas', stats);
         
         if (stats.length === 0) {
-          console.warn('🟡 SocialGradePieChart: Nenhum dado retornado!');
+          debugWarn('[SocialGradePieChart] nenhum dado retornado');
           setData([]);
           setLoading(false);
           return;
@@ -68,11 +76,11 @@ export function SocialGradePieChart({ areaCode, direction = 'incoming' }: Social
           };
         });
         
-        console.log(`✅ SocialGradePieChart: Dados processados (${chartData.length} categorias)`);
+        debugLog(`[SocialGradePieChart] dados processados (${chartData.length} categorias)`);
         setData(chartData);
       } catch (err) {
-        console.error('❌ SocialGradePieChart: Erro ao carregar:', err);
-        setError('Erro ao carregar dados');
+        console.error('[SocialGradePieChart] erro ao carregar', err);
+        setError(getAnalyticsErrorMessage(err));
       } finally {
         setLoading(false);
       }
@@ -82,7 +90,7 @@ export function SocialGradePieChart({ areaCode, direction = 'incoming' }: Social
     
     // Cleanup ao desmontar ou trocar de área
     return () => {
-      console.log(`🧽 SocialGradePieChart: Limpando dados antigos de ${areaCode}`);
+      debugLog(`[SocialGradePieChart] limpando dados de ${areaCode}`);
       setData([]);
     };
   }, [areaCode, direction]);
@@ -104,7 +112,6 @@ export function SocialGradePieChart({ areaCode, direction = 'incoming' }: Social
   }
 
   if (data.length === 0) {
-    console.warn('🟠 SocialGradePieChart: Renderizando mensagem "dados não disponíveis" (data.length = 0)');
     return (
       <div className="flex flex-col items-center justify-center h-64 text-gray-500 p-4 text-center">
         <p className="font-semibold">Dados de Social Grade não disponíveis</p>
@@ -161,9 +168,9 @@ export function SocialGradePieChart({ areaCode, direction = 'incoming' }: Social
             ))}
           </Pie>
           <Tooltip 
-            formatter={(value: number, name: string, props: any) => [
-              `${value.toLocaleString()} (${props.payload.percentage}%)`,
-              name
+            formatter={(value: number | string | Array<number | string> | undefined, name: string | undefined, props: any) => [
+              `${Number(value ?? 0).toLocaleString()} (${props.payload.percentage}%)`,
+              name ?? 'Commuters'
             ]}
           />
           <Legend />

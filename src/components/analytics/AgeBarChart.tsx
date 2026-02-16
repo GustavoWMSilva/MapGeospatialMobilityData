@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { getAgeStats } from '../../utils/duckdb';
+import { debugLog, debugWarn, getAnalyticsErrorMessage } from './analyticsUtils';
 
 interface AgeBarChartProps {
   areaCode: string;
@@ -42,7 +43,7 @@ export function AgeBarChart({ areaCode, direction = 'incoming' }: AgeBarChartPro
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log(`🔄 AgeBarChart: useEffect disparado - areaCode: ${areaCode}, direction: ${direction}`);
+    debugLog(`[AgeBarChart] useEffect areaCode=${areaCode} direction=${direction}`);
     
     // Limpar dados imediatamente ao trocar de área
     setData([]);
@@ -51,22 +52,22 @@ export function AgeBarChart({ areaCode, direction = 'incoming' }: AgeBarChartPro
     
     async function loadStats() {
       if (!areaCode) {
-        console.log('🟢 AgeBarChart: Aguardando seleção de área');
+        debugLog('[AgeBarChart] aguardando selecao de area');
         setLoading(false);
         return;
       }
       
-      console.log(`🟢 AgeBarChart: Carregando stats para ${areaCode} (${direction})...`);
+      debugLog(`[AgeBarChart] carregando stats para ${areaCode} (${direction})`);
       
       try {
         setLoading(true);
         setError(null);
         
         const stats = await getAgeStats(areaCode, direction);
-        console.log(`🟢 AgeBarChart: Stats recebidas:`, stats);
+        debugLog('[AgeBarChart] stats recebidas', stats);
         
         if (stats.length === 0) {
-          console.warn('🟡 AgeBarChart: Nenhum dado retornado!');
+          debugWarn('[AgeBarChart] nenhum dado retornado');
           setData([]);
           setLoading(false);
           return;
@@ -84,11 +85,11 @@ export function AgeBarChart({ areaCode, direction = 'incoming' }: AgeBarChartPro
         const ageOrder = ['16-24', '25-34', '35-44', '45-54', '55-64', '65+'];
         chartData.sort((a, b) => ageOrder.indexOf(a.name) - ageOrder.indexOf(b.name));
         
-        console.log(`✅ AgeBarChart: Dados processados (${chartData.length} grupos)`);
+        debugLog(`[AgeBarChart] dados processados (${chartData.length} grupos)`);
         setData(chartData);
       } catch (err) {
-        console.error('❌ AgeBarChart: Erro ao carregar:', err);
-        setError('Erro ao carregar dados');
+        console.error('[AgeBarChart] erro ao carregar', err);
+        setError(getAnalyticsErrorMessage(err));
       } finally {
         setLoading(false);
       }
@@ -98,7 +99,7 @@ export function AgeBarChart({ areaCode, direction = 'incoming' }: AgeBarChartPro
     
     // Cleanup ao desmontar ou trocar de área
     return () => {
-      console.log(`🧽 AgeBarChart: Limpando dados antigos de ${areaCode}`);
+      debugLog(`[AgeBarChart] limpando dados de ${areaCode}`);
       setData([]);
     };
   }, [areaCode, direction]);
@@ -120,7 +121,6 @@ export function AgeBarChart({ areaCode, direction = 'incoming' }: AgeBarChartPro
   }
 
   if (data.length === 0) {
-    console.warn('🟠 AgeBarChart: Renderizando mensagem "dados não disponíveis" (data.length = 0)');
     return (
       <div className="flex flex-col items-center justify-center h-64 text-gray-500 p-4 text-center">
         <p className="font-semibold">Dados de Age Group não disponíveis</p>
@@ -146,8 +146,8 @@ export function AgeBarChart({ areaCode, direction = 'incoming' }: AgeBarChartPro
           <XAxis dataKey="name" />
           <YAxis />
           <Tooltip 
-            formatter={(value: number, name: string, props: any) => [
-              `${(value as number).toLocaleString()} (${props.payload.percentage}%)`,
+            formatter={(value: number | string | Array<number | string> | undefined, _name: string | undefined, props: any) => [
+              `${Number(value ?? 0).toLocaleString()} (${props.payload.percentage}%)`,
               'Commuters'
             ]}
           />

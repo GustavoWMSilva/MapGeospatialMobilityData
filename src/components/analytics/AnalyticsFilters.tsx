@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { SocialGrade, AgeGroup } from '../../types';
+import { debugLog } from './analyticsUtils';
 
 interface AnalyticsFiltersProps {
   onSocialGradeChange: (grade: SocialGrade) => void;
@@ -36,7 +37,7 @@ export function AnalyticsFilters({
 
   const handleDirectionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const dir = e.target.value as 'incoming' | 'outgoing';
-    console.log(`🔀 AnalyticsFilters: Mudando direction de "${selectedDirection}" para "${dir}"`);
+    debugLog(`[AnalyticsFilters] direction ${selectedDirection} -> ${dir}`);
     setSelectedDirection(dir);
     onDirectionChange(dir);
   };

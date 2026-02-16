@@ -11,6 +11,19 @@ let db: duckdb.AsyncDuckDB | null = null;
 let conn: duckdb.AsyncDuckDBConnection | null = null;
 let initialized = false;
 let initPromise: Promise<void> | null = null;
+const isDevMode = import.meta.env.DEV;
+
+function debugLog(...args: unknown[]) {
+  if (isDevMode) {
+    console.log(...args);
+  }
+}
+
+function debugWarn(...args: unknown[]) {
+  if (isDevMode) {
+    console.warn(...args);
+  }
+}
 
 // URLs dos datasets
 const DATASETS = {
@@ -167,7 +180,7 @@ async function loadLTLALookup(): Promise<Map<string, string>> {
     }
   }
   
-  console.log(`  ✓ Lookup MSOA→LTLA carregado (${ltlaLookupCache.size} entradas)`);
+  debugLog(`  ✓ Lookup MSOA→LTLA carregado (${ltlaLookupCache.size} entradas)`);
   return ltlaLookupCache;
 }
 
@@ -193,7 +206,7 @@ async function getMSOAsInLTLA(ltlaCode: string): Promise<string[]> {
     }
   });
   
-  console.log(`  ✓ Encontrados ${msoas.length} MSOAs no LTLA ${ltlaCode}`);
+  debugLog(`  ✓ Encontrados ${msoas.length} MSOAs no LTLA ${ltlaCode}`);
   return msoas;
 }
 
@@ -266,7 +279,7 @@ export async function aggregateMSOAToLTLAFlows(
   msoaCodes: string[],
   direction: 'incoming' | 'outgoing',
   lookupMap: Map<string, string>, // MSOA -> LTLA
-  limit: number = 10000
+  _limit: number = 10000
 ): Promise<{ originLTLA: string; destLTLA: string; count: number }[]> {
   await initDuckDB();
 
@@ -369,7 +382,7 @@ export async function getMSOAFlowsBySocialGrade(
     whereClause = `${filterCol} = '${areaCode}'`;
   }
 
-  console.log(`Carregando flows ${direction} para ${areaCode} (grade: ${socialGrade})...`);
+  debugLog(`Carregando flows ${direction} para ${areaCode} (grade: ${socialGrade})...`);
 
   try {
     const query = `
@@ -394,7 +407,7 @@ export async function getMSOAFlowsBySocialGrade(
       count: row.count,
     }));
 
-    console.log(`Carregados ${data.length} flows (social grade)`);
+    debugLog(`Carregados ${data.length} flows (social grade)`);
     return data;
   } catch (error) {
     console.error('Erro ao carregar flows por social grade:', error);
@@ -441,7 +454,7 @@ export async function getMSOAFlowsByAge(
     whereClause = `${filterCol} = '${areaCode}'`;
   }
 
-  console.log(`Carregando flows ${direction} para ${areaCode} (age: ${ageGroup})...`);
+  debugLog(`Carregando flows ${direction} para ${areaCode} (age: ${ageGroup})...`);
 
   try {
     const query = `
@@ -466,7 +479,7 @@ export async function getMSOAFlowsByAge(
       count: row.count,
     }));
 
-    console.log(`Carregados ${data.length} flows (age)`);
+    debugLog(`Carregados ${data.length} flows (age)`);
     return data;
   } catch (error) {
     console.error('Erro ao carregar flows por age:', error);
@@ -481,10 +494,10 @@ export async function getSocialGradeStats(
   areaCode: string,
   direction: 'incoming' | 'outgoing' = 'incoming'
 ): Promise<Array<{ grade: string; total: number; percentage: number }>> {
-  console.log(`📊 getSocialGradeStats chamado para: ${areaCode} (${direction})`);
+  debugLog(`getSocialGradeStats chamado para: ${areaCode} (${direction})`);
   
   await initDuckDB();
-  console.log('  ✓ DuckDB inicializado');
+  debugLog('  ✓ DuckDB inicializado');
 
   if (!conn) {
     console.error('  ❌ Conexão DuckDB não disponível');
@@ -493,12 +506,10 @@ export async function getSocialGradeStats(
 
   // Verificar se tabela existe
   try {
-    const test = await conn.query(`SELECT 1 FROM flows_social_grade LIMIT 1`);
-    console.log('  ✓ Tabela flows_social_grade EXISTE e está acessível');
+    await conn.query(`SELECT 1 FROM flows_social_grade LIMIT 1`);
+    debugLog('  ✓ Tabela flows_social_grade existe e esta acessivel');
   } catch (error) {
-    console.error('  ❌ Tabela flows_social_grade NÃO disponível:', error);
-    console.error('  💡 SOLUÇÃO: Você precisa fazer upload do arquivo ODWP09EW_MSOA.parquet para o GitHub');
-    console.error('  📁 Repositório: GustavoWMSilva/MapGeospatialMobilityData');
+    debugWarn('Tabela flows_social_grade nao disponivel:', error);
     return [];
   }
 
@@ -507,18 +518,18 @@ export async function getSocialGradeStats(
   // Se for LTLA, converter para MSOAs
   let whereClause: string;
   if (isLTLACode(areaCode)) {
-    console.log(`  → Código LTLA detectado, buscando MSOAs...`);
+    debugLog('  → Codigo LTLA detectado, buscando MSOAs...');
     const msoas = await getMSOAsInLTLA(areaCode);
     if (msoas.length === 0) {
-      console.warn(`  ⚠️ Nenhum MSOA encontrado para LTLA ${areaCode}`);
+      debugWarn(`Nenhum MSOA encontrado para LTLA ${areaCode}`);
       return [];
     }
     const msoaList = msoas.map(m => `'${m}'`).join(',');
     whereClause = `${filterCol} IN (${msoaList})`;
-    console.log(`  → Consultando ${filterCol} IN (${msoas.length} MSOAs)`);
+    debugLog(`  → Consultando ${filterCol} IN (${msoas.length} MSOAs)`);
   } else {
     whereClause = `${filterCol} = '${areaCode}'`;
-    console.log(`  → Consultando ${filterCol} = '${areaCode}' (MSOA)`);
+    debugLog(`  → Consultando ${filterCol} = '${areaCode}' (MSOA)`);
   }
 
   try {
@@ -542,7 +553,7 @@ export async function getSocialGradeStats(
       ORDER BY t.total DESC
     `;
     
-    console.log(`  🔍 QUERY COMPLETA (${direction}):`, query.substring(0, 200) + '...');
+    debugLog(`  query (${direction}):`, query.substring(0, 200) + '...');
 
     const result = await conn.query(query);
     const stats = result.toArray().map((row: any) => ({
@@ -550,15 +561,14 @@ export async function getSocialGradeStats(
       total: Number(row.total),  // Convert BigInt to Number
       percentage: Number(row.percentage),
     }));
-    console.log(`  ✅ Social grade stats retornadas: ${stats.length} categorias`);
+    debugLog(`Social grade stats retornadas: ${stats.length} categorias`);
     if (stats.length === 0) {
-      console.warn(`  ⚠️ Query retornou 0 resultados para ${areaCode}`);
-      console.warn(`  🔍 Isso pode significar que não há dados demográficos para esta área`);
+      debugWarn(`Query retornou 0 resultados para ${areaCode}`);
     }
-    console.log('    ', stats);
+    debugLog('stats', stats);
     return stats;
   } catch (error) {
-    console.error('  ❌ Erro ao calcular estatísticas de social grade:', error);
+    console.error('Erro ao calcular estatisticas de social grade:', error);
     throw error;
   }
 }
@@ -570,10 +580,10 @@ export async function getAgeStats(
   areaCode: string,
   direction: 'incoming' | 'outgoing' = 'incoming'
 ): Promise<Array<{ ageGroup: string; total: number; percentage: number }>> {
-  console.log(`📊 getAgeStats chamado para: ${areaCode} (${direction})`);
+  debugLog(`getAgeStats chamado para: ${areaCode} (${direction})`);
   
   await initDuckDB();
-  console.log('  ✓ DuckDB inicializado');
+  debugLog('  ✓ DuckDB inicializado');
 
   if (!conn) {
     console.error('  ❌ Conexão DuckDB não disponível');
@@ -582,12 +592,10 @@ export async function getAgeStats(
 
   // Verificar se tabela existe
   try {
-    const test = await conn.query(`SELECT 1 FROM flows_age LIMIT 1`);
-    console.log('  ✓ Tabela flows_age EXISTE e está acessível');
+    await conn.query(`SELECT 1 FROM flows_age LIMIT 1`);
+    debugLog('  ✓ Tabela flows_age existe e esta acessivel');
   } catch (error) {
-    console.error('  ❌ Tabela flows_age NÃO disponível:', error);
-    console.error('  💡 SOLUÇÃO: Você precisa fazer upload do arquivo ODWP04EW_MSOA.parquet para o GitHub');
-    console.error('  📁 Repositório: GustavoWMSilva/MapGeospatialMobilityData');
+    debugWarn('Tabela flows_age nao disponivel:', error);
     return [];
   }
 
@@ -596,18 +604,18 @@ export async function getAgeStats(
   // Se for LTLA, converter para MSOAs
   let whereClause: string;
   if (isLTLACode(areaCode)) {
-    console.log(`  → Código LTLA detectado, buscando MSOAs...`);
+    debugLog('  → Codigo LTLA detectado, buscando MSOAs...');
     const msoas = await getMSOAsInLTLA(areaCode);
     if (msoas.length === 0) {
-      console.warn(`  ⚠️ Nenhum MSOA encontrado para LTLA ${areaCode}`);
+      debugWarn(`Nenhum MSOA encontrado para LTLA ${areaCode}`);
       return [];
     }
     const msoaList = msoas.map(m => `'${m}'`).join(',');
     whereClause = `${filterCol} IN (${msoaList})`;
-    console.log(`  → Consultando ${filterCol} IN (${msoas.length} MSOAs)`);
+    debugLog(`  → Consultando ${filterCol} IN (${msoas.length} MSOAs)`);
   } else {
     whereClause = `${filterCol} = '${areaCode}'`;
-    console.log(`  → Consultando ${filterCol} = '${areaCode}' (MSOA)`);
+    debugLog(`  → Consultando ${filterCol} = '${areaCode}' (MSOA)`);
   }
 
   try {
@@ -631,7 +639,7 @@ export async function getAgeStats(
       ORDER BY t.total DESC
     `;
     
-    console.log(`  🔍 QUERY COMPLETA (${direction}):`, query.substring(0, 200) + '...');
+    debugLog(`  query (${direction}):`, query.substring(0, 200) + '...');
 
     const result = await conn.query(query);
     const stats = result.toArray().map((row: any) => ({
@@ -639,15 +647,14 @@ export async function getAgeStats(
       total: Number(row.total),  // Convert BigInt to Number
       percentage: Number(row.percentage),
     }));
-    console.log(`  ✅ Age stats retornadas: ${stats.length} grupos`);
+    debugLog(`Age stats retornadas: ${stats.length} grupos`);
     if (stats.length === 0) {
-      console.warn(`  ⚠️ Query retornou 0 resultados para ${areaCode}`);
-      console.warn(`  🔍 Isso pode significar que não há dados demográficos para esta área`);
+      debugWarn(`Query retornou 0 resultados para ${areaCode}`);
     }
-    console.log('    ', stats);
+    debugLog('stats', stats);
     return stats;
   } catch (error) {
-    console.error('  ❌ Erro ao calcular estatísticas de age:', error);
+    console.error('Erro ao calcular estatisticas de age:', error);
     throw error;
   }
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getSocialGradeStats, getAgeStats } from '../../utils/duckdb';
+import { debugLog, getAnalyticsErrorMessage } from './analyticsUtils';
 
 interface DirectionDebugPanelProps {
   areaCode: string;
@@ -11,13 +12,15 @@ export function DirectionDebugPanel({ areaCode }: DirectionDebugPanelProps) {
   const [incomingAge, setIncomingAge] = useState<any[]>([]);
   const [outgoingAge, setOutgoingAge] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadData() {
       if (!areaCode) return;
 
-      console.log('🔍 DirectionDebugPanel: Carregando dados para comparação...');
+      debugLog('[DirectionDebugPanel] carregando dados de comparacao');
       setLoading(true);
+      setError(null);
 
       try {
         // Carregar INCOMING e OUTGOING em paralelo
@@ -37,15 +40,17 @@ export function DirectionDebugPanel({ areaCode }: DirectionDebugPanelProps) {
         const socialIguais = JSON.stringify(incSocial) === JSON.stringify(outSocial);
         const ageIguais = JSON.stringify(incAge) === JSON.stringify(outAge);
 
-        console.log('🔍 DIAGNÓSTICO:');
-        console.log(`  Social Grade INCOMING = OUTGOING? ${socialIguais ? '⚠️ SIM (PROBLEMA!)' : '✅ NÃO (correto)'}`);
-        console.log(`  Age INCOMING = OUTGOING? ${ageIguais ? '⚠️ SIM (PROBLEMA!)' : '✅ NÃO (correto)'}`);
-        console.log('  Incoming Social:', incSocial);
-        console.log('  Outgoing Social:', outSocial);
-        console.log('  Incoming Age:', incAge);
-        console.log('  Outgoing Age:', outAge);
+        debugLog('[DirectionDebugPanel] diagnostico', {
+          socialIguais,
+          ageIguais,
+          incSocial,
+          outSocial,
+          incAge,
+          outAge,
+        });
       } catch (error) {
-        console.error('❌ Erro ao carregar dados de diagnóstico:', error);
+        console.error('[DirectionDebugPanel] erro ao carregar diagnostico', error);
+        setError(getAnalyticsErrorMessage(error));
       } finally {
         setLoading(false);
       }
@@ -61,6 +66,14 @@ export function DirectionDebugPanel({ areaCode }: DirectionDebugPanelProps) {
       <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 mb-4">
         <h3 className="font-bold text-yellow-800 mb-2">🔍 Diagnóstico de Direção</h3>
         <p className="text-sm text-yellow-700">Comparando incoming vs outgoing...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border-2 border-red-400 rounded-lg p-4 mb-4 text-sm text-red-700">
+        <strong>Erro no diagnostico:</strong> {error}
       </div>
     );
   }
