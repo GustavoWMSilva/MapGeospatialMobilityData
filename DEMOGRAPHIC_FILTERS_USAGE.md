@@ -57,14 +57,14 @@ Opções disponíveis:
 - ✅ Age Bar Chart atualiza
 - ✅ Estatísticas recalculadas
 
-## ⚠️ Comportamento com Ambos Filtros Ativos
+## ✅ Comportamento com Ambos Filtros Ativos
 
 ### Se você selecionar Social Grade E Age simultaneamente:
 
 **No Mapa:**
 
-- 🔵 **Social Grade** tem prioridade
-- ⚠️ Age Group NÃO é aplicado nas linhas do mapa
+- ✅ Filtro combinado **Social Grade + Age Group** é aplicado nas linhas do mapa
+- ✅ Apenas fluxos que atendem aos dois critérios aparecem
 
 **Nos Gráficos:**
 
@@ -76,8 +76,7 @@ Opções disponíveis:
 Quando ambos estão ativos, você verá:
 
 ```
-⚠️ Ambos ativos: apenas Social Grade no mapa
-   Age usado apenas nos gráficos
+✓ Ambos ativos: filtro combinado no mapa
 ```
 
 ## 🧪 Exemplos Práticos
@@ -100,8 +99,8 @@ Quando ambos estão ativos, você verá:
 
 1. Social Grade: **AB - Professional**
 2. Age Group: **25-34 years**
-3. ⚠️ **Mapa:** Mostra apenas AB (prioridade)
-4. ✅ **Gráficos:** Mostram AB E 25-34 separadamente
+3. ✅ **Mapa:** Mostra apenas AB + 25-34 (interseção)
+4. ✅ **Gráficos:** Mostram as distribuições da área selecionada
 
 ## 🔍 Verificação no Console (F12)
 
@@ -115,7 +114,7 @@ Quando ambos estão ativos, você verá:
 👥 Filtrando por Age Group: 25-34 years
 
 // Ambos ativos
-⚠️ Ambos filtros ativos! Usando apenas Social Grade no mapa.
+🎯 Filtrando por Social Grade + Age Group: AB + Aged 25 to 34 years
 
 // Dados carregados
 ✅ Criados 87 features GeoJSON filtrados
@@ -160,7 +159,8 @@ Mostra:
 4. **FlowsVisualization** → detecta mudança
 5. **dataService** → chama função correta:
    - `getMSOAFlowsBySocialGrade()` ou
-   - `getMSOAFlowsByAge()`
+   - `getMSOAFlowsByAge()` ou
+   - `getMSOAFlowsBySocialGradeAndAge()`
 6. **DuckDB** → query SQL filtrada
 7. **Mapa** → linhas redesenhadas
 
@@ -200,9 +200,9 @@ LIMIT 50000
 
 ## ❓ FAQ
 
-### P: Por que só 1 filtro funciona no mapa quando seleciono ambos?
+### P: O mapa aplica ambos filtros ao mesmo tempo?
 
-**R:** Limitação técnica atual. Combinar ambos requer query SQL mais complexa. Está na roadmap!
+**R:** Sim. Quando Social Grade e Age estão ativos, o mapa usa uma query SQL combinada.
 
 ### P: Os gráficos respeitam ambos filtros?
 
@@ -225,7 +225,7 @@ LIMIT 50000
 ✅ **Filtros de Idade FUNCIONAM no mapa!**
 ✅ **Filtros de Social Grade FUNCIONAM no mapa!**
 ✅ Ambos funcionam nos gráficos simultaneamente
-⚠️ No mapa, apenas 1 filtro por vez (prioridade: Social Grade)
+✅ No mapa, os dois filtros podem ser aplicados ao mesmo tempo
 🚀 Tudo em tempo real, sem recarregar página
 
 **Experimente agora e veja a mágia acontecer!** 🎨📊🗺️

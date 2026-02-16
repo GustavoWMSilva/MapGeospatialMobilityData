@@ -128,10 +128,7 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
               {socialGrade !== 'all' && ageGroup !== 'all' && (
                 <div className="bg-yellow-100 border border-yellow-300 rounded px-2 py-1 mt-2">
                   <div className="text-xs text-yellow-800 font-medium">
-                    ⚠️ Ambos ativos: apenas Social Grade no mapa
-                  </div>
-                  <div className="text-xs text-yellow-700 mt-0.5">
-                    Age usado apenas nos gráficos
+                    ✓ Ambos ativos: filtro combinado no mapa
                   </div>
                 </div>
               )}

@@ -4,7 +4,7 @@ import { AgeBarChart } from './AgeBarChart';
 import { AnalyticsFilters } from './AnalyticsFilters';
 import { DirectionDebugPanel } from './DirectionDebugPanel';
 import { DataAvailabilityCheck } from './DataAvailabilityCheck';
-import { getMSOAFlowsBySocialGrade, getMSOAFlowsByAge } from '../../utils/duckdb';
+import { getMSOAFlowsBySocialGrade, getMSOAFlowsByAge, getMSOAFlowsBySocialGradeAndAge } from '../../utils/duckdb';
 import type { SocialGrade, AgeGroup } from '../../types';
 import { debugLog, getAnalyticsErrorMessage, isDevMode } from './analyticsUtils';
 
@@ -55,11 +55,10 @@ export function AnalyticsDashboard({
       try {
         let flows;
         
-        // Se ambos os filtros estiverem ativos, usar intersecção
+        // Se ambos os filtros estiverem ativos, usar query combinada
         if (socialGrade !== 'all' && ageGroup !== 'all') {
-          // Isso é uma aproximação - idealmente você teria uma query que combina ambos
-          const socialFlows = await getMSOAFlowsBySocialGrade(selectedArea, socialGrade, direction, 5000);
-          setFlowCount(socialFlows.length);
+          flows = await getMSOAFlowsBySocialGradeAndAge(selectedArea, socialGrade, ageGroup, direction, 5000);
+          setFlowCount(flows.length);
         } else if (socialGrade !== 'all') {
           flows = await getMSOAFlowsBySocialGrade(selectedArea, socialGrade, direction, 5000);
           setFlowCount(flows.length);

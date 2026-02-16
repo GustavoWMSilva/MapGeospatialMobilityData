@@ -229,6 +229,29 @@ interface AgeFlowResult extends FlowResult {
   age_group: string;
 }
 
+interface CombinedDemographicFlowResult extends FlowResult {
+  social_count: number;
+  age_count: number;
+}
+
+async function resolveAreaWhereClause(
+  areaCode: string,
+  direction: 'incoming' | 'outgoing'
+): Promise<{ whereClause: string }> {
+  const filterCol = direction === 'incoming' ? 'dest_code' : 'origin_code';
+
+  if (isLTLACode(areaCode)) {
+    const msoas = await getMSOAsInLTLA(areaCode);
+    if (msoas.length === 0) {
+      return { whereClause: '1=0' };
+    }
+    const msoaList = msoas.map(m => `'${m}'`).join(',');
+    return { whereClause: `${filterCol} IN (${msoaList})` };
+  }
+
+  return { whereClause: `${filterCol} = '${areaCode}'` };
+}
+
 export async function getMSOAFlows(
   areaCode: string,
   direction: 'incoming' | 'outgoing' = 'incoming',
@@ -366,20 +389,13 @@ export async function getMSOAFlowsBySocialGrade(
     return [];
   }
 
-  const filterCol = direction === 'incoming' ? 'dest_code' : 'origin_code';
   const gradeFilter = socialGrade === 'all' 
     ? "social_grade != 'Does not apply'"
     : `social_grade LIKE '%${socialGrade}%'`;
 
-  // Se for LTLA, converter para MSOAs
-  let whereClause: string;
-  if (isLTLACode(areaCode)) {
-    const msoas = await getMSOAsInLTLA(areaCode);
-    if (msoas.length === 0) return [];
-    const msoaList = msoas.map(m => `'${m}'`).join(',');
-    whereClause = `${filterCol} IN (${msoaList})`;
-  } else {
-    whereClause = `${filterCol} = '${areaCode}'`;
+  const { whereClause } = await resolveAreaWhereClause(areaCode, direction);
+  if (whereClause === '1=0') {
+    return [];
   }
 
   debugLog(`Carregando flows ${direction} para ${areaCode} (grade: ${socialGrade})...`);
@@ -438,20 +454,13 @@ export async function getMSOAFlowsByAge(
     return [];
   }
 
-  const filterCol = direction === 'incoming' ? 'dest_code' : 'origin_code';
   const ageFilter = ageGroup === 'all' 
     ? "1=1"
     : `age_group = '${ageGroup}'`;
 
-  // Se for LTLA, converter para MSOAs
-  let whereClause: string;
-  if (isLTLACode(areaCode)) {
-    const msoas = await getMSOAsInLTLA(areaCode);
-    if (msoas.length === 0) return [];
-    const msoaList = msoas.map(m => `'${m}'`).join(',');
-    whereClause = `${filterCol} IN (${msoaList})`;
-  } else {
-    whereClause = `${filterCol} = '${areaCode}'`;
+  const { whereClause } = await resolveAreaWhereClause(areaCode, direction);
+  if (whereClause === '1=0') {
+    return [];
   }
 
   debugLog(`Carregando flows ${direction} para ${areaCode} (age: ${ageGroup})...`);
@@ -569,6 +578,95 @@ export async function getSocialGradeStats(
     return stats;
   } catch (error) {
     console.error('Erro ao calcular estatisticas de social grade:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obter flows MSOA por Social Grade + Age Group em uma unica query
+ */
+export async function getMSOAFlowsBySocialGradeAndAge(
+  areaCode: string,
+  socialGrade: 'AB' | 'C1' | 'C2' | 'DE' | 'all' = 'all',
+  ageGroup: string | 'all' = 'all',
+  direction: 'incoming' | 'outgoing' = 'incoming',
+  limit: number = 2000
+): Promise<CombinedDemographicFlowResult[]> {
+  await initDuckDB();
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  try {
+    await conn.query(`SELECT 1 FROM flows_social_grade LIMIT 1`);
+    await conn.query(`SELECT 1 FROM flows_age LIMIT 1`);
+  } catch {
+    debugWarn('Tabelas demograficas (social/age) nao disponiveis para filtro combinado');
+    return [];
+  }
+
+  const gradeFilter = socialGrade === 'all'
+    ? "social_grade != 'Does not apply'"
+    : `social_grade LIKE '%${socialGrade}%'`;
+  const ageFilter = ageGroup === 'all'
+    ? '1=1'
+    : `age_group = '${ageGroup}'`;
+
+  const { whereClause } = await resolveAreaWhereClause(areaCode, direction);
+  if (whereClause === '1=0') {
+    return [];
+  }
+
+  debugLog(`Carregando flows combinados ${direction} para ${areaCode} (grade=${socialGrade}, age=${ageGroup})...`);
+
+  try {
+    const query = `
+      WITH social AS (
+        SELECT
+          origin_code,
+          dest_code,
+          SUM(count) AS social_count
+        FROM flows_social_grade
+        WHERE ${whereClause} AND ${gradeFilter}
+        GROUP BY origin_code, dest_code
+      ),
+      age AS (
+        SELECT
+          origin_code,
+          dest_code,
+          SUM(count) AS age_count
+        FROM flows_age
+        WHERE ${whereClause} AND ${ageFilter}
+        GROUP BY origin_code, dest_code
+      )
+      SELECT
+        s.origin_code,
+        s.dest_code,
+        LEAST(s.social_count, a.age_count) AS count,
+        s.social_count,
+        a.age_count
+      FROM social s
+      INNER JOIN age a
+        ON s.origin_code = a.origin_code
+       AND s.dest_code = a.dest_code
+      ORDER BY count DESC
+      LIMIT ${limit}
+    `;
+
+    const result = await conn.query(query);
+    const data = result.toArray().map((row: any) => ({
+      origin_code: row.origin_code,
+      dest_code: row.dest_code,
+      count: Number(row.count),
+      social_count: Number(row.social_count),
+      age_count: Number(row.age_count),
+    }));
+
+    debugLog(`Carregados ${data.length} flows (social+age)`);
+    return data;
+  } catch (error) {
+    console.error('Erro ao carregar flows por social+age:', error);
     throw error;
   }
 }

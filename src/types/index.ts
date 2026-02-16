@@ -33,6 +33,11 @@ export interface AgeFlowResult extends FlowResult {
   age_group: string;
 }
 
+export interface CombinedDemographicFlowResult extends FlowResult {
+  social_count: number;
+  age_count: number;
+}
+
 export interface SocialGradeStats {
   grade: string;
   total: number;

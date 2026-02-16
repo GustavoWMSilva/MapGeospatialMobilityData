@@ -3,9 +3,9 @@
  * - Localhost: API Flask
  * - Produção: DuckDB-WASM + GitHub Releases
  */
-import { getMSOAFlows, getMSOAFlowsBySocialGrade, getMSOAFlowsByAge } from './duckdb';
+import { getMSOAFlows, getMSOAFlowsBySocialGrade, getMSOAFlowsByAge, getMSOAFlowsBySocialGradeAndAge } from './duckdb';
 import { cacheService } from './cacheService';
-import type { SocialGrade, SocialGradeFlowResult, AgeFlowResult } from '../types';
+import type { SocialGrade, SocialGradeFlowResult, AgeFlowResult, CombinedDemographicFlowResult } from '../types';
 
 interface Coordinates {
   [code: string]: {
@@ -117,13 +117,11 @@ export async function loadFlowsFiltered(
 
   console.log(`🔍 Carregando flows filtrados - SocialGrade: ${socialGrade}, Age: ${ageGroup}, DataSource: ${dataSource}`);
 
-  let flows: (SocialGradeFlowResult | AgeFlowResult)[] = [];
+  let flows: (SocialGradeFlowResult | AgeFlowResult | CombinedDemographicFlowResult)[] = [];
 
-  // Prioridade: se ambos filtros ativos, usar social grade
-  // TODO: Futuramente criar query que combina ambos filtros simultaneamente
   if (socialGrade !== 'all' && ageGroup !== 'all') {
-    console.warn('⚠️ Ambos filtros ativos! Usando apenas Social Grade no mapa. Age será usado apenas nos gráficos.');
-    flows = await getMSOAFlowsBySocialGrade(areaCode, socialGrade as SocialGrade, direction, limit);
+    console.log(`🎯 Filtrando por Social Grade + Age Group: ${socialGrade} + ${ageGroup}`);
+    flows = await getMSOAFlowsBySocialGradeAndAge(areaCode, socialGrade as SocialGrade, ageGroup, direction, limit);
   } else if (socialGrade !== 'all') {
     console.log(`📊 Filtrando por Social Grade: ${socialGrade}`);
     flows = await getMSOAFlowsBySocialGrade(areaCode, socialGrade as SocialGrade, direction, limit);
