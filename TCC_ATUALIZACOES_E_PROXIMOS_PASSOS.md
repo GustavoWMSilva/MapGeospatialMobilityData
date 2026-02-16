@@ -114,6 +114,14 @@ Arquivos modificados:
 - Reduzir logs de debug em produção e padronizar tratamento de erro no dashboard.
 - Validar fluxo completo em `incoming` e `outgoing` para MSOA e LTLA.
 
+Status de validação (16 de fevereiro de 2026):
+- `MSOA` (`public/flows-all.geojson`): `50.000` fluxos, `7.228` áreas, `5.454` com incoming e outgoing; `0` áreas com conjuntos incoming/outgoing idênticos.
+- `LTLA` (`public/ltla_flows_complete.geojson`): `68.522` fluxos, `328` áreas, `328` com incoming e outgoing; `0` áreas com conjuntos incoming/outgoing idênticos.
+- Validação por consulta tabular (`data/interim/odwp01ew.parquet` + lookup LTLA):
+  - `E02000001` (MSOA): incoming `4.095` linhas (`88.928` pessoas), outgoing `267` linhas (`8.009` pessoas).
+  - `E09000033` (LTLA, Westminster): incoming `29.540` linhas (`265.046` pessoas), outgoing `6.426` linhas (`177.413` pessoas).
+- Conclusão: os 4 cenários (`MSOA/LTLA` x `incoming/outgoing`) retornam dados e apresentam comportamento direcional distinto.
+
 ### Prioridade 2 - Completar lacunas funcionais
 - Implementar filtro combinado **Social Grade + Age** na mesma query (hoje há priorização de Social Grade quando ambos estão ativos no mapa).
 - Documentar claramente limites atuais e comportamento esperado quando dados demográficos estão ausentes.
