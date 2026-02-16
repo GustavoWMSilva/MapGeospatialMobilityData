@@ -27,14 +27,35 @@ export function SocialGradePieChart({ areaCode, direction = 'incoming' }: Social
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    console.log(`🔄 SocialGradePieChart: useEffect disparado - areaCode: ${areaCode}, direction: ${direction}`);
+    
+    // Limpar dados imediatamente ao trocar de área
+    setData([]);
+    setError(null);
+    setLoading(true);
+    
     async function loadStats() {
-      if (!areaCode) return;
+      if (!areaCode) {
+        console.log('🔵 SocialGradePieChart: Aguardando seleção de área');
+        setLoading(false);
+        return;
+      }
+      
+      console.log(`🔵 SocialGradePieChart: Carregando stats para ${areaCode} (${direction})...`);
       
       try {
         setLoading(true);
         setError(null);
         
         const stats = await getSocialGradeStats(areaCode, direction);
+        console.log(`🔵 SocialGradePieChart: Stats recebidas:`, stats);
+        
+        if (stats.length === 0) {
+          console.warn('🟡 SocialGradePieChart: Nenhum dado retornado!');
+          setData([]);
+          setLoading(false);
+          return;
+        }
         
         const chartData = stats.map(s => {
           const gradeCode = s.grade.split(' ')[0] as keyof typeof COLORS;
@@ -47,9 +68,10 @@ export function SocialGradePieChart({ areaCode, direction = 'incoming' }: Social
           };
         });
         
+        console.log(`✅ SocialGradePieChart: Dados processados (${chartData.length} categorias)`);
         setData(chartData);
       } catch (err) {
-        console.error('Erro ao carregar estatísticas de social grade:', err);
+        console.error('❌ SocialGradePieChart: Erro ao carregar:', err);
         setError('Erro ao carregar dados');
       } finally {
         setLoading(false);
@@ -57,6 +79,12 @@ export function SocialGradePieChart({ areaCode, direction = 'incoming' }: Social
     }
     
     loadStats();
+    
+    // Cleanup ao desmontar ou trocar de área
+    return () => {
+      console.log(`🧽 SocialGradePieChart: Limpando dados antigos de ${areaCode}`);
+      setData([]);
+    };
   }, [areaCode, direction]);
 
   if (loading) {
@@ -76,6 +104,7 @@ export function SocialGradePieChart({ areaCode, direction = 'incoming' }: Social
   }
 
   if (data.length === 0) {
+    console.warn('🟠 SocialGradePieChart: Renderizando mensagem "dados não disponíveis" (data.length = 0)');
     return (
       <div className="flex flex-col items-center justify-center h-64 text-gray-500 p-4 text-center">
         <p className="font-semibold">Dados de Social Grade não disponíveis</p>

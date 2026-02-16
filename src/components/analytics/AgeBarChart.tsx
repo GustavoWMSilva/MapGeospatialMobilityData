@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { getAgeStats } from '../../utils/duckdb';
 
 interface AgeBarChartProps {
@@ -42,14 +42,35 @@ export function AgeBarChart({ areaCode, direction = 'incoming' }: AgeBarChartPro
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    console.log(`🔄 AgeBarChart: useEffect disparado - areaCode: ${areaCode}, direction: ${direction}`);
+    
+    // Limpar dados imediatamente ao trocar de área
+    setData([]);
+    setError(null);
+    setLoading(true);
+    
     async function loadStats() {
-      if (!areaCode) return;
+      if (!areaCode) {
+        console.log('🟢 AgeBarChart: Aguardando seleção de área');
+        setLoading(false);
+        return;
+      }
+      
+      console.log(`🟢 AgeBarChart: Carregando stats para ${areaCode} (${direction})...`);
       
       try {
         setLoading(true);
         setError(null);
         
         const stats = await getAgeStats(areaCode, direction);
+        console.log(`🟢 AgeBarChart: Stats recebidas:`, stats);
+        
+        if (stats.length === 0) {
+          console.warn('🟡 AgeBarChart: Nenhum dado retornado!');
+          setData([]);
+          setLoading(false);
+          return;
+        }
         
         const chartData = stats.map(s => ({
           name: simplifyAgeLabel(s.ageGroup),
@@ -63,9 +84,10 @@ export function AgeBarChart({ areaCode, direction = 'incoming' }: AgeBarChartPro
         const ageOrder = ['16-24', '25-34', '35-44', '45-54', '55-64', '65+'];
         chartData.sort((a, b) => ageOrder.indexOf(a.name) - ageOrder.indexOf(b.name));
         
+        console.log(`✅ AgeBarChart: Dados processados (${chartData.length} grupos)`);
         setData(chartData);
       } catch (err) {
-        console.error('Erro ao carregar estatísticas de age:', err);
+        console.error('❌ AgeBarChart: Erro ao carregar:', err);
         setError('Erro ao carregar dados');
       } finally {
         setLoading(false);
@@ -73,6 +95,12 @@ export function AgeBarChart({ areaCode, direction = 'incoming' }: AgeBarChartPro
     }
     
     loadStats();
+    
+    // Cleanup ao desmontar ou trocar de área
+    return () => {
+      console.log(`🧽 AgeBarChart: Limpando dados antigos de ${areaCode}`);
+      setData([]);
+    };
   }, [areaCode, direction]);
 
   if (loading) {
@@ -92,6 +120,7 @@ export function AgeBarChart({ areaCode, direction = 'incoming' }: AgeBarChartPro
   }
 
   if (data.length === 0) {
+    console.warn('🟠 AgeBarChart: Renderizando mensagem "dados não disponíveis" (data.length = 0)');
     return (
       <div className="flex flex-col items-center justify-center h-64 text-gray-500 p-4 text-center">
         <p className="font-semibold">Dados de Age Group não disponíveis</p>

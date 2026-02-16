@@ -2,20 +2,44 @@ import { useState, useEffect } from 'react';
 import { SocialGradePieChart } from './SocialGradePieChart';
 import { AgeBarChart } from './AgeBarChart';
 import { AnalyticsFilters } from './AnalyticsFilters';
+import { DirectionDebugPanel } from './DirectionDebugPanel';
+import { DataAvailabilityCheck } from './DataAvailabilityCheck';
 import { getMSOAFlowsBySocialGrade, getMSOAFlowsByAge } from '../../utils/duckdb';
 import type { SocialGrade, AgeGroup } from '../../types';
 
 interface AnalyticsDashboardProps {
   selectedArea?: string;
   areaName?: string;
+  socialGrade?: SocialGrade;
+  ageGroup?: AgeGroup;
+  direction?: 'incoming' | 'outgoing';
+  onSocialGradeChange?: (grade: SocialGrade) => void;
+  onAgeGroupChange?: (age: AgeGroup) => void;
+  onDirectionChange?: (direction: 'incoming' | 'outgoing') => void;
 }
 
-export function AnalyticsDashboard({ selectedArea, areaName }: AnalyticsDashboardProps) {
-  const [socialGrade, setSocialGrade] = useState<SocialGrade>('all');
-  const [ageGroup, setAgeGroup] = useState<AgeGroup>('all');
-  const [direction, setDirection] = useState<'incoming' | 'outgoing'>('incoming');
+export function AnalyticsDashboard({ 
+  selectedArea, 
+  areaName,
+  socialGrade = 'all',
+  ageGroup = 'all',
+  direction = 'incoming',
+  onSocialGradeChange,
+  onAgeGroupChange,
+  onDirectionChange
+}: AnalyticsDashboardProps) {
   const [flowCount, setFlowCount] = useState<number>(0);
   const [loading, setLoading] = useState(false);
+
+  // Log para debug de mudanças de direção
+  useEffect(() => {
+    console.log(`📊 AnalyticsDashboard: direction mudou para "${direction}"`);
+  }, [direction]);
+
+  // Log para debug de mudanças de área
+  useEffect(() => {
+    console.log(`🎯 AnalyticsDashboard: selectedArea="${selectedArea}", areaName="${areaName}"`);
+  }, [selectedArea, areaName]);
 
   // Atualizar contagem de flows quando filtros mudarem
   useEffect(() => {
@@ -85,16 +109,23 @@ export function AnalyticsDashboard({ selectedArea, areaName }: AnalyticsDashboar
         socialGrade={socialGrade}
         ageGroup={ageGroup}
         direction={direction}
-        onSocialGradeChange={setSocialGrade}
-        onAgeGroupChange={setAgeGroup}
-        onDirectionChange={setDirection}
+        onSocialGradeChange={onSocialGradeChange || (() => {})}
+        onAgeGroupChange={onAgeGroupChange || (() => {})}
+        onDirectionChange={onDirectionChange || (() => {})}
       />
+
+      {/* Verificação de Disponibilidade de Dados */}
+      <DataAvailabilityCheck />
+
+      {/* Painel de Diagnóstico */}
+      <DirectionDebugPanel areaCode={selectedArea} />
 
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Social Grade Pie Chart */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <SocialGradePieChart 
+            key={`social-${selectedArea}`}
             areaCode={selectedArea} 
             direction={direction}
           />
@@ -103,6 +134,7 @@ export function AnalyticsDashboard({ selectedArea, areaName }: AnalyticsDashboar
         {/* Age Bar Chart */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <AgeBarChart 
+            key={`age-${selectedArea}`}
             areaCode={selectedArea} 
             direction={direction}
           />
