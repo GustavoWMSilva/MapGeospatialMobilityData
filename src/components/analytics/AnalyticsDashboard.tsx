@@ -98,6 +98,8 @@ export function AnalyticsDashboard({
             key={`social-${selectedArea}`}
             areaCode={selectedArea}
             direction={direction}
+            selectedGrade={socialGrade}
+            onSelectGrade={onSocialGradeChange || (() => {})}
           />
         </div>
 
@@ -106,6 +108,8 @@ export function AnalyticsDashboard({
             key={`age-${selectedArea}`}
             areaCode={selectedArea}
             direction={direction}
+            selectedAgeGroup={ageGroup}
+            onSelectAgeGroup={onAgeGroupChange || (() => {})}
           />
         </div>
       </div>

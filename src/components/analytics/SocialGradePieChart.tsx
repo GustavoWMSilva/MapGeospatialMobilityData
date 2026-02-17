@@ -2,13 +2,17 @@ import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { getSocialGradeStats } from '../../utils/duckdb';
 import { debugLog, debugWarn, getAnalyticsErrorMessage } from './analyticsUtils';
+import type { SocialGrade } from '../../types';
 
 interface SocialGradePieChartProps {
   areaCode: string;
   direction?: 'incoming' | 'outgoing';
+  selectedGrade?: SocialGrade;
+  onSelectGrade?: (grade: SocialGrade) => void;
 }
 
 interface SocialGradeChartDatum {
+  code: SocialGrade;
   name: string;
   value: number;
   percentage: number;
@@ -29,7 +33,12 @@ const GRADE_LABELS: Record<string, string> = {
   DE: 'DE - Working Class',
 };
 
-export function SocialGradePieChart({ areaCode, direction = 'incoming' }: SocialGradePieChartProps) {
+export function SocialGradePieChart({
+  areaCode,
+  direction = 'incoming',
+  selectedGrade = 'all',
+  onSelectGrade,
+}: SocialGradePieChartProps) {
   const [data, setData] = useState<SocialGradeChartDatum[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +77,7 @@ export function SocialGradePieChart({ areaCode, direction = 'incoming' }: Social
         const chartData = stats.map(s => {
           const gradeCode = s.grade.split(' ')[0] as keyof typeof COLORS;
           return {
+            code: (gradeCode as SocialGrade) || 'all',
             name: GRADE_LABELS[gradeCode] || gradeCode,
             fullName: s.grade,
             value: s.total,
@@ -162,9 +172,22 @@ export function SocialGradePieChart({ areaCode, direction = 'incoming' }: Social
             outerRadius={100}
             fill="#8884d8"
             dataKey="value"
+            onClick={(_, index) => {
+              if (index === undefined) return;
+              const clicked = data[index];
+              if (!clicked || !onSelectGrade) return;
+              onSelectGrade(selectedGrade === clicked.code ? 'all' : clicked.code);
+            }}
+            cursor="pointer"
           >
             {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.color} />
+              <Cell
+                key={`cell-${index}`}
+                fill={entry.color}
+                fillOpacity={selectedGrade === 'all' || selectedGrade === entry.code ? 1 : 0.25}
+                stroke={selectedGrade === entry.code ? '#111827' : '#ffffff'}
+                strokeWidth={selectedGrade === entry.code ? 3 : 1}
+              />
             ))}
           </Pie>
           <Tooltip 
@@ -179,7 +202,14 @@ export function SocialGradePieChart({ areaCode, direction = 'incoming' }: Social
 
       <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
         {data.map((item) => (
-          <div key={item.name} className="flex items-center gap-2">
+          <button
+            key={item.name}
+            type="button"
+            onClick={() => onSelectGrade?.(selectedGrade === item.code ? 'all' : item.code)}
+            className={`flex items-center gap-2 rounded px-2 py-1 text-left transition ${
+              selectedGrade === item.code ? 'bg-gray-100 ring-1 ring-gray-300' : 'hover:bg-gray-50'
+            }`}
+          >
             <div 
               className="w-3 h-3 rounded-full" 
               style={{ backgroundColor: item.color }}
@@ -187,7 +217,7 @@ export function SocialGradePieChart({ areaCode, direction = 'incoming' }: Social
             <span className="text-gray-700">
               {item.name}: <strong>{item.value.toLocaleString()}</strong>
             </span>
-          </div>
+          </button>
         ))}
       </div>
     </div>

@@ -2,10 +2,21 @@ import { useEffect, useState } from 'react';
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { getAgeStats } from '../../utils/duckdb';
 import { debugLog, debugWarn, getAnalyticsErrorMessage } from './analyticsUtils';
+import type { AgeGroup } from '../../types';
 
 interface AgeBarChartProps {
   areaCode: string;
   direction?: 'incoming' | 'outgoing';
+  selectedAgeGroup?: AgeGroup;
+  onSelectAgeGroup?: (age: AgeGroup) => void;
+}
+
+interface AgeChartDatum {
+  name: string;
+  fullName: AgeGroup;
+  total: number;
+  percentage: number;
+  color: string;
 }
 
 const AGE_COLORS: Record<string, string> = {
@@ -37,8 +48,13 @@ function simplifyAgeLabel(ageGroup: string): string {
   return ageGroup;
 }
 
-export function AgeBarChart({ areaCode, direction = 'incoming' }: AgeBarChartProps) {
-  const [data, setData] = useState<Array<{ name: string; total: number; percentage: number; color: string }>>([]);
+export function AgeBarChart({
+  areaCode,
+  direction = 'incoming',
+  selectedAgeGroup = 'all',
+  onSelectAgeGroup,
+}: AgeBarChartProps) {
+  const [data, setData] = useState<AgeChartDatum[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,7 +91,7 @@ export function AgeBarChart({ areaCode, direction = 'incoming' }: AgeBarChartPro
         
         const chartData = stats.map(s => ({
           name: simplifyAgeLabel(s.ageGroup),
-          fullName: s.ageGroup,
+          fullName: s.ageGroup as AgeGroup,
           total: s.total,
           percentage: s.percentage,
           color: getAgeColor(s.ageGroup),
@@ -152,9 +168,24 @@ export function AgeBarChart({ areaCode, direction = 'incoming' }: AgeBarChartPro
             ]}
           />
           <Legend formatter={() => 'Commuters'} />
-          <Bar dataKey="total" fill="#8884d8">
+          <Bar
+            dataKey="total"
+            fill="#8884d8"
+            onClick={(entry: any) => {
+              const clickedAge = entry?.fullName as AgeGroup | undefined;
+              if (!clickedAge || !onSelectAgeGroup) return;
+              onSelectAgeGroup(selectedAgeGroup === clickedAge ? 'all' : clickedAge);
+            }}
+            cursor="pointer"
+          >
             {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.color} />
+              <Cell
+                key={`cell-${index}`}
+                fill={entry.color}
+                fillOpacity={selectedAgeGroup === 'all' || selectedAgeGroup === entry.fullName ? 1 : 0.25}
+                stroke={selectedAgeGroup === entry.fullName ? '#111827' : 'transparent'}
+                strokeWidth={selectedAgeGroup === entry.fullName ? 2 : 0}
+              />
             ))}
           </Bar>
         </BarChart>
@@ -162,7 +193,14 @@ export function AgeBarChart({ areaCode, direction = 'incoming' }: AgeBarChartPro
 
       <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
         {data.map((item) => (
-          <div key={item.name} className="flex items-center gap-2">
+          <button
+            key={item.name}
+            type="button"
+            onClick={() => onSelectAgeGroup?.(selectedAgeGroup === item.fullName ? 'all' : item.fullName)}
+            className={`flex items-center gap-2 rounded px-2 py-1 text-left transition ${
+              selectedAgeGroup === item.fullName ? 'bg-gray-100 ring-1 ring-gray-300' : 'hover:bg-gray-50'
+            }`}
+          >
             <div 
               className="w-3 h-3 rounded-full" 
               style={{ backgroundColor: item.color }}
@@ -170,7 +208,7 @@ export function AgeBarChart({ areaCode, direction = 'incoming' }: AgeBarChartPro
             <span className="text-gray-700">
               {item.name}: <strong>{item.total.toLocaleString()}</strong>
             </span>
-          </div>
+          </button>
         ))}
       </div>
     </div>

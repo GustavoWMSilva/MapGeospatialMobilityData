@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SocialGrade, AgeGroup } from '../../types';
 import { debugLog } from './analyticsUtils';
 
@@ -22,6 +22,18 @@ export function AnalyticsFilters({
   const [selectedGrade, setSelectedGrade] = useState<SocialGrade>(socialGrade);
   const [selectedAge, setSelectedAge] = useState<AgeGroup>(ageGroup);
   const [selectedDirection, setSelectedDirection] = useState<'incoming' | 'outgoing'>(direction);
+
+  useEffect(() => {
+    setSelectedGrade(socialGrade);
+  }, [socialGrade]);
+
+  useEffect(() => {
+    setSelectedAge(ageGroup);
+  }, [ageGroup]);
+
+  useEffect(() => {
+    setSelectedDirection(direction);
+  }, [direction]);
 
   const handleGradeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const grade = e.target.value as SocialGrade;
