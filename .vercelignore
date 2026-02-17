@@ -18,6 +18,13 @@ scripts/
 !public/data/lookup/boundaries.geojson
 !public/data/lookup/ltla_boundaries.geojson
 
+# Keep required root lookup data (used in build/deploy workflows)
+!data/lookup/areas_centroids.csv
+!data/lookup/ltla_centroids.csv
+!data/lookup/msoa_ltla_lookup.csv
+!data/lookup/MSOA_boundaries.geojson
+!data/lookup/msoa_centroids.geojson
+
 # Config files
 config.yaml
 !postcss.config.cjs
