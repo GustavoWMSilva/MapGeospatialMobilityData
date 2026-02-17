@@ -70,15 +70,15 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
   };
 
   return (
-    <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg z-10 w-80">
+    <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-purple-100 z-10 w-80">
       {/* Header */}
       <div 
-        className="flex items-center justify-between p-3 border-b border-gray-200 cursor-pointer hover:bg-gray-50"
+        className="flex items-center justify-between p-3 border-b border-purple-100 cursor-pointer hover:bg-purple-50/50"
         onClick={onToggleMinimize}
       >
         <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-blue-600" />
-          <h3 className="font-semibold text-sm text-gray-800">Filtros de Fluxos</h3>
+          <Filter className="w-4 h-4 text-purple-600" />
+          <h3 className="font-semibold text-sm text-purple-900">Filtros de Fluxos</h3>
           {hasDemographicFilters && (
             <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
               Demografia Ativa
@@ -113,7 +113,7 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
                 <div className="text-xs text-purple-700 flex items-center gap-1">
                   <strong>Social Grade:</strong> {socialGrade}
                   {socialGrade !== 'all' && ageGroup !== 'all' && (
-                    <span className="text-green-600">✓ Ativo no mapa</span>
+                    <span className="text-purple-600">✓ Ativo no mapa</span>
                   )}
                 </div>
               )}
@@ -121,13 +121,13 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
                 <div className="text-xs text-purple-700 flex items-center gap-1">
                   <strong>Grupo Etário:</strong> {ageGroup}
                   {socialGrade === 'all' && (
-                    <span className="text-green-600">✓ Ativo no mapa</span>
+                    <span className="text-purple-600">✓ Ativo no mapa</span>
                   )}
                 </div>
               )}
               {socialGrade !== 'all' && ageGroup !== 'all' && (
-                <div className="bg-yellow-100 border border-yellow-300 rounded px-2 py-1 mt-2">
-                  <div className="text-xs text-yellow-800 font-medium">
+                <div className="bg-purple-100 border border-purple-300 rounded px-2 py-1 mt-2">
+                  <div className="text-xs text-purple-800 font-medium">
                     ✓ Ambos ativos: filtro combinado no mapa
                   </div>
                 </div>
@@ -144,7 +144,7 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
               <label className="text-sm font-medium text-gray-700">
                 Quantidade Máxima
               </label>
-              <span className="text-sm font-semibold text-blue-600">
+              <span className="text-sm font-semibold text-purple-700">
                 {maxFlows >= totalAvailable ? 'Todos' : maxFlows.toLocaleString()}
               </span>
             </div>
@@ -160,7 +160,7 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
                   onMaxFlowsChange(val);
                 }
               }}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              className="w-full h-2 bg-purple-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
             />
             <div className="flex justify-between text-xs text-gray-500">
               <span>10</span>
@@ -176,7 +176,7 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
               <label className="text-sm font-medium text-gray-700">
                 Mínimo de Pessoas
               </label>
-              <span className="text-sm font-semibold text-blue-600">
+              <span className="text-sm font-semibold text-purple-700">
                 {minCount === 0 ? 'Sem filtro' : `${minCount.toLocaleString()}+`}
               </span>
             </div>
@@ -192,7 +192,7 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
                   handleMinCountChange(val);
                 }
               }}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              className="w-full h-2 bg-purple-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
             />
             <div className="flex justify-between text-xs text-gray-500">
               <span>0</span>

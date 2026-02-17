@@ -95,7 +95,7 @@ export function AnalyticsDashboard({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-lg shadow-lg p-6 text-white">
+      {/* <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-lg shadow-lg p-6 text-white">
         <h1 className="text-2xl font-bold mb-2">Analytics Dashboard</h1>
         <p className="text-blue-100">
           {areaName || selectedArea} - Census 2021 Mobility Analysis
@@ -110,7 +110,7 @@ export function AnalyticsDashboard({
             </span>
           </div>
         )}
-      </div>
+      </div> */}
 
       {/* Filters */}
       <AnalyticsFilters
@@ -129,10 +129,10 @@ export function AnalyticsDashboard({
       )}
 
       {/* Verificação de Disponibilidade de Dados */}
-      <DataAvailabilityCheck />
+      {/* <DataAvailabilityCheck /> */}
 
       {/* Painel de Diagnóstico */}
-      {isDevMode && <DirectionDebugPanel areaCode={selectedArea} />}
+      {/* {isDevMode && <DirectionDebugPanel areaCode={selectedArea} />} */}
 
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -156,7 +156,7 @@ export function AnalyticsDashboard({
       </div>
 
       {/* Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <MetricCard
           title="Total Flows"
           value={loading ? '...' : flowCount.toLocaleString()}
@@ -181,10 +181,10 @@ export function AnalyticsDashboard({
           icon="📅"
           color="orange"
         />
-      </div>
+      </div> */}
 
       {/* Information Panel */}
-      <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
+      {/* <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
         <div className="flex">
           <div className="flex-shrink-0">
             <svg className="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
@@ -203,7 +203,7 @@ export function AnalyticsDashboard({
             </div>
           </div>
         </div>
-      </div>
+      </div> */}
     </div>
   );
 }

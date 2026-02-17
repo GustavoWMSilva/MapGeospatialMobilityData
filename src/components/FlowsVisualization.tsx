@@ -264,13 +264,13 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
 
   // Calcular intervalos dinâmicos baseados nos dados
   const intervals = [
-    { value: 0, label: '0', color: '#FFFFFF' },
-    { value: Math.round(stats.max * 0.01), label: Math.round(stats.max * 0.01).toLocaleString(), color: '#FEF3C7' },
-    { value: Math.round(stats.max * 0.05), label: Math.round(stats.max * 0.05).toLocaleString(), color: '#FDE68A' },
-    { value: Math.round(stats.max * 0.1), label: Math.round(stats.max * 0.1).toLocaleString(), color: '#FCD34D' },
-    { value: Math.round(stats.max * 0.2), label: Math.round(stats.max * 0.2).toLocaleString(), color: '#FBBF24' },
-    { value: Math.round(stats.max * 0.5), label: Math.round(stats.max * 0.5).toLocaleString(), color: '#F59E0B' },
-    { value: stats.max, label: `${stats.max.toLocaleString()}+`, color: '#D97706' }
+    { value: 0, label: '0', color: '#F5F3FF' },
+    { value: Math.round(stats.max * 0.01), label: Math.round(stats.max * 0.01).toLocaleString(), color: '#EDE9FE' },
+    { value: Math.round(stats.max * 0.05), label: Math.round(stats.max * 0.05).toLocaleString(), color: '#DDD6FE' },
+    { value: Math.round(stats.max * 0.1), label: Math.round(stats.max * 0.1).toLocaleString(), color: '#C4B5FD' },
+    { value: Math.round(stats.max * 0.2), label: Math.round(stats.max * 0.2).toLocaleString(), color: '#A78BFA' },
+    { value: Math.round(stats.max * 0.5), label: Math.round(stats.max * 0.5).toLocaleString(), color: '#8B5CF6' },
+    { value: stats.max, label: `${stats.max.toLocaleString()}+`, color: '#6D28D9' }
   ];
 
   return (
@@ -293,7 +293,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       />
 
       {/* Legenda de Intensidade - Design Melhorado */}
-      <div className="absolute bottom-10 right-4 bg-white/98 backdrop-blur-md rounded-xl shadow-2xl border border-gray-200 p-3 z-10" style={{ width: isIntensityMinimized ? '200px' : '220px' }}>
+      <div className="absolute bottom-10 right-4 bg-white/98 backdrop-blur-md rounded-xl shadow-2xl border border-purple-200 p-3 z-10" style={{ width: isIntensityMinimized ? '200px' : '220px' }}>
         <div className="flex items-center gap-2">
 
           <h3 className="text-base font-bold text-gray-800 flex-1">
@@ -303,7 +303,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
           </h3>
           <button
             onClick={() => setIsIntensityMinimized(!isIntensityMinimized)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg bg-yellow-100 hover:bg-yellow-200 transition-colors text-amber-700 font-bold"
+            className="w-7 h-7 flex items-center justify-center rounded-lg bg-purple-100 hover:bg-purple-200 transition-colors text-purple-700 font-bold"
             title={isIntensityMinimized ? "Expandir" : "Minimizar"}
           >
             {isIntensityMinimized ? '▾' : '▴'}
@@ -316,7 +316,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
             <div className="mb-4">
               <div className="h-6 rounded-lg shadow-inner relative overflow-hidden" 
                    style={{ 
-                     background: 'linear-gradient(to right, #FFFFFF 0%, #FEF3C7 14%, #FDE68A 28%, #FCD34D 42%, #FBBF24 57%, #F59E0B 71%, #D97706 100%)'
+                     background: 'linear-gradient(to right, #F5F3FF 0%, #EDE9FE 14%, #DDD6FE 28%, #C4B5FD 42%, #A78BFA 57%, #8B5CF6 71%, #6D28D9 100%)'
                    }}>
                 <div className="absolute inset-0 border-2 border-gray-300 rounded-lg pointer-events-none"></div>
               </div>
@@ -365,7 +365,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
             <div className="space-y-2">
               <div className="flex justify-between items-center bg-purple-50 p-2 rounded-lg">
                 <span className="text-xs font-medium text-gray-700">Total de fluxos:</span>
-                <span className="text-sm font-bold text-purple-700">{stats.count -1}</span>
+                <span className="text-sm font-bold text-purple-700">{stats.count}</span>
               </div>
               <div className="flex justify-between items-center bg-purple-50 p-2 rounded-lg">
                 <span className="text-xs font-medium text-gray-700">Total de pessoas:</span>
@@ -380,7 +380,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
             <div className="mt-3 pt-3 border-t border-gray-200">
               <div className="flex items-start gap-2">
                 <p className="text-xs text-gray-600 leading-relaxed">
-                  Linhas mais grossas e amarelas = maior volume
+                  Linhas mais grossas e roxas = maior volume
                 </p>
               </div>
             </div>
@@ -399,18 +399,18 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
           id={`${dataSource}-flow-lines`}
           type="line"
           paint={{
-            // Cor: gradiente de branco a amarelo/laranja escuro
+            // Cor: gradiente de roxo claro a roxo intenso
             'line-color': [
               'interpolate',
               ['linear'],
               ['get', 'count'],
-              0, '#FFFFFF',      // Branco - fluxos muito baixos
-              100, '#FEF3C7',    // Amarelo muito claro
-              500, '#FDE68A',    // Amarelo claro
-              1000, '#FCD34D',   // Amarelo médio
-              2000, '#FBBF24',   // Amarelo intenso
-              5000, '#F59E0B',   // Âmbar
-              10000, '#D97706'   // Âmbar escuro
+              0, '#F5F3FF',
+              100, '#EDE9FE',
+              500, '#DDD6FE',
+              1000, '#C4B5FD',
+              2000, '#A78BFA',
+              5000, '#8B5CF6',
+              10000, '#6D28D9'
             ],
             // Espessura: proporcional ao volume
             'line-width': [
@@ -436,12 +436,12 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
               'interpolate',
               ['linear'],
               ['get', 'count'],
-              0, '#FEF3C7',
-              100, '#FDE68A',
-              500, '#FCD34D',
-              1000, '#FBBF24',
-              2000, '#F59E0B',
-              5000, '#D97706'
+              0, '#EDE9FE',
+              100, '#DDD6FE',
+              500, '#C4B5FD',
+              1000, '#A78BFA',
+              2000, '#8B5CF6',
+              5000, '#6D28D9'
             ],
             'line-width': [
               'interpolate',

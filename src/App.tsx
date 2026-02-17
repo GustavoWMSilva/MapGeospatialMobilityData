@@ -200,20 +200,6 @@ export default function App() {
           {viewMode === 'ltla' ? 'Modo: Cidades (LTLA)' : 'Modo: Áreas (MSOA)'}
         </button>
         
-        {/* Botão para alternar direção do fluxo (visível quando área selecionada) */}
-        {((viewMode === 'ltla' && selectedLTLA) || (viewMode === 'msoa' && selectedAreaCode)) && (
-          <button
-            onClick={() => setFlowDirection(prev => prev === 'incoming' ? 'outgoing' : 'incoming')}
-            className={`px-5 py-2.5 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 border-2 ${
-              flowDirection === 'incoming'
-                ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white border-blue-600 hover:from-blue-700 hover:to-blue-800'
-                : 'bg-gradient-to-r from-rose-600 to-rose-700 text-white border-rose-600 hover:from-rose-700 hover:to-rose-800'
-            }`}
-          >
-            {flowDirection === 'incoming' ? '⬇️ Fluxos Chegando' : '⬆️ Fluxos Saindo'}
-          </button>
-        )}
-        
         {/* Botão para tela cheia */}
         <button
           onClick={() => setIsFullscreen(!isFullscreen)}
@@ -320,19 +306,6 @@ export default function App() {
                 {viewMode === 'ltla' ? 'Modo: Cidades (LTLA)' : 'Modo: Áreas (MSOA)'}
               </button>
               
-              {/* Botão de alternar direção do fluxo */}
-              {((viewMode === 'ltla' && selectedLTLA) || (viewMode === 'msoa' && selectedAreaCode)) && (
-                <button
-                  onClick={() => setFlowDirection(prev => prev === 'incoming' ? 'outgoing' : 'incoming')}
-                  className={`px-5 py-2.5 rounded-lg font-semibold transition-all shadow-2xl transform hover:scale-105 border-2 border-white ${
-                    flowDirection === 'incoming'
-                      ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800'
-                      : 'bg-gradient-to-r from-rose-600 to-rose-700 text-white hover:from-rose-700 hover:to-rose-800'
-                  }`}
-                >
-                  {flowDirection === 'incoming' ? '⬇️ Fluxos Chegando' : '⬆️ Fluxos Saindo'}
-                </button>
-              )}
             </div>
           </>
         )}
