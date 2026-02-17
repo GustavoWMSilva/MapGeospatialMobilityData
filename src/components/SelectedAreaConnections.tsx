@@ -20,8 +20,6 @@ interface FlowFeature {
 interface SelectedAreaConnectionsProps {
   selectedAreaCode: string | null;
   isVisible?: boolean;
-  lineColor?: string;
-  lineWidth?: number;
   dataSource?: 'general' | 'london';
   flowDirection?: 'incoming' | 'outgoing';
 }
@@ -35,13 +33,13 @@ export const SelectedAreaConnections: React.FC<SelectedAreaConnectionsProps> = (
   const [flowsData, setFlowsData] = useState<FlowFeature[]>([]);
   const [loading, setLoading] = useState(true);
 
-  console.log('🔍 SelectedAreaConnections renderizado:', { selectedAreaCode, isVisible, flowDirection, dataSource });
+  console.log('SelectedAreaConnections renderizado:', { selectedAreaCode, isVisible, flowDirection, dataSource });
 
   // Carregar os dados de fluxos MSOA detalhados
   useEffect(() => {
     // Usar arquivo com TODOS os fluxos do Reino Unido do GitHub Releases
     const fileName = 'https://github.com/GustavoWMSilva/MapGeospatialMobilityData/releases/download/v1.0.0-data/flows-all.geojson';
-    console.log(`📂 Carregando arquivo completo: ${fileName} (área: ${selectedAreaCode})`);
+    console.log(`Carregando arquivo completo: ${fileName}`);
     
     setLoading(true);
     fetch(fileName)
@@ -49,7 +47,7 @@ export const SelectedAreaConnections: React.FC<SelectedAreaConnectionsProps> = (
       .then(data => {
         setFlowsData(data.features || []);
         setLoading(false);
-        console.log('✅ Dados de fluxos OD carregados:', data.features?.length || 0);
+        console.log('Dados de fluxos OD carregados:', data.features?.length || 0);
         
         // Debug: mostrar alguns códigos de exemplo
         if (data.features?.length > 0) {
@@ -58,11 +56,11 @@ export const SelectedAreaConnections: React.FC<SelectedAreaConnectionsProps> = (
             uniqueCodes.add(f.properties.origin_code);
             uniqueCodes.add(f.properties.dest_code);
           });
-          console.log('📋 Exemplos de códigos nos dados:', Array.from(uniqueCodes).slice(0, 20));
+          console.log('Exemplos de códigos nos dados:', Array.from(uniqueCodes).slice(0, 20));
         }
       })
       .catch(err => {
-        console.error('❌ Erro ao carregar fluxos OD:', err);
+        console.error('Erro ao carregar fluxos OD:', err);
         setLoading(false);
       });
   }, [dataSource]);
@@ -81,7 +79,7 @@ export const SelectedAreaConnections: React.FC<SelectedAreaConnectionsProps> = (
     );
 
     if (filteredFlows.length === 0) {
-      console.warn(`⚠️ Nenhum fluxo encontrado ${flowDirection === 'incoming' ? 'chegando em' : 'saindo de'}:`, selectedAreaCode);
+      console.warn(`Nenhum fluxo encontrado ${flowDirection === 'incoming' ? 'chegando em' : 'saindo de'}:`, selectedAreaCode);
       return { flowsGeoJSON: null, stats: null };
     }
 
@@ -91,9 +89,9 @@ export const SelectedAreaConnections: React.FC<SelectedAreaConnectionsProps> = (
     const minFlow = Math.min(...counts);
     const avgFlow = totalFlow / counts.length;
     
-    console.log(`✅ ${filteredFlows.length} fluxos ${flowDirection === 'incoming' ? 'chegando em' : 'saindo de'} ${selectedAreaCode}`);
-    console.log(`📊 Total de pessoas: ${totalFlow.toLocaleString()}`);
-    console.log(`📈 Fluxo máximo: ${maxFlow.toLocaleString()}, mínimo: ${minFlow.toLocaleString()}, média: ${avgFlow.toFixed(0)}`);
+    console.log(`${filteredFlows.length} fluxos ${flowDirection === 'incoming' ? 'chegando em' : 'saindo de'} ${selectedAreaCode}`);
+    console.log(`Total de pessoas: ${totalFlow.toLocaleString()}`);
+    console.log(`Fluxo máximo: ${maxFlow.toLocaleString()}, mínimo: ${minFlow.toLocaleString()}, média: ${avgFlow.toFixed(0)}`);
 
     return {
       flowsGeoJSON: {
@@ -111,11 +109,11 @@ export const SelectedAreaConnections: React.FC<SelectedAreaConnectionsProps> = (
   }, [selectedAreaCode, flowsData, flowDirection]);
 
   if (loading || !flowsGeoJSON || !stats || !isVisible || !selectedAreaCode) {
-    console.log('❌ SelectedAreaConnections não renderizado:', { loading, hasFlows: !!flowsGeoJSON, isVisible, selectedAreaCode });
+    console.log('SelectedAreaConnections não renderizado:', { loading, hasFlows: !!flowsGeoJSON, isVisible, selectedAreaCode });
     return null;
   }
 
-  console.log('✅ SelectedAreaConnections renderizando linhas:', flowsGeoJSON.features.length);
+  console.log('SelectedAreaConnections renderizando linhas:', flowsGeoJSON.features.length);
 
   // Calcular intervalos dinâmicos baseados nos dados
   const intervals = [
@@ -188,7 +186,7 @@ export const SelectedAreaConnections: React.FC<SelectedAreaConnectionsProps> = (
 
         <div className="mt-4 pt-4 border-t-2 border-gray-200">
           <div className="flex items-start gap-2 bg-blue-50 p-3 rounded-lg border border-blue-200">
-            <span className="text-blue-600 text-lg">💡</span>
+            <span className="text-blue-600 text-lg">Info</span>
             <p className="text-xs text-blue-800 leading-relaxed">
               <strong>Dica:</strong> Linhas mais grossas = maior volume de pessoas
             </p>

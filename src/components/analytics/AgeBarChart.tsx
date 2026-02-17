@@ -3,10 +3,13 @@ import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Resp
 import { getAgeStats } from '../../utils/duckdb';
 import { debugLog, debugWarn, getAnalyticsErrorMessage } from './analyticsUtils';
 import type { AgeGroup } from '../../types';
+import { ChartObjectiveHelp } from './ChartObjectiveHelp';
+import { MAP_COLORS } from '../../constants/mapColors';
 
 interface AgeBarChartProps {
   areaCode: string;
   direction?: 'incoming' | 'outgoing';
+  includeInternalFlows?: boolean;
   selectedAgeGroup?: AgeGroup;
   onSelectAgeGroup?: (age: AgeGroup) => void;
 }
@@ -19,14 +22,7 @@ interface AgeChartDatum {
   color: string;
 }
 
-const AGE_COLORS: Record<string, string> = {
-  '16-24': '#8b5cf6', // Roxo
-  '25-34': '#3b82f6', // Azul
-  '35-44': '#10b981', // Verde
-  '45-54': '#f59e0b', // Amarelo
-  '55-64': '#f97316', // Laranja
-  '65+': '#ef4444',   // Vermelho
-};
+const AGE_COLORS: Record<string, string> = MAP_COLORS.analytics.age;
 
 function getAgeColor(ageGroup: string): string {
   if (ageGroup.includes('16 to 24')) return AGE_COLORS['16-24'];
@@ -51,6 +47,7 @@ function simplifyAgeLabel(ageGroup: string): string {
 export function AgeBarChart({
   areaCode,
   direction = 'incoming',
+  includeInternalFlows = false,
   selectedAgeGroup = 'all',
   onSelectAgeGroup,
 }: AgeBarChartProps) {
@@ -61,7 +58,7 @@ export function AgeBarChart({
   useEffect(() => {
     debugLog(`[AgeBarChart] useEffect areaCode=${areaCode} direction=${direction}`);
     
-    // Limpar dados imediatamente ao trocar de área
+    // Limpar dados imediatamente ao trocar de Ã¡rea
     setData([]);
     setError(null);
     setLoading(true);
@@ -79,7 +76,7 @@ export function AgeBarChart({
         setLoading(true);
         setError(null);
         
-        const stats = await getAgeStats(areaCode, direction);
+        const stats = await getAgeStats(areaCode, direction, includeInternalFlows);
         debugLog('[AgeBarChart] stats recebidas', stats);
         
         if (stats.length === 0) {
@@ -97,7 +94,7 @@ export function AgeBarChart({
           color: getAgeColor(s.ageGroup),
         }));
         
-        // Ordenar por faixa etária
+        // Ordenar por faixa etÃ¡ria
         const ageOrder = ['16-24', '25-34', '35-44', '45-54', '55-64', '65+'];
         chartData.sort((a, b) => ageOrder.indexOf(a.name) - ageOrder.indexOf(b.name));
         
@@ -113,12 +110,12 @@ export function AgeBarChart({
     
     loadStats();
     
-    // Cleanup ao desmontar ou trocar de área
+    // Cleanup ao desmontar ou trocar de Ã¡rea
     return () => {
       debugLog(`[AgeBarChart] limpando dados de ${areaCode}`);
       setData([]);
     };
-  }, [areaCode, direction]);
+  }, [areaCode, direction, includeInternalFlows]);
 
   if (loading) {
     return (
@@ -139,8 +136,8 @@ export function AgeBarChart({
   if (data.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-gray-500 p-4 text-center">
-        <p className="font-semibold">Dados de Age Group não disponíveis</p>
-        <p className="text-sm mt-2">Dataset ODWP04EW_MSOA não carregado</p>
+        <p className="font-semibold">Dados de Age Group nÃ£o disponÃ­veis</p>
+        <p className="text-sm mt-2">Dataset ODWP04EW_MSOA nÃ£o carregado</p>
       </div>
     );
   }
@@ -148,9 +145,12 @@ export function AgeBarChart({
   return (
     <div className="w-full">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-gray-800">
-          Age Groups Distribution
-        </h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-semibold text-gray-800">
+            Age Groups Distribution
+          </h3>
+          <ChartObjectiveHelp objective="Evidenciar a distribuiÃ§Ã£o etÃ¡ria dos fluxos para comparar perfis demogrÃ¡ficos de mobilidade." />
+        </div>
         <p className="text-sm text-gray-600">
           {direction === 'incoming' ? 'Incoming' : 'Outgoing'} commuters by age group
         </p>
@@ -214,3 +214,4 @@ export function AgeBarChart({
     </div>
   );
 }
+

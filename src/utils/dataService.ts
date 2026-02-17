@@ -1,10 +1,11 @@
-/**
+﻿/**
  * Serviço de dados que escolhe automaticamente a melhor fonte:
  * - Localhost: API Flask
  * - Produção: DuckDB-WASM + GitHub Releases
  */
 import { getMSOAFlows, getMSOAFlowsBySocialGrade, getMSOAFlowsByAge, getMSOAFlowsBySocialGradeAndAge } from './duckdb';
 import { cacheService } from './cacheService';
+import { recordLatencySample } from './performanceMetrics';
 import type { SocialGrade, SocialGradeFlowResult, AgeFlowResult, CombinedDemographicFlowResult } from '../types';
 
 interface Coordinates {
@@ -17,6 +18,38 @@ interface Coordinates {
 
 // Cache de coordenadas
 let coordinatesCache: Coordinates | null = null;
+
+function nowMs(): number {
+  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+    return performance.now();
+  }
+  return Date.now();
+}
+
+function recordLatency(params: {
+  startMs: number;
+  scenario: 'api' | 'duckdb' | 'duckdb_cache';
+  cacheState: 'cold' | 'warm' | 'n/a';
+  areaCode: string;
+  dataSource: 'msoa' | 'ltla';
+  direction: 'incoming' | 'outgoing';
+  filtersActive: boolean;
+  resultCount: number;
+}): void {
+  const latencyMs = nowMs() - params.startMs;
+
+  recordLatencySample({
+    timestampMs: Date.now(),
+    latencyMs,
+    scenario: params.scenario,
+    cacheState: params.cacheState,
+    areaCode: params.areaCode,
+    dataSource: params.dataSource,
+    direction: params.direction,
+    filtersActive: params.filtersActive,
+    resultCount: params.resultCount,
+  });
+}
 
 /**
  * Detectar se estamos em desenvolvimento
@@ -110,31 +143,33 @@ export async function loadFlowsFiltered(
   socialGrade: string = 'all',
   ageGroup: string = 'all'
 ): Promise<{ type: string; features: unknown[] }> {
+  const requestStartMs = nowMs();
+
   // Se nenhum filtro está ativo, usar função normal
   if (socialGrade === 'all' && ageGroup === 'all') {
     return loadFlows(areaCode, direction, limit, dataSource);
   }
 
-  console.log(`🔍 Carregando flows filtrados - SocialGrade: ${socialGrade}, Age: ${ageGroup}, DataSource: ${dataSource}`);
+  console.log(`?? Carregando flows filtrados - SocialGrade: ${socialGrade}, Age: ${ageGroup}, DataSource: ${dataSource}`);
 
   let flows: (SocialGradeFlowResult | AgeFlowResult | CombinedDemographicFlowResult)[] = [];
 
   if (socialGrade !== 'all' && ageGroup !== 'all') {
-    console.log(`🎯 Filtrando por Social Grade + Age Group: ${socialGrade} + ${ageGroup}`);
+    console.log(`?? Filtrando por Social Grade + Age Group: ${socialGrade} + ${ageGroup}`);
     flows = await getMSOAFlowsBySocialGradeAndAge(areaCode, socialGrade as SocialGrade, ageGroup, direction, limit);
   } else if (socialGrade !== 'all') {
-    console.log(`📊 Filtrando por Social Grade: ${socialGrade}`);
+    console.log(`?? Filtrando por Social Grade: ${socialGrade}`);
     flows = await getMSOAFlowsBySocialGrade(areaCode, socialGrade as SocialGrade, direction, limit);
   } else if (ageGroup !== 'all') {
-    console.log(`👥 Filtrando por Age Group: ${ageGroup}`);
+    console.log(`?? Filtrando por Age Group: ${ageGroup}`);
     flows = await getMSOAFlowsByAge(areaCode, ageGroup, direction, limit);
   }
 
-  console.log(`📦 Flows MSOA carregados: ${flows.length}`);
+  console.log(`?? Flows MSOA carregados: ${flows.length}`);
 
-  // Se dataSource é LTLA, agregar MSOA→LTLA
+  // Se dataSource é LTLA, agregar MSOA->LTLA
   if (dataSource === 'ltla') {
-    console.log(`🔄 Agregando ${flows.length} flows MSOA para LTLA...`);
+    console.log(`?? Agregando ${flows.length} flows MSOA para LTLA...`);
     
     const lookup = await loadLTLALookup();
     const ltlaCoords = await loadLTLACoordinates();
@@ -153,7 +188,7 @@ export async function loadFlowsFiltered(
       aggregation.set(key, currentCount + flow.count);
     });
 
-    console.log(`✅ Agregados ${flows.length} flows MSOA → ${aggregation.size} flows LTLA únicos`);
+    console.log(`Agregados ${flows.length} flows MSOA -> ${aggregation.size} flows LTLA únicos`);
 
     // Converter agregação para features GeoJSON
     const features = Array.from(aggregation.entries())
@@ -186,7 +221,18 @@ export async function loadFlowsFiltered(
       .sort((a, b) => b.properties.count - a.properties.count)
       .slice(0, limit); // Aplicar limite após agregação
 
-    console.log(`✅ Criados ${features.length} features GeoJSON LTLA filtrados`);
+    console.log(`? Criados ${features.length} features GeoJSON LTLA filtrados`);
+
+    recordLatency({
+      startMs: requestStartMs,
+      scenario: 'duckdb',
+      cacheState: 'n/a',
+      areaCode,
+      dataSource,
+      direction,
+      filtersActive: true,
+      resultCount: features.length,
+    });
     
     return {
       type: 'FeatureCollection',
@@ -226,7 +272,18 @@ export async function loadFlowsFiltered(
       };
     });
 
-  console.log(`✅ Criados ${features.length} features GeoJSON MSOA filtrados`);
+  console.log(`? Criados ${features.length} features GeoJSON MSOA filtrados`);
+
+  recordLatency({
+    startMs: requestStartMs,
+    scenario: 'duckdb',
+    cacheState: 'n/a',
+    areaCode,
+    dataSource,
+    direction,
+    filtersActive: true,
+    resultCount: features.length,
+  });
   
   return {
     type: 'FeatureCollection',
@@ -242,9 +299,11 @@ async function loadFlowsFromAPI(
   direction: string,
   limit: number
 ): Promise<{ type: string; features: unknown[] }> {
+  const requestStartMs = nowMs();
+
   try {
     const url = `http://localhost:5000/api/flows/${areaCode}?direction=${direction}&limit=${limit}`;
-    console.log(`📡 Carregando da API: ${url}`);
+    console.log(`?? Carregando da API: ${url}`);
     
     const response = await fetch(url);
     if (!response.ok) {
@@ -253,6 +312,18 @@ async function loadFlowsFromAPI(
     
     const data = await response.json();
     console.log(`Carregados ${data.features?.length || 0} flows da API`);
+
+    recordLatency({
+      startMs: requestStartMs,
+      scenario: 'api',
+      cacheState: 'n/a',
+      areaCode,
+      dataSource: 'msoa',
+      direction: direction as 'incoming' | 'outgoing',
+      filtersActive: false,
+      resultCount: Array.isArray(data.features) ? data.features.length : 0,
+    });
+
     return data;
   } catch (error) {
     console.error('Erro ao carregar da API:', error);
@@ -269,8 +340,10 @@ async function loadFlowsFromDuckDB(
   direction: 'incoming' | 'outgoing',
   limit: number
 ): Promise<{ type: string; features: unknown[] }> {
+  const requestStartMs = nowMs();
+
   try {
-    console.log(`🦆 Carregando com DuckDB-WASM...`);
+    console.log(`?? Carregando com DuckDB-WASM...`);
     
     // Carregar coordenadas
     const coords = await loadCoordinates();
@@ -309,6 +382,17 @@ async function loadFlowsFromDuckDB(
       });
     
     console.log(`Criados ${features.length} features GeoJSON`);
+
+    recordLatency({
+      startMs: requestStartMs,
+      scenario: 'duckdb',
+      cacheState: 'n/a',
+      areaCode,
+      dataSource: 'msoa',
+      direction,
+      filtersActive: false,
+      resultCount: features.length,
+    });
     
     return {
       type: 'FeatureCollection',
@@ -321,7 +405,7 @@ async function loadFlowsFromDuckDB(
 }
 
 /**
- * Carregar e cachear o lookup MSOA→LTLA
+ * Carregar e cachear o lookup MSOA->LTLA
  */
 let ltlaLookupCache: Map<string, string> | null = null;
 
@@ -336,7 +420,7 @@ async function loadLTLALookup(): Promise<Map<string, string>> {
     const cached = await cacheService.get(cacheKey) as Record<string, string> | null;
     if (cached) {
       ltlaLookupCache = new Map(Object.entries(cached));
-      console.log(`Lookup MSOA→LTLA carregado do cache (${ltlaLookupCache.size} entradas)`);
+      console.log(`Lookup MSOA->LTLA carregado do cache (${ltlaLookupCache.size} entradas)`);
       return ltlaLookupCache;
     }
 
@@ -365,7 +449,7 @@ async function loadLTLALookup(): Promise<Map<string, string>> {
     await cacheService.set(cacheKey, lookupObj);
     
     ltlaLookupCache = lookup;
-    console.log(`Carregado lookup MSOA→LTLA: ${lookup.size} entradas`);
+    console.log(`Carregado lookup MSOA->LTLA: ${lookup.size} entradas`);
     return lookup;
   } catch (error) {
     console.error('Erro ao carregar LTLA lookup:', error);
@@ -458,16 +542,30 @@ async function loadLTLAFlowsAggregated(
   direction: 'incoming' | 'outgoing',
   limit: number
 ): Promise<{ type: string; features: unknown[] }> {
+  const requestStartMs = nowMs();
+
   // Verificar cache IndexedDB primeiro
   const cacheKey = `ltla_flows:${ltlaCode}|${direction}|${limit}`;
   const cached = await cacheService.get(cacheKey) as { type: string; features: unknown[] } | null;
   if (cached) {
     console.log(`Flows LTLA carregados do cache para ${ltlaCode}`);
+
+    recordLatency({
+      startMs: requestStartMs,
+      scenario: 'duckdb_cache',
+      cacheState: 'warm',
+      areaCode: ltlaCode,
+      dataSource: 'ltla',
+      direction,
+      filtersActive: false,
+      resultCount: Array.isArray(cached.features) ? cached.features.length : 0,
+    });
+
     return cached;
   }
 
   try {
-    console.log(`Agregando MSOA→LTLA para ${ltlaCode}...`);
+    console.log(`Agregando MSOA->LTLA para ${ltlaCode}...`);
     
     // Carregar lookup e coordenadas em paralelo
     const [lookup, ltlaCoords] = await Promise.all([
@@ -494,8 +592,7 @@ async function loadLTLAFlowsAggregated(
     const aggregatedFlows = await aggregateMSOAToLTLAFlows(
       msoasInLTLA,
       direction,
-      lookup,
-      50000
+      lookup
     );
     
     console.log(`Agregações LTLA criadas: ${aggregatedFlows.length}`);
@@ -556,6 +653,17 @@ async function loadLTLAFlowsAggregated(
 
     // Salvar no cache IndexedDB
     await cacheService.set(cacheKey, result);
+
+    recordLatency({
+      startMs: requestStartMs,
+      scenario: 'duckdb_cache',
+      cacheState: 'cold',
+      areaCode: ltlaCode,
+      dataSource: 'ltla',
+      direction,
+      filtersActive: false,
+      resultCount: limitedFeatures.length,
+    });
     
     return result;
   } catch (error) {

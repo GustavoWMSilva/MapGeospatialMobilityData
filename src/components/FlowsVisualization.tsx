@@ -25,6 +25,8 @@ interface FlowsVisualizationProps {
   dataSource: 'ltla' | 'msoa';
   socialGrade?: string;
   ageGroup?: string;
+  showInternal?: boolean;
+  onShowInternalChange?: (value: boolean) => void;
   onActiveConnectionsChange?: (codes: string[]) => void;
 }
 
@@ -35,18 +37,19 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   dataSource,
   socialGrade = 'all',
   ageGroup = 'all',
+  showInternal = false,
+  // onShowInternalChange,
   onActiveConnectionsChange
 }) => {
   const [flowsData, setFlowsData] = useState<FlowFeature[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isIntensityMinimized, setIsIntensityMinimized] = useState(false);
+  const [isIntensityMinimized, setIsIntensityMinimized] = useState(true);
   const [isStatsMinimized, setIsStatsMinimized] = useState(false);
   const [isFiltersMinimized, setIsFiltersMinimized] = useState(false);
   
   // Estados dos filtros - valores padrão dependem do tipo de dados
   const [maxFlows, setMaxFlows] = useState(dataSource === 'ltla' ? 200 : 500);
   const [minCount, setMinCount] = useState(dataSource === 'ltla' ? 50 : 10);
-  const [showInternal, setShowInternal] = useState(false);
 
   // Usar useRef para evitar re-execuções duplicadas
   const loadingRef = useRef(false);
@@ -304,8 +307,8 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
         onMaxFlowsChange={setMaxFlows}
         minCount={minCount}
         onMinCountChange={setMinCount}
-        showInternal={showInternal}
-        onShowInternalChange={setShowInternal}
+        // showInternal={showInternal}
+        // onShowInternalChange={onShowInternalChange}
         totalAvailable={totalAvailableFlows}
         totalFiltered={stats?.count || 0}
         maxPeopleCount={maxPeopleCount}
@@ -319,7 +322,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       <div className="absolute bottom-10 right-4 bg-white/98 backdrop-blur-md rounded-xl shadow-2xl border border-purple-200 p-3 z-10" style={{ width: isIntensityMinimized ? '200px' : '220px' }}>
         <div className="flex items-center gap-2">
 
-          <h3 className="text-base font-bold text-gray-800 flex-1">
+          <h3 className="text-base font-bold text-purple-900 flex-1">
             Intensidade de Fluxo
                   {isFiltersMinimized.valueOf() ? ' (Filtros Minimizado)' : ''}
 
@@ -371,7 +374,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       <div className="absolute bottom-4 left-4 bg-white/98 backdrop-blur-md rounded-xl shadow-2xl border border-purple-200 p-3 z-10" style={{ width: isStatsMinimized ? '180px' : '200px' }}>
         <div className="flex items-center gap-2 ">
 
-          <h3 className="text-sm font-bold text-gray-800 flex-1">
+          <h3 className="text-sm font-bold text-purple-900 flex-1">
             Estatísticas de Fluxo
           </h3>
           <button

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * DuckDB-WASM Client - Updated with optional datasets
  * Carrega múltiplos Parquets do jsdelivr CDN:
  * - ODWP01EW_MSOA.parquet (flows básicos) - OBRIGATÓRIO
@@ -11,6 +11,7 @@ let db: duckdb.AsyncDuckDB | null = null;
 let conn: duckdb.AsyncDuckDBConnection | null = null;
 let initialized = false;
 let initPromise: Promise<void> | null = null;
+let ltlaLookupTableReady = false;
 const isDevMode = import.meta.env.DEV;
 
 function debugLog(...args: unknown[]) {
@@ -61,7 +62,7 @@ export async function initDuckDB(): Promise<void> {
 
   initPromise = (async () => {
     try {
-      console.log('🚀 Inicializando DuckDB-WASM...');
+      console.log('?? Inicializando DuckDB-WASM...');
 
       // Buscar bundles do CDN
       const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
@@ -93,18 +94,18 @@ export async function initDuckDB(): Promise<void> {
         ? 'https://cdn.jsdelivr.net/gh/GustavoWMSilva/MapGeospatialMobilityData@main/'
         : '/data/processed/';
       
-      console.log(jsdelivrReady ? '📡 jsdelivr CDN disponível!' : '📁 Usando fallback local');
+      console.log(jsdelivrReady ? '?? jsdelivr CDN disponível!' : '?? Usando fallback local');
 
       // Função auxiliar para carregar dataset
       async function loadDataset(filename: string, tableName: string, optional: boolean = false) {
         const url = baseUrl + filename;
-        console.log(`📥 Baixando ${filename}...`);
+        console.log(`?? Baixando ${filename}...`);
         
         try {
           const response = await fetch(url);
           if (!response.ok) {
             if (optional) {
-              console.warn(`   ⚠️ ${filename} não disponível (${response.status}) - pulando`);
+              console.warn(`   ?? ${filename} não disponível (${response.status}) - pulando`);
               return false;
             }
             throw new Error(`Falha ao baixar ${filename}: ${response.status}`);
@@ -113,7 +114,7 @@ export async function initDuckDB(): Promise<void> {
           const arrayBuffer = await response.arrayBuffer();
           const uint8Array = new Uint8Array(arrayBuffer);
           
-          console.log(`   ✓ ${filename}: ${(uint8Array.length / 1024 / 1024).toFixed(1)} MB`);
+          console.log(`   ? ${filename}: ${(uint8Array.length / 1024 / 1024).toFixed(1)} MB`);
 
           await db!.registerFileBuffer(filename, uint8Array);
           await conn!.query(`
@@ -123,11 +124,11 @@ export async function initDuckDB(): Promise<void> {
 
           const count = await conn!.query(`SELECT COUNT(*) as total FROM ${tableName}`);
           const total = count.toArray()[0].total;
-          console.log(`   ✓ Tabela ${tableName}: ${total.toLocaleString()} registros`);
+          console.log(`   ? Tabela ${tableName}: ${total.toLocaleString()} registros`);
           return true;
         } catch (error) {
           if (optional) {
-            console.warn(`   ⚠️ Erro ao carregar ${filename} - pulando:`, error);
+            console.warn(`   ?? Erro ao carregar ${filename} - pulando:`, error);
             return false;
           }
           throw error;
@@ -135,13 +136,13 @@ export async function initDuckDB(): Promise<void> {
       }
 
       // Carregar todos os datasets
-      console.log('\n🚀 Carregando datasets...');
+      console.log('\n?? Carregando datasets...');
       await loadDataset(DATASETS.flows, 'flows', false); // Obrigatório
       const hasSocialGrade = await loadDataset(DATASETS.socialGrade, 'flows_social_grade', true); // Opcional
       const hasAge = await loadDataset(DATASETS.age, 'flows_age', true); // Opcional
       
       const loadedCount = 1 + (hasSocialGrade ? 1 : 0) + (hasAge ? 1 : 0);
-      console.log(`\n✅ DuckDB-WASM inicializado com ${loadedCount} dataset(s)!`);
+      console.log(`\n? DuckDB-WASM inicializado com ${loadedCount} dataset(s)!`);
       initialized = true;
     } catch (error) {
       console.error('Erro ao inicializar DuckDB:', error);
@@ -154,7 +155,7 @@ export async function initDuckDB(): Promise<void> {
 }
 
 /**
- * Helper: Carregar lookup MSOA → LTLA
+ * Helper: Carregar lookup MSOA ? LTLA
  */
 let ltlaLookupCache: Map<string, string> | null = null;
 
@@ -180,7 +181,7 @@ async function loadLTLALookup(): Promise<Map<string, string>> {
     }
   }
   
-  debugLog(`  ✓ Lookup MSOA→LTLA carregado (${ltlaLookupCache.size} entradas)`);
+  debugLog(`  ? Lookup MSOA->LTLA carregado (${ltlaLookupCache.size} entradas)`);
   return ltlaLookupCache;
 }
 
@@ -206,7 +207,7 @@ async function getMSOAsInLTLA(ltlaCode: string): Promise<string[]> {
     }
   });
   
-  debugLog(`  ✓ Encontrados ${msoas.length} MSOAs no LTLA ${ltlaCode}`);
+  debugLog(`  ? Encontrados ${msoas.length} MSOAs no LTLA ${ltlaCode}`);
   return msoas;
 }
 
@@ -232,6 +233,111 @@ interface AgeFlowResult extends FlowResult {
 interface CombinedDemographicFlowResult extends FlowResult {
   social_count: number;
   age_count: number;
+}
+
+export interface LTLADirectionalBalanceResult {
+  ltla_code: string;
+  ltla_name: string;
+  incoming_total: number;
+  outgoing_total: number;
+  balance: number;
+}
+
+export interface LTLASocialGradeShareResult {
+  ltla_code: string;
+  ltla_name: string;
+  social_grade_group: 'AB' | 'C1' | 'C2' | 'DE';
+  total: number;
+  percentage: number;
+  ltla_total: number;
+}
+
+export interface LTLAAggregatedTotalResult {
+  ltla_code: string;
+  total: number;
+}
+
+export interface LTLAAggregationDiagnosticRow {
+  ltla_code: string;
+  ltla_name: string;
+  mapped_msoa_count: number;
+  dynamic_total: number;
+}
+
+export interface LTLAAggregationDiagnosticsResult {
+  ltlas: LTLAAggregationDiagnosticRow[];
+  unmapped_msoa_count: number;
+  unmapped_msoa_sample: string[];
+  ignored_non_msoa_count: number;
+}
+
+export interface LTLATopODFlow {
+  origin_ltla_code: string;
+  origin_ltla_name: string;
+  dest_ltla_code: string;
+  dest_ltla_name: string;
+  count: number;
+}
+
+function escapeSqlLiteral(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
+function getInternalFlowCondition(includeInternalFlows: boolean): string {
+  return includeInternalFlows ? '1=1' : 'origin_code <> dest_code';
+}
+
+async function tableExists(tableName: string): Promise<boolean> {
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  try {
+    await conn.query(`SELECT 1 FROM ${tableName} LIMIT 1`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureLTLALookupTable(): Promise<void> {
+  await initDuckDB();
+
+  if (!db || !conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  if (ltlaLookupTableReady) {
+    return;
+  }
+
+  if (await tableExists('ltla_lookup')) {
+    ltlaLookupTableReady = true;
+    return;
+  }
+
+  const response = await fetch('/data/lookup/ltla_lookup.csv');
+  if (!response.ok) {
+    throw new Error(`Falha ao carregar ltla_lookup.csv (${response.status})`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  const fileName = 'ltla_lookup.csv';
+  await db.registerFileBuffer(fileName, new Uint8Array(arrayBuffer));
+
+  await conn.query(`
+    CREATE OR REPLACE TABLE ltla_lookup AS
+    SELECT
+      TRIM(msoa21cd) AS msoa21cd,
+      TRIM(ltla22cd) AS ltla22cd,
+      TRIM(ltla22nm) AS ltla22nm
+    FROM read_csv_auto('${fileName}', HEADER = TRUE)
+    WHERE msoa21cd IS NOT NULL
+      AND ltla22cd IS NOT NULL
+  `);
+
+  ltlaLookupTableReady = true;
+  debugLog('? Tabela ltla_lookup pronta para agregações LTLA');
 }
 
 async function resolveAreaWhereClause(
@@ -302,7 +408,7 @@ export async function aggregateMSOAToLTLAFlows(
   msoaCodes: string[],
   direction: 'incoming' | 'outgoing',
   lookupMap: Map<string, string>, // MSOA -> LTLA
-  _limit: number = 10000
+  includeInternalFlows: boolean = false
 ): Promise<{ originLTLA: string; destLTLA: string; count: number }[]> {
   await initDuckDB();
 
@@ -316,8 +422,9 @@ export async function aggregateMSOAToLTLAFlows(
 
   const filterCol = direction === 'incoming' ? 'dest_code' : 'origin_code';
   const msoaList = msoaCodes.map(code => `'${code}'`).join(',');
+  const internalFlowCondition = getInternalFlowCondition(includeInternalFlows);
 
-  console.log(`🚀 Agregando ${msoaCodes.length} MSOAs para LTLA (SEM LIMIT - métricas precisas)...`);
+  console.log(`?? Agregando ${msoaCodes.length} MSOAs para LTLA (SEM LIMIT - métricas precisas)...`);
 
   try {
     // Query única que pega TODOS os flows dos MSOAs de interesse (sem limit)
@@ -328,6 +435,7 @@ export async function aggregateMSOAToLTLAFlows(
         count
       FROM flows
       WHERE ${filterCol} IN (${msoaList})
+        AND ${internalFlowCondition}
       ORDER BY count DESC
     `;
 
@@ -373,7 +481,8 @@ export async function getMSOAFlowsBySocialGrade(
   areaCode: string,
   socialGrade: 'AB' | 'C1' | 'C2' | 'DE' | 'all' = 'all',
   direction: 'incoming' | 'outgoing' = 'incoming',
-  limit: number = 2000
+  limit: number = 2000,
+  includeInternalFlows: boolean = false
 ): Promise<SocialGradeFlowResult[]> {
   await initDuckDB();
 
@@ -397,6 +506,7 @@ export async function getMSOAFlowsBySocialGrade(
   if (whereClause === '1=0') {
     return [];
   }
+  const internalFlowCondition = getInternalFlowCondition(includeInternalFlows);
 
   debugLog(`Carregando flows ${direction} para ${areaCode} (grade: ${socialGrade})...`);
 
@@ -409,7 +519,7 @@ export async function getMSOAFlowsBySocialGrade(
         social_grade,
         count
       FROM flows_social_grade
-      WHERE ${whereClause} AND ${gradeFilter}
+      WHERE ${whereClause} AND ${gradeFilter} AND ${internalFlowCondition}
       ORDER BY count DESC
       LIMIT ${limit}
     `;
@@ -438,7 +548,8 @@ export async function getMSOAFlowsByAge(
   areaCode: string,
   ageGroup: string | 'all' = 'all',
   direction: 'incoming' | 'outgoing' = 'incoming',
-  limit: number = 2000
+  limit: number = 2000,
+  includeInternalFlows: boolean = false
 ): Promise<AgeFlowResult[]> {
   await initDuckDB();
 
@@ -462,6 +573,7 @@ export async function getMSOAFlowsByAge(
   if (whereClause === '1=0') {
     return [];
   }
+  const internalFlowCondition = getInternalFlowCondition(includeInternalFlows);
 
   debugLog(`Carregando flows ${direction} para ${areaCode} (age: ${ageGroup})...`);
 
@@ -474,7 +586,7 @@ export async function getMSOAFlowsByAge(
         age_group,
         count
       FROM flows_age
-      WHERE ${whereClause} AND ${ageFilter}
+      WHERE ${whereClause} AND ${ageFilter} AND ${internalFlowCondition}
       ORDER BY count DESC
       LIMIT ${limit}
     `;
@@ -501,24 +613,25 @@ export async function getMSOAFlowsByAge(
  */
 export async function getSocialGradeStats(
   areaCode: string,
-  direction: 'incoming' | 'outgoing' = 'incoming'
+  direction: 'incoming' | 'outgoing' = 'incoming',
+  includeInternalFlows: boolean = false
 ): Promise<Array<{ grade: string; total: number; percentage: number }>> {
   debugLog(`getSocialGradeStats chamado para: ${areaCode} (${direction})`);
   
   await initDuckDB();
-  debugLog('  ✓ DuckDB inicializado');
+  debugLog('  ? DuckDB inicializado');
 
   if (!conn) {
-    console.error('  ❌ Conexão DuckDB não disponível');
+    console.error('  ? Conexão DuckDB não disponível');
     throw new Error('DuckDB não inicializado');
   }
 
   // Verificar se tabela existe
   try {
     await conn.query(`SELECT 1 FROM flows_social_grade LIMIT 1`);
-    debugLog('  ✓ Tabela flows_social_grade existe e esta acessivel');
+    debugLog('  ? Tabela flows_social_grade existe e esta acessivel');
   } catch (error) {
-    debugWarn('Tabela flows_social_grade nao disponivel:', error);
+    debugWarn('Tabela flows_social_grade não disponível:', error);
     return [];
   }
 
@@ -527,7 +640,7 @@ export async function getSocialGradeStats(
   // Se for LTLA, converter para MSOAs
   let whereClause: string;
   if (isLTLACode(areaCode)) {
-    debugLog('  → Codigo LTLA detectado, buscando MSOAs...');
+    debugLog('  ? Codigo LTLA detectado, buscando MSOAs...');
     const msoas = await getMSOAsInLTLA(areaCode);
     if (msoas.length === 0) {
       debugWarn(`Nenhum MSOA encontrado para LTLA ${areaCode}`);
@@ -535,20 +648,21 @@ export async function getSocialGradeStats(
     }
     const msoaList = msoas.map(m => `'${m}'`).join(',');
     whereClause = `${filterCol} IN (${msoaList})`;
-    debugLog(`  → Consultando ${filterCol} IN (${msoas.length} MSOAs)`);
+    debugLog(`  ? Consultando ${filterCol} IN (${msoas.length} MSOAs)`);
   } else {
     whereClause = `${filterCol} = '${areaCode}'`;
-    debugLog(`  → Consultando ${filterCol} = '${areaCode}' (MSOA)`);
+    debugLog(`  ? Consultando ${filterCol} = '${areaCode}' (MSOA)`);
   }
 
   try {
+    const internalFlowCondition = getInternalFlowCondition(includeInternalFlows);
     const query = `
       WITH totals AS (
         SELECT 
           social_grade,
           SUM(count) as total
         FROM flows_social_grade
-        WHERE ${whereClause} AND social_grade != 'Does not apply'
+        WHERE ${whereClause} AND social_grade != 'Does not apply' AND ${internalFlowCondition}
         GROUP BY social_grade
       ),
       grand_total AS (
@@ -590,7 +704,8 @@ export async function getMSOAFlowsBySocialGradeAndAge(
   socialGrade: 'AB' | 'C1' | 'C2' | 'DE' | 'all' = 'all',
   ageGroup: string | 'all' = 'all',
   direction: 'incoming' | 'outgoing' = 'incoming',
-  limit: number = 2000
+  limit: number = 2000,
+  includeInternalFlows: boolean = false
 ): Promise<CombinedDemographicFlowResult[]> {
   await initDuckDB();
 
@@ -602,7 +717,7 @@ export async function getMSOAFlowsBySocialGradeAndAge(
     await conn.query(`SELECT 1 FROM flows_social_grade LIMIT 1`);
     await conn.query(`SELECT 1 FROM flows_age LIMIT 1`);
   } catch {
-    debugWarn('Tabelas demograficas (social/age) nao disponiveis para filtro combinado');
+    debugWarn('Tabelas demográficas (social/age) não disponíveis para filtro combinado');
     return [];
   }
 
@@ -617,6 +732,7 @@ export async function getMSOAFlowsBySocialGradeAndAge(
   if (whereClause === '1=0') {
     return [];
   }
+  const internalFlowCondition = getInternalFlowCondition(includeInternalFlows);
 
   debugLog(`Carregando flows combinados ${direction} para ${areaCode} (grade=${socialGrade}, age=${ageGroup})...`);
 
@@ -628,7 +744,7 @@ export async function getMSOAFlowsBySocialGradeAndAge(
           dest_code,
           SUM(count) AS social_count
         FROM flows_social_grade
-        WHERE ${whereClause} AND ${gradeFilter}
+        WHERE ${whereClause} AND ${gradeFilter} AND ${internalFlowCondition}
         GROUP BY origin_code, dest_code
       ),
       age AS (
@@ -637,7 +753,7 @@ export async function getMSOAFlowsBySocialGradeAndAge(
           dest_code,
           SUM(count) AS age_count
         FROM flows_age
-        WHERE ${whereClause} AND ${ageFilter}
+        WHERE ${whereClause} AND ${ageFilter} AND ${internalFlowCondition}
         GROUP BY origin_code, dest_code
       )
       SELECT
@@ -676,24 +792,25 @@ export async function getMSOAFlowsBySocialGradeAndAge(
  */
 export async function getAgeStats(
   areaCode: string,
-  direction: 'incoming' | 'outgoing' = 'incoming'
+  direction: 'incoming' | 'outgoing' = 'incoming',
+  includeInternalFlows: boolean = false
 ): Promise<Array<{ ageGroup: string; total: number; percentage: number }>> {
   debugLog(`getAgeStats chamado para: ${areaCode} (${direction})`);
   
   await initDuckDB();
-  debugLog('  ✓ DuckDB inicializado');
+  debugLog('  ? DuckDB inicializado');
 
   if (!conn) {
-    console.error('  ❌ Conexão DuckDB não disponível');
+    console.error('  ? Conexão DuckDB não disponível');
     throw new Error('DuckDB não inicializado');
   }
 
   // Verificar se tabela existe
   try {
     await conn.query(`SELECT 1 FROM flows_age LIMIT 1`);
-    debugLog('  ✓ Tabela flows_age existe e esta acessivel');
+    debugLog('  ? Tabela flows_age existe e esta acessivel');
   } catch (error) {
-    debugWarn('Tabela flows_age nao disponivel:', error);
+    debugWarn('Tabela flows_age não disponível:', error);
     return [];
   }
 
@@ -702,7 +819,7 @@ export async function getAgeStats(
   // Se for LTLA, converter para MSOAs
   let whereClause: string;
   if (isLTLACode(areaCode)) {
-    debugLog('  → Codigo LTLA detectado, buscando MSOAs...');
+    debugLog('  ? Codigo LTLA detectado, buscando MSOAs...');
     const msoas = await getMSOAsInLTLA(areaCode);
     if (msoas.length === 0) {
       debugWarn(`Nenhum MSOA encontrado para LTLA ${areaCode}`);
@@ -710,20 +827,21 @@ export async function getAgeStats(
     }
     const msoaList = msoas.map(m => `'${m}'`).join(',');
     whereClause = `${filterCol} IN (${msoaList})`;
-    debugLog(`  → Consultando ${filterCol} IN (${msoas.length} MSOAs)`);
+    debugLog(`  ? Consultando ${filterCol} IN (${msoas.length} MSOAs)`);
   } else {
     whereClause = `${filterCol} = '${areaCode}'`;
-    debugLog(`  → Consultando ${filterCol} = '${areaCode}' (MSOA)`);
+    debugLog(`  ? Consultando ${filterCol} = '${areaCode}' (MSOA)`);
   }
 
   try {
+    const internalFlowCondition = getInternalFlowCondition(includeInternalFlows);
     const query = `
       WITH totals AS (
         SELECT 
           age_group,
           SUM(count) as total
         FROM flows_age
-        WHERE ${whereClause}
+        WHERE ${whereClause} AND ${internalFlowCondition}
         GROUP BY age_group
       ),
       grand_total AS (
@@ -758,12 +876,605 @@ export async function getAgeStats(
 }
 
 /**
+ * Obter saldo direcional por LTLA (incoming - outgoing)
+ */
+export async function getLTLADirectionalBalances(
+  socialGrade: 'AB' | 'C1' | 'C2' | 'DE' | 'all' = 'all',
+  ageGroup: string | 'all' = 'all',
+  topN: number = 15,
+  includeInternalFlows: boolean = false
+): Promise<LTLADirectionalBalanceResult[]> {
+  await initDuckDB();
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  await ensureLTLALookupTable();
+
+  const safeTopN = Math.max(1, Math.min(topN, 40));
+  const safeSocialGrade = escapeSqlLiteral(socialGrade);
+  const safeAgeGroup = escapeSqlLiteral(ageGroup);
+  const internalFlowCondition = getInternalFlowCondition(includeInternalFlows);
+  const gradeFilter =
+    socialGrade === 'all'
+      ? "social_grade != 'Does not apply'"
+      : `social_grade LIKE '%${safeSocialGrade}%'`;
+  const ageFilter = ageGroup === 'all' ? '1=1' : `age_group = '${safeAgeGroup}'`;
+
+  const needsSocial = socialGrade !== 'all';
+  const needsAge = ageGroup !== 'all';
+
+  if (needsSocial && !(await tableExists('flows_social_grade'))) {
+    debugWarn('Tabela flows_social_grade não disponível para saldo direcional LTLA');
+    return [];
+  }
+
+  if (needsAge && !(await tableExists('flows_age'))) {
+    debugWarn('Tabela flows_age não disponível para saldo direcional LTLA');
+    return [];
+  }
+
+  let baseFlowsCte = `
+    base_flows AS (
+      SELECT
+        origin_code,
+        dest_code,
+        SUM(count) AS count
+      FROM flows
+      WHERE ${internalFlowCondition}
+      GROUP BY origin_code, dest_code
+    )
+  `;
+
+  if (socialGrade !== 'all' && ageGroup === 'all') {
+    baseFlowsCte = `
+      base_flows AS (
+        SELECT
+          origin_code,
+          dest_code,
+          SUM(count) AS count
+        FROM flows_social_grade
+        WHERE ${gradeFilter} AND ${internalFlowCondition}
+        GROUP BY origin_code, dest_code
+      )
+    `;
+  } else if (socialGrade === 'all' && ageGroup !== 'all') {
+    baseFlowsCte = `
+      base_flows AS (
+        SELECT
+          origin_code,
+          dest_code,
+          SUM(count) AS count
+        FROM flows_age
+        WHERE ${ageFilter} AND ${internalFlowCondition}
+        GROUP BY origin_code, dest_code
+      )
+    `;
+  } else if (socialGrade !== 'all' && ageGroup !== 'all') {
+    baseFlowsCte = `
+      social_filtered AS (
+        SELECT
+          origin_code,
+          dest_code,
+          SUM(count) AS social_count
+        FROM flows_social_grade
+        WHERE ${gradeFilter} AND ${internalFlowCondition}
+        GROUP BY origin_code, dest_code
+      ),
+      age_filtered AS (
+        SELECT
+          origin_code,
+          dest_code,
+          SUM(count) AS age_count
+        FROM flows_age
+        WHERE ${ageFilter} AND ${internalFlowCondition}
+        GROUP BY origin_code, dest_code
+      ),
+      base_flows AS (
+        SELECT
+          s.origin_code,
+          s.dest_code,
+          LEAST(s.social_count, a.age_count) AS count
+        FROM social_filtered s
+        INNER JOIN age_filtered a
+          ON s.origin_code = a.origin_code
+         AND s.dest_code = a.dest_code
+      )
+    `;
+  }
+
+  const query = `
+    WITH
+    ${baseFlowsCte},
+    ltla_flows AS (
+      SELECT
+        origin_lookup.ltla22cd AS origin_ltla_code,
+        MAX(origin_lookup.ltla22nm) AS origin_ltla_name,
+        dest_lookup.ltla22cd AS dest_ltla_code,
+        MAX(dest_lookup.ltla22nm) AS dest_ltla_name,
+        SUM(base_flows.count) AS flow_count
+      FROM base_flows
+      INNER JOIN ltla_lookup origin_lookup
+        ON base_flows.origin_code = origin_lookup.msoa21cd
+      INNER JOIN ltla_lookup dest_lookup
+        ON base_flows.dest_code = dest_lookup.msoa21cd
+      GROUP BY origin_lookup.ltla22cd, dest_lookup.ltla22cd
+    ),
+    incoming_totals AS (
+      SELECT
+        dest_ltla_code AS ltla_code,
+        MAX(dest_ltla_name) AS ltla_name,
+        SUM(flow_count) AS incoming_total
+      FROM ltla_flows
+      GROUP BY dest_ltla_code
+    ),
+    outgoing_totals AS (
+      SELECT
+        origin_ltla_code AS ltla_code,
+        MAX(origin_ltla_name) AS ltla_name,
+        SUM(flow_count) AS outgoing_total
+      FROM ltla_flows
+      GROUP BY origin_ltla_code
+    ),
+    ltla_balances AS (
+      SELECT
+        COALESCE(incoming_totals.ltla_code, outgoing_totals.ltla_code) AS ltla_code,
+        COALESCE(incoming_totals.ltla_name, outgoing_totals.ltla_name) AS ltla_name,
+        COALESCE(incoming_totals.incoming_total, 0) AS incoming_total,
+        COALESCE(outgoing_totals.outgoing_total, 0) AS outgoing_total,
+        COALESCE(incoming_totals.incoming_total, 0) - COALESCE(outgoing_totals.outgoing_total, 0) AS balance
+      FROM incoming_totals
+      FULL OUTER JOIN outgoing_totals
+        ON incoming_totals.ltla_code = outgoing_totals.ltla_code
+    )
+    SELECT
+      ltla_code,
+      ltla_name,
+      incoming_total,
+      outgoing_total,
+      balance
+    FROM ltla_balances
+    ORDER BY ABS(balance) DESC
+    LIMIT ${safeTopN}
+  `;
+
+  try {
+    const result = await conn.query(query);
+    return result.toArray().map((row) => ({
+      ltla_code: String(row.ltla_code),
+      ltla_name: String(row.ltla_name),
+      incoming_total: Number(row.incoming_total),
+      outgoing_total: Number(row.outgoing_total),
+      balance: Number(row.balance),
+    }));
+  } catch (error) {
+    console.error('Erro ao calcular saldo direcional LTLA:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obter composição de Social Grade por LTLA em percentual (100% stacked)
+ */
+export async function getLTLASocialGradeShares(
+  direction: 'incoming' | 'outgoing' = 'incoming',
+  topN: number = 12,
+  includeInternalFlows: boolean = false
+): Promise<LTLASocialGradeShareResult[]> {
+  await initDuckDB();
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  await ensureLTLALookupTable();
+
+  if (!(await tableExists('flows_social_grade'))) {
+    debugWarn('Tabela flows_social_grade não disponível para composição LTLA');
+    return [];
+  }
+
+  const safeTopN = Math.max(1, Math.min(topN, 30));
+  const areaCodeColumn = direction === 'incoming' ? 'dest_code' : 'origin_code';
+  const internalFlowCondition = getInternalFlowCondition(includeInternalFlows);
+
+  const query = `
+    WITH mapped_grades AS (
+      SELECT
+        ${areaCodeColumn} AS msoa_code,
+        CASE
+          WHEN social_grade LIKE '%AB%' THEN 'AB'
+          WHEN social_grade LIKE '%C1%' THEN 'C1'
+          WHEN social_grade LIKE '%C2%' THEN 'C2'
+          WHEN social_grade LIKE '%DE%' THEN 'DE'
+          ELSE NULL
+        END AS social_grade_group,
+        SUM(count) AS total
+      FROM flows_social_grade
+      WHERE social_grade != 'Does not apply'
+        AND ${internalFlowCondition}
+      GROUP BY ${areaCodeColumn}, social_grade_group
+    ),
+    ltla_grade_totals AS (
+      SELECT
+        lookup.ltla22cd AS ltla_code,
+        MAX(lookup.ltla22nm) AS ltla_name,
+        mapped_grades.social_grade_group,
+        SUM(mapped_grades.total) AS total
+      FROM mapped_grades
+      INNER JOIN ltla_lookup lookup
+        ON mapped_grades.msoa_code = lookup.msoa21cd
+      WHERE mapped_grades.social_grade_group IS NOT NULL
+      GROUP BY lookup.ltla22cd, mapped_grades.social_grade_group
+    ),
+    ltla_totals AS (
+      SELECT
+        ltla_code,
+        MAX(ltla_name) AS ltla_name,
+        SUM(total) AS ltla_total
+      FROM ltla_grade_totals
+      GROUP BY ltla_code
+    ),
+    top_ltlas AS (
+      SELECT
+        ltla_code,
+        ltla_name,
+        ltla_total
+      FROM ltla_totals
+      ORDER BY ltla_total DESC
+      LIMIT ${safeTopN}
+    )
+    SELECT
+      top_ltlas.ltla_code,
+      top_ltlas.ltla_name,
+      ltla_grade_totals.social_grade_group,
+      ltla_grade_totals.total,
+      top_ltlas.ltla_total,
+      ROUND((ltla_grade_totals.total * 100.0) / NULLIF(top_ltlas.ltla_total, 0), 2) AS percentage
+    FROM top_ltlas
+    INNER JOIN ltla_grade_totals
+      ON top_ltlas.ltla_code = ltla_grade_totals.ltla_code
+    ORDER BY
+      top_ltlas.ltla_total DESC,
+      CASE ltla_grade_totals.social_grade_group
+        WHEN 'AB' THEN 1
+        WHEN 'C1' THEN 2
+        WHEN 'C2' THEN 3
+        WHEN 'DE' THEN 4
+        ELSE 5
+      END
+  `;
+
+  try {
+    const result = await conn.query(query);
+    return result.toArray().map((row) => ({
+      ltla_code: String(row.ltla_code),
+      ltla_name: String(row.ltla_name),
+      social_grade_group: String(row.social_grade_group) as 'AB' | 'C1' | 'C2' | 'DE',
+      total: Number(row.total),
+      percentage: Number(row.percentage),
+      ltla_total: Number(row.ltla_total),
+    }));
+  } catch (error) {
+    console.error('Erro ao calcular composição de Social Grade por LTLA:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obter totais por LTLA a partir da agregação dinâmica MSOA->LTLA.
+ * Reusa aggregateMSOAToLTLAFlows para validação técnica.
+ */
+export async function getDynamicLTLATotalsFromMSOAAggregation(
+  direction: 'incoming' | 'outgoing' = 'incoming',
+  includeInternalFlows: boolean = false
+): Promise<LTLAAggregatedTotalResult[]> {
+  const lookup = await loadLTLALookup();
+  const allMSOAs = Array.from(lookup.keys());
+
+  if (allMSOAs.length === 0) {
+    return [];
+  }
+
+  const aggregated = await aggregateMSOAToLTLAFlows(
+    allMSOAs,
+    direction,
+    lookup,
+    includeInternalFlows
+  );
+
+  const totalsByLTLA = new Map<string, number>();
+
+  aggregated.forEach((row) => {
+    const targetCode = direction === 'incoming' ? row.destLTLA : row.originLTLA;
+    totalsByLTLA.set(targetCode, (totalsByLTLA.get(targetCode) || 0) + row.count);
+  });
+
+  return Array.from(totalsByLTLA.entries())
+    .map(([ltla_code, total]) => ({ ltla_code, total }))
+    .sort((a, b) => b.total - a.total);
+}
+
+/**
+ * Diagnóstico de cobertura de lookup para validação MSOA->LTLA.
+ */
+export async function getLTLAAggregationDiagnostics(
+  direction: 'incoming' | 'outgoing' = 'incoming',
+  includeInternalFlows: boolean = false
+): Promise<LTLAAggregationDiagnosticsResult> {
+  await initDuckDB();
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  await ensureLTLALookupTable();
+
+  const directionColumn = direction === 'incoming' ? 'dest_code' : 'origin_code';
+  const validMsoaPattern = '^[EW]02[0-9]{6}$';
+  const rawFlowCondition = includeInternalFlows ? '1=1' : 'f.origin_code <> f.dest_code';
+
+  const [dynamicTotals, lookupRowsResult, unmappedCountResult, unmappedSampleResult, ignoredCountResult] = await Promise.all([
+    getDynamicLTLATotalsFromMSOAAggregation(direction, includeInternalFlows),
+    conn.query(`
+      SELECT
+        ltla22cd AS ltla_code,
+        MAX(ltla22nm) AS ltla_name,
+        COUNT(DISTINCT msoa21cd) AS mapped_msoa_count
+      FROM ltla_lookup
+      GROUP BY ltla22cd
+    `),
+    conn.query(`
+      SELECT COUNT(DISTINCT f.${directionColumn}) AS unmapped_msoa_count
+      FROM flows f
+      LEFT JOIN ltla_lookup l
+        ON f.${directionColumn} = l.msoa21cd
+      WHERE l.msoa21cd IS NULL
+        AND regexp_full_match(f.${directionColumn}, '${validMsoaPattern}')
+        AND ${rawFlowCondition}
+    `),
+    conn.query(`
+      SELECT DISTINCT f.${directionColumn} AS msoa_code
+      FROM flows f
+      LEFT JOIN ltla_lookup l
+        ON f.${directionColumn} = l.msoa21cd
+      WHERE l.msoa21cd IS NULL
+        AND regexp_full_match(f.${directionColumn}, '${validMsoaPattern}')
+        AND ${rawFlowCondition}
+      LIMIT 20
+    `),
+    conn.query(`
+      SELECT COUNT(DISTINCT f.${directionColumn}) AS ignored_non_msoa_count
+      FROM flows f
+      WHERE NOT regexp_full_match(f.${directionColumn}, '${validMsoaPattern}')
+        AND ${rawFlowCondition}
+    `),
+  ]);
+
+  const dynamicMap = new Map(dynamicTotals.map((row) => [row.ltla_code, row.total]));
+
+  const lookupRows = lookupRowsResult.toArray().map((row) => {
+    const record = row as { ltla_code: unknown; ltla_name: unknown; mapped_msoa_count: unknown };
+    return {
+      ltla_code: String(record.ltla_code ?? ''),
+      ltla_name: String(record.ltla_name ?? record.ltla_code ?? ''),
+      mapped_msoa_count: Number(record.mapped_msoa_count ?? 0),
+    };
+  });
+
+  const diagnosticsRows: LTLAAggregationDiagnosticRow[] = lookupRows.map((row) => ({
+    ltla_code: row.ltla_code,
+    ltla_name: row.ltla_name,
+    mapped_msoa_count: row.mapped_msoa_count,
+    dynamic_total: Number(dynamicMap.get(row.ltla_code) || 0),
+  }));
+
+  const unmappedCountRow = unmappedCountResult.toArray()[0] as { unmapped_msoa_count?: unknown } | undefined;
+  const unmappedCount = Number(unmappedCountRow?.unmapped_msoa_count ?? 0);
+  const ignoredCountRow = ignoredCountResult.toArray()[0] as { ignored_non_msoa_count?: unknown } | undefined;
+  const ignoredNonMsoaCount = Number(ignoredCountRow?.ignored_non_msoa_count ?? 0);
+  const unmappedSample = unmappedSampleResult
+    .toArray()
+    .map((row) => String((row as { msoa_code?: unknown }).msoa_code ?? ''))
+    .filter(Boolean);
+
+  return {
+    ltlas: diagnosticsRows.sort((a, b) => b.dynamic_total - a.dynamic_total),
+    unmapped_msoa_count: unmappedCount,
+    unmapped_msoa_sample: unmappedSample,
+    ignored_non_msoa_count: ignoredNonMsoaCount,
+  };
+}
+
+/**
+ * OD Heatmap: Top N áreas LTLA (origem x destino) com suporte a filtros demográficos.
+ */
+export async function getTopLTLAODFlows(
+  socialGrade: 'AB' | 'C1' | 'C2' | 'DE' | 'all' = 'all',
+  ageGroup: string | 'all' = 'all',
+  topN: number = 10,
+  includeInternalFlows: boolean = false
+): Promise<LTLATopODFlow[]> {
+  await initDuckDB();
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  await ensureLTLALookupTable();
+
+  const safeTopN = Math.max(4, Math.min(topN, 20));
+  const safeSocialGrade = escapeSqlLiteral(socialGrade);
+  const safeAgeGroup = escapeSqlLiteral(ageGroup);
+  const internalFlowCondition = getInternalFlowCondition(includeInternalFlows);
+  const gradeFilter =
+    socialGrade === 'all'
+      ? "social_grade != 'Does not apply'"
+      : `social_grade LIKE '%${safeSocialGrade}%'`;
+  const ageFilter = ageGroup === 'all' ? '1=1' : `age_group = '${safeAgeGroup}'`;
+
+  const needsSocial = socialGrade !== 'all';
+  const needsAge = ageGroup !== 'all';
+
+  if (needsSocial && !(await tableExists('flows_social_grade'))) {
+    debugWarn('Tabela flows_social_grade não disponível para heatmap OD LTLA');
+    return [];
+  }
+
+  if (needsAge && !(await tableExists('flows_age'))) {
+    debugWarn('Tabela flows_age não disponível para heatmap OD LTLA');
+    return [];
+  }
+
+  let baseFlowsCte = `
+    base_flows AS (
+      SELECT
+        origin_code,
+        dest_code,
+        SUM(count) AS count
+      FROM flows
+      WHERE ${internalFlowCondition}
+      GROUP BY origin_code, dest_code
+    )
+  `;
+
+  if (socialGrade !== 'all' && ageGroup === 'all') {
+    baseFlowsCte = `
+      base_flows AS (
+        SELECT
+          origin_code,
+          dest_code,
+          SUM(count) AS count
+        FROM flows_social_grade
+        WHERE ${gradeFilter} AND ${internalFlowCondition}
+        GROUP BY origin_code, dest_code
+      )
+    `;
+  } else if (socialGrade === 'all' && ageGroup !== 'all') {
+    baseFlowsCte = `
+      base_flows AS (
+        SELECT
+          origin_code,
+          dest_code,
+          SUM(count) AS count
+        FROM flows_age
+        WHERE ${ageFilter} AND ${internalFlowCondition}
+        GROUP BY origin_code, dest_code
+      )
+    `;
+  } else if (socialGrade !== 'all' && ageGroup !== 'all') {
+    baseFlowsCte = `
+      social_filtered AS (
+        SELECT
+          origin_code,
+          dest_code,
+          SUM(count) AS social_count
+        FROM flows_social_grade
+        WHERE ${gradeFilter} AND ${internalFlowCondition}
+        GROUP BY origin_code, dest_code
+      ),
+      age_filtered AS (
+        SELECT
+          origin_code,
+          dest_code,
+          SUM(count) AS age_count
+        FROM flows_age
+        WHERE ${ageFilter} AND ${internalFlowCondition}
+        GROUP BY origin_code, dest_code
+      ),
+      base_flows AS (
+        SELECT
+          s.origin_code,
+          s.dest_code,
+          LEAST(s.social_count, a.age_count) AS count
+        FROM social_filtered s
+        INNER JOIN age_filtered a
+          ON s.origin_code = a.origin_code
+         AND s.dest_code = a.dest_code
+      )
+    `;
+  }
+
+  const query = `
+    WITH
+    ${baseFlowsCte},
+    ltla_od AS (
+      SELECT
+        origin_lookup.ltla22cd AS origin_ltla_code,
+        MAX(origin_lookup.ltla22nm) AS origin_ltla_name,
+        dest_lookup.ltla22cd AS dest_ltla_code,
+        MAX(dest_lookup.ltla22nm) AS dest_ltla_name,
+        SUM(base_flows.count) AS total_count
+      FROM base_flows
+      INNER JOIN ltla_lookup origin_lookup
+        ON base_flows.origin_code = origin_lookup.msoa21cd
+      INNER JOIN ltla_lookup dest_lookup
+        ON base_flows.dest_code = dest_lookup.msoa21cd
+      GROUP BY origin_lookup.ltla22cd, dest_lookup.ltla22cd
+    ),
+    area_activity AS (
+      SELECT
+        ltla_code,
+        SUM(volume) AS total_activity
+      FROM (
+        SELECT origin_ltla_code AS ltla_code, total_count AS volume FROM ltla_od
+        UNION ALL
+        SELECT dest_ltla_code AS ltla_code, total_count AS volume FROM ltla_od
+      ) combined
+      GROUP BY ltla_code
+    ),
+    top_areas AS (
+      SELECT ltla_code
+      FROM area_activity
+      ORDER BY total_activity DESC
+      LIMIT ${safeTopN}
+    )
+    SELECT
+      ltla_od.origin_ltla_code,
+      ltla_od.origin_ltla_name,
+      ltla_od.dest_ltla_code,
+      ltla_od.dest_ltla_name,
+      ltla_od.total_count AS count
+    FROM ltla_od
+    INNER JOIN top_areas top_origin
+      ON ltla_od.origin_ltla_code = top_origin.ltla_code
+    INNER JOIN top_areas top_dest
+      ON ltla_od.dest_ltla_code = top_dest.ltla_code
+    ORDER BY ltla_od.total_count DESC
+  `;
+
+  try {
+    const result = await conn.query(query);
+    return result.toArray().map((row) => {
+      const record = row as {
+        origin_ltla_code: unknown;
+        origin_ltla_name: unknown;
+        dest_ltla_code: unknown;
+        dest_ltla_name: unknown;
+        count: unknown;
+      };
+      return {
+        origin_ltla_code: String(record.origin_ltla_code ?? ''),
+        origin_ltla_name: String(record.origin_ltla_name ?? record.origin_ltla_code ?? ''),
+        dest_ltla_code: String(record.dest_ltla_code ?? ''),
+        dest_ltla_name: String(record.dest_ltla_name ?? record.dest_ltla_code ?? ''),
+        count: Number(record.count ?? 0),
+      };
+    });
+  } catch (error) {
+    console.error('Erro ao calcular OD Top N LTLA:', error);
+    throw error;
+  }
+}
+
+/**
  * Obter flows LTLA agregados
  */
 export async function getLTLAFlows(
-  _areaCode: string,
-  _direction: 'incoming' | 'outgoing' = 'incoming',
-  _limit: number = 500
+  areaCode: string,
+  direction: 'incoming' | 'outgoing' = 'incoming',
+  limit: number = 500
 ): Promise<FlowResult[]> {
   await initDuckDB();
 
@@ -772,7 +1483,7 @@ export async function getLTLAFlows(
   }
 
   // TODO: Implementar quando tivermos lookup MSOA->LTLA no GitHub
-  console.warn('LTLA flows ainda não implementado com DuckDB-WASM');
+  console.warn(`LTLA flows ainda não implementado com DuckDB-WASM (area=${areaCode}, direction=${direction}, limit=${limit})`);
   return [];
 }
 
@@ -809,5 +1520,6 @@ export async function closeDuckDB(): Promise<void> {
   }
   initialized = false;
   initPromise = null;
+  ltlaLookupTableReady = false;
   console.log('DuckDB fechado');
 }

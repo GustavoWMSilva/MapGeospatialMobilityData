@@ -34,4 +34,49 @@ export const MAP_COLORS = {
     strokeOpacity: 0.45,
     strokeWidth: 0.8,
   },
+  analytics: {
+    palette: {
+      blue: '#5B8DEF',
+      teal: '#46B39D',
+      orange: '#F2A65A',
+      rose: '#E76F7A',
+      purple: '#7C6EE6',
+    },
+    socialGrade: {
+      AB: '#5B8DEF',
+      C1: '#46B39D',
+      C2: '#F2A65A',
+      DE: '#E76F7A',
+    },
+    age: {
+      '16-24': '#7C6EE6',
+      '25-34': '#5B8DEF',
+      '35-44': '#46B39D',
+      '45-54': '#F2A65A',
+      '55-64': '#E98B54',
+      '65+': '#E76F7A',
+    },
+    topFlowsBar: ['#5B8DEF', '#46B39D', '#F2A65A', '#E76F7A', '#7C6EE6'],
+    directional: {
+      positive: '#46B39D',
+      negative: '#E76F7A',
+    },
+    socialMultiples: {
+      all: '#7C6EE6',
+      AB: '#5B8DEF',
+      C1: '#46B39D',
+      DE: '#E76F7A',
+    },
+    heatmap: {
+      veryHigh: '#2F4D8F',
+      high: '#5B8DEF',
+      medium: '#7FA9F2',
+      low: '#B8CEF8',
+      min: '#E8F0FE',
+    },
+    scatter: {
+      regular: '#5B8DEF',
+      outlier: '#E76F7A',
+    },
+  },
 } as const;

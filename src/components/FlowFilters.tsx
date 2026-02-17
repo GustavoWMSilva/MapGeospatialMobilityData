@@ -22,6 +22,8 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
   onMaxFlowsChange,
   minCount,
   onMinCountChange,
+  // showInternal = false,
+  // onShowInternalChange,
   totalAvailable,
   totalFiltered,
   maxPeopleCount,
@@ -32,10 +34,10 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
 }) => {
   const minCountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousMaxPeopleCount = useRef<number>(maxPeopleCount);
-  
+
   // Verificar se há filtros demográficos ativos
   const hasDemographicFilters = socialGrade !== 'all' || ageGroup !== 'all';
-  
+
   // Cleanup do timeout quando o componente desmontar
   useEffect(() => {
     return () => {
@@ -48,23 +50,23 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
   // Resetar minCount se o maxPeopleCount mudar drasticamente (nova área)
   useEffect(() => {
     console.log(`FlowFilters: maxPeopleCount = ${maxPeopleCount}, minCount = ${minCount}`);
-    
+
     // Se o minCount atual for maior que o novo máximo, resetar para 0
     if (minCount > maxPeopleCount && maxPeopleCount > 0) {
       console.log(`FlowFilters: minCount (${minCount}) > maxPeopleCount (${maxPeopleCount}), resetando para 0`);
       onMinCountChange(0);
     }
-    
+
     previousMaxPeopleCount.current = maxPeopleCount;
   }, [maxPeopleCount, minCount, onMinCountChange]);
-  
+
   const handleMinCountChange = (value: number) => {
     // Validar e limitar valor
     const safeMax = Math.max(maxPeopleCount, 100);
     const safeValue = Math.max(0, Math.min(value, safeMax));
-    
-    console.log(`Slider minCount: ${value} → safeValue: ${safeValue} (max permitido: ${safeMax})`);
-    
+
+    console.log(`Slider minCount: ${value} -> safeValue: ${safeValue} (max permitido: ${safeMax})`);
+
     // Atualizar imediatamente (sem debounce)
     onMinCountChange(safeValue);
   };
@@ -72,12 +74,11 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
   return (
     <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-purple-100 z-10 w-80">
       {/* Header */}
-      <div 
+      <div
         className="flex items-center justify-between p-3 border-b border-purple-100 cursor-pointer hover:bg-purple-50/50"
         onClick={onToggleMinimize}
       >
         <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-purple-600" />
           <h3 className="font-semibold text-sm text-purple-900">Filtros de Fluxos</h3>
           {hasDemographicFilters && (
             <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
@@ -85,7 +86,14 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <button
+            // onClick={() => setIsIntensityMinimized(!isIntensityMinimized)}
+            className="w-7 h-7 flex items-center justify-center rounded-lg bg-purple-100 hover:bg-purple-200 transition-colors text-purple-700 font-bold"
+            title={isMinimized ? "Expandir" : "Minimizar"}
+          >
+            {isMinimized ? '▾' : '▴'}
+          </button>
+        {/* <div className="flex items-center gap-2">
           <span className="text-xs text-gray-600">
             {totalFiltered.toLocaleString()} / {totalAvailable.toLocaleString()}
           </span>
@@ -94,12 +102,29 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
           ) : (
             <ChevronUp className="w-4 h-4 text-gray-400" />
           )}
-        </div>
+        </div> */}
       </div>
 
       {/* Content */}
       {!isMinimized && (
         <div className="p-4 space-y-4">
+          {/* {onShowInternalChange && (
+            <div className="border border-purple-100 rounded-lg p-3 bg-purple-50/40 space-y-2">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showInternal}
+                  onChange={(e) => onShowInternalChange(e.target.checked)}
+                  className="mt-1 h-4 w-4 accent-purple-600"
+                />
+                <div>
+                  <p className="text-sm font-medium text-gray-800">Incluir fluxo interno (origem = destino)</p>
+                  <p className="text-xs text-gray-600">Desative para excluir autofluxos das linhas e das estatísticas.</p>
+                </div>
+              </label>
+            </div>
+          )} */}
+
           {/* Filtros Demográficos Ativos */}
           {hasDemographicFilters && (
             <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 space-y-1">
@@ -113,7 +138,7 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
                 <div className="text-xs text-purple-700 flex items-center gap-1">
                   <strong>Social Grade:</strong> {socialGrade}
                   {socialGrade !== 'all' && ageGroup !== 'all' && (
-                    <span className="text-purple-600">✓ Ativo no mapa</span>
+                    <span className="text-purple-600">Ativo no mapa</span>
                   )}
                 </div>
               )}
@@ -121,14 +146,14 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
                 <div className="text-xs text-purple-700 flex items-center gap-1">
                   <strong>Grupo Etário:</strong> {ageGroup}
                   {socialGrade === 'all' && (
-                    <span className="text-purple-600">✓ Ativo no mapa</span>
+                    <span className="text-purple-600">Ativo no mapa</span>
                   )}
                 </div>
               )}
               {socialGrade !== 'all' && ageGroup !== 'all' && (
                 <div className="bg-purple-100 border border-purple-300 rounded px-2 py-1 mt-2">
                   <div className="text-xs text-purple-800 font-medium">
-                    ✓ Ambos ativos: filtro combinado no mapa
+                    Ambos ativos: filtro combinado no mapa
                   </div>
                 </div>
               )}
@@ -137,7 +162,7 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
               </div>
             </div>
           )}
-          
+
           {/* Top N Flows */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -201,6 +226,7 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
               <span>{Math.max(maxPeopleCount, 0).toLocaleString()}</span>
             </div>
           </div>
+
         </div>
       )}
     </div>

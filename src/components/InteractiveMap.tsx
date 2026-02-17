@@ -28,6 +28,8 @@ interface InteractiveMapProps {
   isFullscreen?: boolean;
   socialGrade?: string;
   ageGroup?: string;
+  includeInternalFlows?: boolean;
+  onIncludeInternalFlowsChange?: (value: boolean) => void;
 }
 
 export const InteractiveMap: React.FC<InteractiveMapProps> = ({
@@ -47,7 +49,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   flowDirection = 'incoming',
   isFullscreen = false,
   socialGrade = 'all',
-  ageGroup = 'all'
+  ageGroup = 'all',
+  includeInternalFlows = false,
+  onIncludeInternalFlowsChange
 }) => {
   const [activeConnectedAreaCodes, setActiveConnectedAreaCodes] = useState<string[]>([]);
   const selectedBoundaryCode = showLTLAs ? selectedLTLA : selectedAreaCode;
@@ -131,6 +135,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             dataSource="ltla"
             socialGrade={socialGrade}
             ageGroup={ageGroup}
+            showInternal={includeInternalFlows}
+            onShowInternalChange={onIncludeInternalFlowsChange}
             onActiveConnectionsChange={setActiveConnectedAreaCodes}
           />
         )}
@@ -146,6 +152,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
               dataSource="msoa"
               socialGrade={socialGrade}
               ageGroup={ageGroup}
+              showInternal={includeInternalFlows}
+              onShowInternalChange={onIncludeInternalFlowsChange}
               onActiveConnectionsChange={setActiveConnectedAreaCodes}
             />
           </>

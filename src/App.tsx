@@ -42,6 +42,7 @@ export default function App() {
   const [viewMode, setViewMode] = React.useState<'msoa' | 'ltla'>('ltla');
   const [flowDirection, setFlowDirection] = React.useState<'incoming' | 'outgoing'>('incoming');
   const [isFullscreen, setIsFullscreen] = React.useState(false);
+  const [includeInternalFlows, setIncludeInternalFlows] = React.useState(false);
   
   // Filtros demográficos (compartilhados entre Dashboard e Mapa)
   const [socialGrade, setSocialGrade] = React.useState<SocialGrade>('all');
@@ -211,16 +212,23 @@ export default function App() {
         </div>
       </div>
       )}
-<AnalyticsDashboard 
-  selectedArea={viewMode === 'ltla' ? (selectedLTLA || undefined) : (selectedAreaCode || undefined)}
-  areaName={viewMode === 'ltla' ? selectedLTLAName : selectedMSOAName}
-  socialGrade={socialGrade}
-  ageGroup={ageGroup}
-  direction={flowDirection}
-  onSocialGradeChange={setSocialGrade}
-  onAgeGroupChange={setAgeGroup}
-  onDirectionChange={setFlowDirection}
-/>
+      {!isFullscreen && (
+      <div className="px-6 py-4">
+        <AnalyticsDashboard 
+          selectedArea={viewMode === 'ltla' ? (selectedLTLA || undefined) : (selectedAreaCode || undefined)}
+          areaName={viewMode === 'ltla' ? selectedLTLAName : selectedMSOAName}
+          dataSource={viewMode}
+          socialGrade={socialGrade}
+          ageGroup={ageGroup}
+          direction={flowDirection}
+          includeInternalFlows={includeInternalFlows}
+          onSocialGradeChange={setSocialGrade}
+          onAgeGroupChange={setAgeGroup}
+          onDirectionChange={setFlowDirection}
+          onIncludeInternalFlowsChange={setIncludeInternalFlows}
+        />
+      </div>
+      )}
       {/* Controles de seleção baseados no modo */}
       {!isFullscreen && (
       <div className="px-6 py-4 pb-6">
@@ -273,6 +281,8 @@ export default function App() {
           isFullscreen={isFullscreen}
           socialGrade={socialGrade}
           ageGroup={ageGroup}
+          includeInternalFlows={includeInternalFlows}
+          onIncludeInternalFlowsChange={setIncludeInternalFlows}
         />
         
         {/* Controles flutuantes no modo fullscreen */}

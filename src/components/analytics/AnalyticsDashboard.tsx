@@ -1,7 +1,15 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { SocialGradePieChart } from './SocialGradePieChart';
 import { AgeBarChart } from './AgeBarChart';
 import { AnalyticsFilters } from './AnalyticsFilters';
+import { TopFlowsRankingChart } from './TopFlowsRankingChart';
+import { DirectionalBalanceChart } from './DirectionalBalanceChart';
+import { LTLASocialGradeStacked100 } from './LTLASocialGradeStacked100';
+import { AggregationValidationScatter } from './AggregationValidationScatter';
+import { PerformanceLatencyPanel } from './PerformanceLatencyPanel';
+import { ODTopNHeatmap } from './ODTopNHeatmap';
+import { SocialGradeSmallMultiples } from './SocialGradeSmallMultiples';
 import { getMSOAFlowsBySocialGrade, getMSOAFlowsByAge, getMSOAFlowsBySocialGradeAndAge } from '../../utils/duckdb';
 import type { SocialGrade, AgeGroup } from '../../types';
 import { debugLog, getAnalyticsErrorMessage } from './analyticsUtils';
@@ -12,9 +20,53 @@ interface AnalyticsDashboardProps {
   socialGrade?: SocialGrade;
   ageGroup?: AgeGroup;
   direction?: 'incoming' | 'outgoing';
+  dataSource?: 'msoa' | 'ltla';
+  includeInternalFlows?: boolean;
   onSocialGradeChange?: (grade: SocialGrade) => void;
   onAgeGroupChange?: (age: AgeGroup) => void;
   onDirectionChange?: (direction: 'incoming' | 'outgoing') => void;
+  onIncludeInternalFlowsChange?: (value: boolean) => void;
+}
+
+type ChartKey =
+  | 'socialPie'
+  | 'ageBar'
+  | 'topFlows'
+  | 'performance'
+  | 'odHeatmap'
+  | 'socialMultiples'
+  | 'ltlaStacked'
+  | 'aggregationScatter'
+  | 'directionalBalance';
+
+function ChartCard({
+  title,
+  isCollapsed,
+  onToggle,
+  children,
+  className = 'rounded-xl border border-purple-100 bg-white p-5 shadow-sm',
+}: {
+  title: string;
+  isCollapsed: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={className}>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-purple-900">{title}</h3>
+        <button
+          type="button"
+          onClick={onToggle}
+          className="rounded-md border border-purple-200 bg-white px-2.5 py-1 text-xs font-medium text-purple-700 hover:bg-purple-50"
+        >
+          {isCollapsed ? 'Expandir' : 'Minimizar'}
+        </button>
+      </div>
+      {!isCollapsed && children}
+    </section>
+  );
 }
 
 export function AnalyticsDashboard({
@@ -23,11 +75,33 @@ export function AnalyticsDashboard({
   socialGrade = 'all',
   ageGroup = 'all',
   direction = 'incoming',
+  dataSource = 'msoa',
+  includeInternalFlows = false,
   onSocialGradeChange,
   onAgeGroupChange,
   onDirectionChange,
+  onIncludeInternalFlowsChange,
 }: AnalyticsDashboardProps) {
   const [flowCountError, setFlowCountError] = useState<string | null>(null);
+  const [showResearchCharts, setShowResearchCharts] = useState(false);
+  const [collapsedCharts, setCollapsedCharts] = useState<Record<ChartKey, boolean>>({
+    socialPie: false,
+    ageBar: false,
+    topFlows: false,
+    performance: true,
+    odHeatmap: true,
+    socialMultiples: true,
+    ltlaStacked: true,
+    aggregationScatter: true,
+    directionalBalance: true,
+  });
+
+  const toggleChart = (key: ChartKey) => {
+    setCollapsedCharts((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
 
   useEffect(() => {
     debugLog(`[AnalyticsDashboard] direction=${direction}`);
@@ -36,6 +110,12 @@ export function AnalyticsDashboard({
   useEffect(() => {
     debugLog(`[AnalyticsDashboard] selectedArea=${selectedArea} areaName=${areaName}`);
   }, [selectedArea, areaName]);
+
+  useEffect(() => {
+    if (dataSource !== 'ltla') {
+      setShowResearchCharts(false);
+    }
+  }, [dataSource]);
 
   // Validate data availability for selected filters
   useEffect(() => {
@@ -48,11 +128,11 @@ export function AnalyticsDashboard({
       setFlowCountError(null);
       try {
         if (socialGrade !== 'all' && ageGroup !== 'all') {
-          await getMSOAFlowsBySocialGradeAndAge(selectedArea, socialGrade, ageGroup, direction, 5000);
+          await getMSOAFlowsBySocialGradeAndAge(selectedArea, socialGrade, ageGroup, direction, 5000, includeInternalFlows);
         } else if (socialGrade !== 'all') {
-          await getMSOAFlowsBySocialGrade(selectedArea, socialGrade, direction, 5000);
+          await getMSOAFlowsBySocialGrade(selectedArea, socialGrade, direction, 5000, includeInternalFlows);
         } else if (ageGroup !== 'all') {
-          await getMSOAFlowsByAge(selectedArea, ageGroup, direction, 5000);
+          await getMSOAFlowsByAge(selectedArea, ageGroup, direction, 5000, includeInternalFlows);
         }
       } catch (error) {
         console.error('[AnalyticsDashboard] erro ao validar disponibilidade de dados', error);
@@ -61,7 +141,7 @@ export function AnalyticsDashboard({
     }
 
     validateDataAvailability();
-  }, [selectedArea, socialGrade, ageGroup, direction]);
+  }, [selectedArea, socialGrade, ageGroup, direction, includeInternalFlows]);
 
   if (!selectedArea) {
     return (
@@ -76,7 +156,22 @@ export function AnalyticsDashboard({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 rounded-2xl border border-purple-100 bg-white/90 p-4 shadow-sm md:p-5">
+      <div className="flex flex-col gap-2 rounded-xl border border-purple-100 bg-gradient-to-r from-purple-50 to-white p-3">
+        <h2 className="text-base font-semibold text-purple-900">Painel Analítico</h2>
+        <div className="flex flex-wrap gap-2 text-xs">
+          <span className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-1 font-medium text-purple-800">
+            Área: {areaName || selectedArea}
+          </span>
+          <span className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-1 font-medium text-purple-800">
+            Nível: {dataSource.toUpperCase()}
+          </span>
+          <span className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-1 font-medium text-purple-800">
+            Direção: {direction === 'incoming' ? 'Incoming' : 'Outgoing'}
+          </span>
+        </div>
+      </div>
+
       <AnalyticsFilters
         socialGrade={socialGrade}
         ageGroup={ageGroup}
@@ -86,33 +181,174 @@ export function AnalyticsDashboard({
         onDirectionChange={onDirectionChange || (() => {})}
       />
 
+      <div className="rounded-xl border border-purple-100 bg-white p-3">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={includeInternalFlows}
+            onChange={(e) => onIncludeInternalFlowsChange?.(e.target.checked)}
+            className="mt-1 h-4 w-4 accent-purple-600"
+          />
+          <div>
+            <p className="text-sm font-medium text-gray-800">Incluir fluxo interno (origem = destino)</p>
+            <p className="text-xs text-gray-600">Quando desativado, os gráficos ignoram fluxos dentro da mesma área.</p>
+          </div>
+        </label>
+      </div>
+
       {flowCountError && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <strong>Erro no dashboard:</strong> {flowCountError}
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow-md p-6">
+      <div className="flex items-center justify-between rounded-xl border border-purple-100 bg-purple-50/70 p-3">
+        <div>
+          <p className="text-sm font-semibold text-purple-900">Visualização principal</p>
+          <p className="text-xs text-purple-700">Gráficos mais úteis para leitura geral do usuário</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <ChartCard
+          title="Distribuição por classe social"
+          isCollapsed={collapsedCharts.socialPie}
+          onToggle={() => toggleChart('socialPie')}
+        >
           <SocialGradePieChart
             key={`social-${selectedArea}`}
             areaCode={selectedArea}
             direction={direction}
+            includeInternalFlows={includeInternalFlows}
             selectedGrade={socialGrade}
             onSelectGrade={onSocialGradeChange || (() => {})}
           />
-        </div>
+        </ChartCard>
 
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <ChartCard
+          title="Distribuição por faixa etária"
+          isCollapsed={collapsedCharts.ageBar}
+          onToggle={() => toggleChart('ageBar')}
+        >
           <AgeBarChart
             key={`age-${selectedArea}`}
             areaCode={selectedArea}
             direction={direction}
+            includeInternalFlows={includeInternalFlows}
             selectedAgeGroup={ageGroup}
             onSelectAgeGroup={onAgeGroupChange || (() => {})}
           />
-        </div>
+        </ChartCard>
       </div>
+
+      <ChartCard
+        title="Ranking dos principais fluxos"
+        isCollapsed={collapsedCharts.topFlows}
+        onToggle={() => toggleChart('topFlows')}
+        className="rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50 to-white p-4 shadow-sm"
+      >
+        <TopFlowsRankingChart
+          areaCode={selectedArea}
+          dataSource={dataSource}
+          direction={direction}
+          socialGrade={socialGrade}
+          ageGroup={ageGroup}
+          includeInternalFlows={includeInternalFlows}
+          topN={10}
+        />
+      </ChartCard>
+
+      <div className="rounded-xl border border-purple-100 bg-white p-3">
+        <button
+          type="button"
+          onClick={() => setShowResearchCharts((prev) => !prev)}
+          className="w-full rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-left text-sm font-semibold text-purple-900 hover:bg-purple-100"
+        >
+          {showResearchCharts ? 'Ocultar gráficos avançados (TCC)' : 'Mostrar gráficos avançados (TCC)'}
+        </button>
+      </div>
+
+      {showResearchCharts && (
+        <div className="space-y-6">
+          <ChartCard
+            title="Performance e latência"
+            isCollapsed={collapsedCharts.performance}
+            onToggle={() => toggleChart('performance')}
+          >
+            <PerformanceLatencyPanel />
+          </ChartCard>
+
+          {dataSource === 'ltla' && (
+            <ChartCard
+              title="Heatmap OD Top N"
+              isCollapsed={collapsedCharts.odHeatmap}
+              onToggle={() => toggleChart('odHeatmap')}
+            >
+              <ODTopNHeatmap
+                socialGrade={socialGrade}
+                ageGroup={ageGroup}
+                includeInternalFlows={includeInternalFlows}
+                initialTopN={10}
+              />
+            </ChartCard>
+          )}
+
+          {dataSource === 'ltla' && (
+            <ChartCard
+              title="Small multiples por classe"
+              isCollapsed={collapsedCharts.socialMultiples}
+              onToggle={() => toggleChart('socialMultiples')}
+            >
+              <SocialGradeSmallMultiples
+                ageGroup={ageGroup}
+                includeInternalFlows={includeInternalFlows}
+                topN={6}
+              />
+            </ChartCard>
+          )}
+
+          {dataSource === 'ltla' && (
+            <ChartCard
+              title="Composição social empilhada 100%"
+              isCollapsed={collapsedCharts.ltlaStacked}
+              onToggle={() => toggleChart('ltlaStacked')}
+            >
+              <LTLASocialGradeStacked100
+                direction={direction}
+                includeInternalFlows={includeInternalFlows}
+                initialTopN={12}
+              />
+            </ChartCard>
+          )}
+
+          {dataSource === 'ltla' && (
+            <ChartCard
+              title="Validação da agregação"
+              isCollapsed={collapsedCharts.aggregationScatter}
+              onToggle={() => toggleChart('aggregationScatter')}
+            >
+              <AggregationValidationScatter direction={direction} includeInternalFlows={includeInternalFlows} />
+            </ChartCard>
+          )}
+
+          {dataSource === 'ltla' && (
+            <ChartCard
+              title="Saldo direcional LTLA"
+              isCollapsed={collapsedCharts.directionalBalance}
+              onToggle={() => toggleChart('directionalBalance')}
+            >
+              <DirectionalBalanceChart
+                socialGrade={socialGrade}
+                ageGroup={ageGroup}
+                includeInternalFlows={includeInternalFlows}
+                topN={15}
+              />
+            </ChartCard>
+          )}
+        </div>
+      )}
     </div>
   );
 }
+
+
