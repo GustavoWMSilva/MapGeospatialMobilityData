@@ -1,5 +1,4 @@
-import React, { useRef, useEffect } from 'react';
-import { ChevronDown, ChevronUp, Filter } from 'lucide-react';
+import { useRef, useEffect } from 'react';
 
 interface FlowFiltersProps {
   maxFlows: number;
@@ -25,7 +24,6 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
   // showInternal = false,
   // onShowInternalChange,
   totalAvailable,
-  totalFiltered,
   maxPeopleCount,
   isMinimized,
   onToggleMinimize,
