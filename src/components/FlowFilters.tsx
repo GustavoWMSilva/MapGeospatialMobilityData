@@ -150,13 +150,13 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
             </div>
             <input
               type="range"
-              min="10"
-              max={Math.max(totalAvailable, 10)}
-              step="10"
-              value={Math.max(10, Math.min(maxFlows, Math.max(totalAvailable, 10)))}
+              min="1"
+              max={Math.max(totalAvailable, 1)}
+              step="1"
+              value={Math.max(1, Math.min(maxFlows, Math.max(totalAvailable, 1)))}
               onChange={(e) => {
                 const val = parseInt(e.target.value);
-                if (!isNaN(val) && val >= 10) {
+                if (!isNaN(val) && val >= 1) {
                   onMaxFlowsChange(val);
                 }
               }}

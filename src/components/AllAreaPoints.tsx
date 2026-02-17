@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Source, Layer } from '@vis.gl/react-maplibre';
+import { MAP_COLORS } from '../constants/mapColors';
 
 interface AreaCentroid {
   code: string;
@@ -17,7 +18,7 @@ interface AllAreaPointsProps {
 
 export const AllAreaPoints: React.FC<AllAreaPointsProps> = ({
   isVisible = true,
-  pointColor = '#3B82F6',
+  pointColor = MAP_COLORS.points.msoa,
   pointSize = 3
 }) => {
   const [centroidsGeoJSON, setCentroidsGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
@@ -109,10 +110,10 @@ export const AllAreaPoints: React.FC<AllAreaPointsProps> = ({
           paint={{
             'circle-radius': pointSize,
             'circle-color': pointColor,
-            'circle-opacity': 0.6,
-            'circle-stroke-width': 1,
-            'circle-stroke-color': '#FFFFFF',
-            'circle-stroke-opacity': 0.8
+            'circle-opacity': MAP_COLORS.points.msoaOpacity,
+            'circle-stroke-width': MAP_COLORS.points.strokeWidth,
+            'circle-stroke-color': MAP_COLORS.points.stroke,
+            'circle-stroke-opacity': MAP_COLORS.points.strokeOpacity
           }}
         />
         

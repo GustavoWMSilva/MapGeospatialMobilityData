@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Map, Marker } from '@vis.gl/react-maplibre';
 import type { MapRef } from '@vis.gl/react-maplibre';
 import type { Point, ViewState } from '../types';
@@ -7,6 +7,7 @@ import { CityBoundaries } from './CityBoundaries';
 import { AllAreaPoints } from './AllAreaPoints';
 import { LTLAPoints } from './LTLAPoints';
 import { FlowsVisualization } from './FlowsVisualization';
+import { MAP_COLORS } from '../constants/mapColors';
 // import { LTLABoundaries } from './LTLABoundaries'; // Temporariamente desabilitado
 
 interface InteractiveMapProps {
@@ -48,6 +49,15 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   socialGrade = 'all',
   ageGroup = 'all'
 }) => {
+  const [activeConnectedAreaCodes, setActiveConnectedAreaCodes] = useState<string[]>([]);
+  const selectedBoundaryCode = showLTLAs ? selectedLTLA : selectedAreaCode;
+
+  useEffect(() => {
+    if (!selectedBoundaryCode) {
+      setActiveConnectedAreaCodes([]);
+    }
+  }, [selectedBoundaryCode]);
+
   const markers = useMemo(
     () =>
       points.map((p, i) => (
@@ -78,10 +88,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         }
         interactiveLayerIds={[
           'flow-lines',
-          'ltla-points-layer',
-          'ltla-points-selected',
-          'ltla-heatmap-circles',
-          'all-area-points-layer',
           'ltla-boundaries-clickable',  // Boundaries LTLA clicáveis
           'msoa-boundaries-clickable'   // Boundaries MSOA clicáveis
         ]}
@@ -92,18 +98,20 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         {/* Todos os pontos/centróides das áreas */}
         <AllAreaPoints 
           isVisible={showAllPoints}
-          pointColor="#3B82F6"
-          pointSize={3}
+          pointColor={MAP_COLORS.points.msoa}
+          pointSize={2}
         />
         
         {/* City Boundaries - Bordas das áreas/cidades - varia entre LTLA e MSOA */}
         <CityBoundaries 
           key={showLTLAs ? 'ltla' : 'msoa'}  // Forçar re-montagem ao mudar
           isVisible={true}
-          borderColor="#FF6B6B"
-          borderWidth={1.5}
-          fillColor="#FF6B6B"
-          fillOpacity={0}
+          borderColor={MAP_COLORS.boundaries.line}
+          borderWidth={MAP_COLORS.boundaries.baseLineWidth}
+          fillColor={MAP_COLORS.boundaries.fill}
+          fillOpacity={MAP_COLORS.boundaries.baseFillOpacity}
+          selectedCode={selectedBoundaryCode}
+          connectedCodes={activeConnectedAreaCodes}
           dataSource={showLTLAs ? 'ltla' : 'msoa'}  // Alterar baseado no modo
         />
         
@@ -123,6 +131,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             dataSource="ltla"
             socialGrade={socialGrade}
             ageGroup={ageGroup}
+            onActiveConnectionsChange={setActiveConnectedAreaCodes}
           />
         )}
         
@@ -137,6 +146,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
               dataSource="msoa"
               socialGrade={socialGrade}
               ageGroup={ageGroup}
+              onActiveConnectionsChange={setActiveConnectedAreaCodes}
             />
           </>
         )}

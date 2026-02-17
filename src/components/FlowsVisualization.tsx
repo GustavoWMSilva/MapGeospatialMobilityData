@@ -25,6 +25,7 @@ interface FlowsVisualizationProps {
   dataSource: 'ltla' | 'msoa';
   socialGrade?: string;
   ageGroup?: string;
+  onActiveConnectionsChange?: (codes: string[]) => void;
 }
 
 export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
@@ -33,7 +34,8 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   flowDirection = 'incoming',
   dataSource,
   socialGrade = 'all',
-  ageGroup = 'all'
+  ageGroup = 'all',
+  onActiveConnectionsChange
 }) => {
   const [flowsData, setFlowsData] = useState<FlowFeature[]>([]);
   const [loading, setLoading] = useState(true);
@@ -252,6 +254,27 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       maxPeopleCount: maxCount
     };
   }, [selectedCode, flowsData, flowDirection, showInternal, maxFlows]);
+
+  useEffect(() => {
+    if (!onActiveConnectionsChange || !selectedCode || !flowsGeoJSON) {
+      onActiveConnectionsChange?.([]);
+      return;
+    }
+
+    const connectedCodes = Array.from(
+      new Set(
+        flowsGeoJSON.features
+          .map((feature) =>
+            flowDirection === 'incoming'
+              ? feature.properties.origin_code
+              : feature.properties.dest_code
+          )
+          .filter((code) => code && code !== selectedCode)
+      )
+    );
+
+    onActiveConnectionsChange(connectedCodes);
+  }, [onActiveConnectionsChange, selectedCode, flowDirection, flowsGeoJSON]);
 
   if (loading || !isVisible || !selectedCode) {
     return null;

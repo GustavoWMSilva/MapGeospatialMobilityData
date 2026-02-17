@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Source, Layer } from '@vis.gl/react-maplibre';
+import { MAP_COLORS } from '../constants/mapColors';
 
 interface LTLACentroid {
   code: string;
@@ -18,8 +19,8 @@ interface LTLAPointsProps {
 
 export const LTLAPoints: React.FC<LTLAPointsProps> = ({
   isVisible = true,
-  pointColor = '#8B5CF6',
-  pointSize = 6,
+  pointColor = MAP_COLORS.points.ltla,
+  pointSize = 5,
   selectedLTLA = null
 }) => {
   const [ltlaGeoJSON, setLtlaGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
@@ -117,7 +118,6 @@ export const LTLAPoints: React.FC<LTLAPointsProps> = ({
         <Layer
           id="ltla-points-layer"
           type="circle"
-          filter={['!', ['get', 'isSelected']]}
           paint={{
             'circle-radius': [
               'interpolate',
@@ -129,24 +129,10 @@ export const LTLAPoints: React.FC<LTLAPointsProps> = ({
               200, pointSize * 1.6
             ],
             'circle-color': pointColor,
-            'circle-opacity': 0.7,
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#FFFFFF',
-            'circle-stroke-opacity': 0.9
-          }}
-        />
-        
-        {/* Círculo destacado para LTLA selecionado */}
-        <Layer
-          id="ltla-points-selected"
-          type="circle"
-          filter={['get', 'isSelected']}
-          paint={{
-            'circle-radius': pointSize * 2,
-            'circle-color': '#EF4444',
-            'circle-opacity': 0.9,
-            'circle-stroke-width': 3,
-            'circle-stroke-color': '#FFFFFF'
+            'circle-opacity': MAP_COLORS.points.ltlaOpacity,
+            'circle-stroke-width': MAP_COLORS.points.strokeWidth,
+            'circle-stroke-color': MAP_COLORS.points.stroke,
+            'circle-stroke-opacity': MAP_COLORS.points.strokeOpacity
           }}
         />
         
@@ -175,23 +161,6 @@ export const LTLAPoints: React.FC<LTLAPointsProps> = ({
           }}
         />
         
-        {/* Label destacado para selecionado */}
-        <Layer
-          id="ltla-selected-label"
-          type="symbol"
-          filter={['get', 'isSelected']}
-          layout={{
-            'text-field': ['get', 'name'],
-            'text-size': 16,
-            'text-offset': [0, 2],
-            'text-anchor': 'top'
-          }}
-          paint={{
-            'text-color': '#EF4444',
-            'text-halo-color': '#FFFFFF',
-            'text-halo-width': 2
-          }}
-        />
       </Source>
     </>
   );

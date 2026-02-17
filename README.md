@@ -389,3 +389,52 @@ python scripts/06_aggregate_flows_by_ltla.py
 ---
 
 ## Configuração Técnica (Desenvolvimento)
+
+## Caso de Estudo: LTLA sem borda e sem clique (Herefordshire, County of)
+
+### Problema observado
+
+O LTLA "Herefordshire, County of" nao podia ser selecionado no mapa e nao exibia bordas.
+
+### Diagnostico
+
+Foi feita a comparacao entre:
+
+- `public/data/lookup/ltla_centroids.csv` (331 LTLAs)
+- `public/data/lookup/ltla_boundaries.geojson` (328 LTLAs)
+
+Resultado: o GeoJSON de boundaries estava incompleto e faltavam 3 codigos:
+
+- `E06000010` (`Kingston upon Hull, City of`)
+- `E06000019` (`Herefordshire, County of`)
+- `E06000023` (`Bristol, City of`)
+
+Sem feature no `ltla_boundaries.geojson`, nao existe poligono para renderizar borda nem area para clique nesse layer.
+
+### Solucao implementada
+
+Foi aplicado fallback em runtime no componente `src/components/CityBoundaries.tsx`:
+
+1. Carrega `ltla_boundaries.geojson`.
+2. Detecta quais LTLAs do lookup nao existem no arquivo de boundaries.
+3. Usa `ltla_lookup.csv` para mapear os MSOAs desses LTLAs faltantes.
+4. Busca os poligonos MSOA em `boundaries.geojson`.
+5. Injeta essas geometrias como features LTLA fallback com `ltla_code` e `ltla_name`.
+
+Com isso:
+
+- os LTLAs faltantes voltam a ser clicaveis;
+- a selecao funciona normalmente;
+- os contornos aparecem quando selecionados/conectados.
+
+### Arquivo alterado
+
+- `src/components/CityBoundaries.tsx`
+
+### Nota para o TCC
+
+Este caso mostra uma licao importante de engenharia de dados geoespaciais:
+
+- o problema estava no dado de fronteira (integridade do dataset), nao na logica de clique;
+- a aplicacao precisou de um mecanismo de resiliencia para lidar com inconsistencias da base cartografica;
+- a validacao cruzada entre arquivos de lookup e geometrias foi essencial para detectar o erro.

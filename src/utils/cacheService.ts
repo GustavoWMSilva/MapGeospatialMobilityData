@@ -194,7 +194,11 @@ export const cacheService = new CacheService();
 /**
  * Helper para fazer fetch com cache
  */
-export async function fetchWithCache(url: string, forceRefresh = false): Promise<unknown> {
+export async function fetchWithCache(
+  url: string,
+  forceRefresh = false,
+  responseType: 'json' | 'text' = 'json'
+): Promise<unknown> {
   const cacheKey = `fetch:${url}`;
 
   // Verificar cache primeiro
@@ -211,7 +215,9 @@ export async function fetchWithCache(url: string, forceRefresh = false): Promise
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
 
-  const data = await response.json();
+  const data = responseType === 'text'
+    ? await response.text()
+    : await response.json();
 
   // Salvar no cache
   await cacheService.set(cacheKey, data);
