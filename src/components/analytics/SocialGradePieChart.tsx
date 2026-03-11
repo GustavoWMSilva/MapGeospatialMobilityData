@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { getSocialGradeStats } from '../../utils/duckdb';
 import { debugLog, debugWarn, getAnalyticsErrorMessage } from './analyticsUtils';
 import type { SocialGrade } from '../../types';
@@ -130,6 +130,8 @@ export function SocialGradePieChart({
   }
 
   const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percentage }: any) => {
+    if (percentage < 7) return null;
+
     const RADIAN = Math.PI / 180;
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
@@ -153,7 +155,7 @@ export function SocialGradePieChart({
     <div className="w-full">
       <div className="mb-4">
         <div className="flex items-center gap-2">
-          <h3 className="text-lg font-semibold text-gray-800">
+          <h3 className="text-base font-semibold text-gray-800">
             Social Grade Distribution
           </h3>
           <ChartObjectiveHelp objective="Mostrar a composiÃ§Ã£o social dos fluxos da Ã¡rea selecionada para identificar diferenÃ§as estruturais entre classes." />
@@ -163,15 +165,16 @@ export function SocialGradePieChart({
         </p>
       </div>
 
-      <ResponsiveContainer width="100%" height={300}>
-        <PieChart>
+      <ResponsiveContainer width="100%" height={340}>
+        <PieChart margin={{ top: 10, right: 20, left: 20, bottom: 10 }}>
           <Pie
             data={data}
             cx="50%"
             cy="50%"
             labelLine={false}
             label={CustomLabel}
-            outerRadius={100}
+            innerRadius={46}
+            outerRadius={112}
             fill="#8884d8"
             dataKey="value"
             onClick={(_, index) => {
@@ -198,7 +201,6 @@ export function SocialGradePieChart({
               name ?? 'Commuters'
             ]}
           />
-          <Legend />
         </PieChart>
       </ResponsiveContainer>
 

@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 interface FlowFiltersProps {
   maxFlows: number;
@@ -14,6 +14,7 @@ interface FlowFiltersProps {
   onToggleMinimize: () => void;
   socialGrade?: string;
   ageGroup?: string;
+  isCompact?: boolean;
 }
 
 export const FlowFilters: React.FC<FlowFiltersProps> = ({
@@ -21,22 +22,18 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
   onMaxFlowsChange,
   minCount,
   onMinCountChange,
-  // showInternal = false,
-  // onShowInternalChange,
   totalAvailable,
   maxPeopleCount,
   isMinimized,
   onToggleMinimize,
   socialGrade = 'all',
-  ageGroup = 'all'
+  ageGroup = 'all',
+  isCompact = false,
 }) => {
   const minCountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousMaxPeopleCount = useRef<number>(maxPeopleCount);
-
-  // Verificar se há filtros demográficos ativos
   const hasDemographicFilters = socialGrade !== 'all' || ageGroup !== 'all';
 
-  // Cleanup do timeout quando o componente desmontar
   useEffect(() => {
     return () => {
       if (minCountTimeoutRef.current) {
@@ -45,147 +42,118 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
     };
   }, []);
 
-  // Resetar minCount se o maxPeopleCount mudar drasticamente (nova área)
   useEffect(() => {
-    console.log(`FlowFilters: maxPeopleCount = ${maxPeopleCount}, minCount = ${minCount}`);
-
-    // Se o minCount atual for maior que o novo máximo, resetar para 0
     if (minCount > maxPeopleCount && maxPeopleCount > 0) {
-      console.log(`FlowFilters: minCount (${minCount}) > maxPeopleCount (${maxPeopleCount}), resetando para 0`);
       onMinCountChange(0);
     }
-
     previousMaxPeopleCount.current = maxPeopleCount;
   }, [maxPeopleCount, minCount, onMinCountChange]);
 
   const handleMinCountChange = (value: number) => {
-    // Validar e limitar valor
     const safeMax = Math.max(maxPeopleCount, 100);
     const safeValue = Math.max(0, Math.min(value, safeMax));
-
-    console.log(`Slider minCount: ${value} -> safeValue: ${safeValue} (max permitido: ${safeMax})`);
-
-    // Atualizar imediatamente (sem debounce)
     onMinCountChange(safeValue);
   };
 
+  const shellClass = isCompact
+    ? 'absolute top-2 right-2 z-10 w-64 rounded-md border border-purple-100 bg-white/95 shadow-lg backdrop-blur-sm'
+    : 'absolute top-4 right-4 z-10 w-80 rounded-lg border border-purple-100 bg-white/95 shadow-lg backdrop-blur-sm';
+
+  const headerClass = isCompact
+    ? 'flex cursor-pointer items-center justify-between border-b border-purple-100 p-2 hover:bg-purple-50/50'
+    : 'flex cursor-pointer items-center justify-between border-b border-purple-100 p-3 hover:bg-purple-50/50';
+
   return (
-    <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-purple-100 z-10 w-80">
-      {/* Header */}
-      <div
-        className="flex items-center justify-between p-3 border-b border-purple-100 cursor-pointer hover:bg-purple-50/50"
-        onClick={onToggleMinimize}
-      >
+    <div className={shellClass}>
+      <div className={headerClass} onClick={onToggleMinimize}>
         <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-sm text-purple-900">Filtros de Fluxos</h3>
+          <h3 className={`font-semibold text-purple-900 ${isCompact ? 'text-xs' : 'text-sm'}`}>Filtros de Fluxos</h3>
           {hasDemographicFilters && (
-            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
+            <span
+              className={`rounded-full bg-purple-100 font-medium text-purple-700 ${
+                isCompact ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-xs'
+              }`}
+            >
               Demografia Ativa
             </span>
           )}
         </div>
         <button
-            // onClick={() => setIsIntensityMinimized(!isIntensityMinimized)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg bg-purple-100 hover:bg-purple-200 transition-colors text-purple-700 font-bold"
-            title={isMinimized ? "Expandir" : "Minimizar"}
-          >
-            {isMinimized ? '▾' : '▴'}
-          </button>
-        {/* <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-600">
-            {totalFiltered.toLocaleString()} / {totalAvailable.toLocaleString()}
-          </span>
-          {isMinimized ? (
-            <ChevronDown className="w-4 h-4 text-gray-400" />
-          ) : (
-            <ChevronUp className="w-4 h-4 text-gray-400" />
-          )}
-        </div> */}
+          className={`flex items-center justify-center bg-purple-100 font-bold text-purple-700 transition-colors hover:bg-purple-200 ${
+            isCompact ? 'h-6 w-6 rounded-md text-xs' : 'h-7 w-7 rounded-lg'
+          }`}
+          title={isMinimized ? 'Expandir' : 'Minimizar'}
+          type="button"
+        >
+          {isMinimized ? '▾' : '▴'}
+        </button>
       </div>
 
-      {/* Content */}
       {!isMinimized && (
-        <div className="p-4 space-y-4">
-          {/* {onShowInternalChange && (
-            <div className="border border-purple-100 rounded-lg p-3 bg-purple-50/40 space-y-2">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showInternal}
-                  onChange={(e) => onShowInternalChange(e.target.checked)}
-                  className="mt-1 h-4 w-4 accent-purple-600"
-                />
-                <div>
-                  <p className="text-sm font-medium text-gray-800">Incluir fluxo interno (origem = destino)</p>
-                  <p className="text-xs text-gray-600">Desative para excluir autofluxos das linhas e das estatísticas.</p>
-                </div>
-              </label>
-            </div>
-          )} */}
-
-          {/* Filtros Demográficos Ativos */}
+        <div className={isCompact ? 'space-y-3 p-3' : 'space-y-4 p-4'}>
           {hasDemographicFilters && (
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 space-y-1">
-              <div className="flex items-center gap-2 mb-2">
-                <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            <div className={`space-y-1 rounded-lg border border-purple-200 bg-purple-50 ${isCompact ? 'p-2.5' : 'p-3'}`}>
+              <div className={`flex items-center gap-2 ${isCompact ? 'mb-1' : 'mb-2'}`}>
+                <svg
+                  className={`${isCompact ? 'h-3.5 w-3.5' : 'h-4 w-4'} text-purple-600`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                  />
                 </svg>
-                <span className="text-xs font-semibold text-purple-800">Filtros Demográficos</span>
+                <span className={`${isCompact ? 'text-[11px]' : 'text-xs'} font-semibold text-purple-800`}>
+                  Filtros Demograficos
+                </span>
               </div>
+
               {socialGrade !== 'all' && (
-                <div className="text-xs text-purple-700 flex items-center gap-1">
+                <div className={`${isCompact ? 'text-[11px]' : 'text-xs'} flex items-center gap-1 text-purple-700`}>
                   <strong>Social Grade:</strong> {socialGrade}
-                  {socialGrade !== 'all' && ageGroup !== 'all' && (
-                    <span className="text-purple-600">Ativo no mapa</span>
-                  )}
                 </div>
               )}
+
               {ageGroup !== 'all' && (
-                <div className="text-xs text-purple-700 flex items-center gap-1">
-                  <strong>Grupo Etário:</strong> {ageGroup}
-                  {socialGrade === 'all' && (
-                    <span className="text-purple-600">Ativo no mapa</span>
-                  )}
+                <div className={`${isCompact ? 'text-[11px]' : 'text-xs'} flex items-center gap-1 text-purple-700`}>
+                  <strong>Grupo Etario:</strong> {ageGroup}
                 </div>
               )}
+
               {socialGrade !== 'all' && ageGroup !== 'all' && (
-                <div className="bg-purple-100 border border-purple-300 rounded px-2 py-1 mt-2">
-                  <div className="text-xs text-purple-800 font-medium">
-                    Ambos ativos: filtro combinado no mapa
+                <div className={`rounded border border-purple-300 bg-purple-100 px-2 py-1 ${isCompact ? 'mt-1.5' : 'mt-2'}`}>
+                  <div className={`${isCompact ? 'text-[11px]' : 'text-xs'} font-medium text-purple-800`}>
+                    Filtro combinado ativo no mapa
                   </div>
                 </div>
               )}
-              <div className="text-xs text-purple-600 mt-1 italic">
-                Use o Analytics Dashboard para alterar
-              </div>
             </div>
           )}
 
-          {/* Top N Flows */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-gray-700">
-                Quantidade Máxima
-              </label>
-              <span className="text-sm font-semibold text-purple-700">
+              <label className={`${isCompact ? 'text-xs' : 'text-sm'} font-medium text-gray-700`}>Quantidade Maxima</label>
+              <span className={`${isCompact ? 'text-xs' : 'text-sm'} font-semibold text-purple-700`}>
                 {maxFlows >= totalAvailable ? 'Todos' : maxFlows.toLocaleString()}
               </span>
             </div>
             <input
-              type="range"
-              min="1"
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-purple-100 accent-purple-600"
               max={Math.max(totalAvailable, 1)}
-              step="1"
-              value={Math.max(1, Math.min(maxFlows, Math.max(totalAvailable, 1)))}
+              min="1"
               onChange={(e) => {
-                const val = parseInt(e.target.value);
-                if (!isNaN(val) && val >= 1) {
-                  onMaxFlowsChange(val);
-                }
+                const val = parseInt(e.target.value, 10);
+                if (!isNaN(val) && val >= 1) onMaxFlowsChange(val);
               }}
-              className="w-full h-2 bg-purple-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+              step="1"
+              type="range"
+              value={Math.max(1, Math.min(maxFlows, Math.max(totalAvailable, 1)))}
             />
-            <div className="flex justify-between text-xs text-gray-500">
+            <div className={`flex justify-between text-gray-500 ${isCompact ? 'text-[10px]' : 'text-xs'}`}>
               <span>10</span>
               <span>{Math.round(totalAvailable * 0.33).toLocaleString()}</span>
               <span>{Math.round(totalAvailable * 0.67).toLocaleString()}</span>
@@ -193,38 +161,32 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
             </div>
           </div>
 
-          {/* Minimum Threshold */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-gray-700">
-                Mínimo de Pessoas
-              </label>
-              <span className="text-sm font-semibold text-purple-700">
+              <label className={`${isCompact ? 'text-xs' : 'text-sm'} font-medium text-gray-700`}>Minimo de Pessoas</label>
+              <span className={`${isCompact ? 'text-xs' : 'text-sm'} font-semibold text-purple-700`}>
                 {minCount === 0 ? 'Sem filtro' : `${minCount.toLocaleString()}+`}
               </span>
             </div>
             <input
-              type="range"
-              min={0}
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-purple-100 accent-purple-600"
               max={Math.max(maxPeopleCount, 100)}
-              step={Math.max(1, Math.floor(Math.max(maxPeopleCount, 100) / 100))}
-              value={Math.min(minCount, Math.max(maxPeopleCount, 100))}
+              min={0}
               onChange={(e) => {
                 const val = parseInt(e.target.value, 10);
-                if (!isNaN(val) && val >= 0) {
-                  handleMinCountChange(val);
-                }
+                if (!isNaN(val) && val >= 0) handleMinCountChange(val);
               }}
-              className="w-full h-2 bg-purple-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+              step={Math.max(1, Math.floor(Math.max(maxPeopleCount, 100) / 100))}
+              type="range"
+              value={Math.min(minCount, Math.max(maxPeopleCount, 100))}
             />
-            <div className="flex justify-between text-xs text-gray-500">
+            <div className={`flex justify-between text-gray-500 ${isCompact ? 'text-[10px]' : 'text-xs'}`}>
               <span>0</span>
               <span>{Math.round(Math.max(maxPeopleCount, 0) * 0.33).toLocaleString()}</span>
               <span>{Math.round(Math.max(maxPeopleCount, 0) * 0.67).toLocaleString()}</span>
               <span>{Math.max(maxPeopleCount, 0).toLocaleString()}</span>
             </div>
           </div>
-
         </div>
       )}
     </div>

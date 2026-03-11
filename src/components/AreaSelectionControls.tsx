@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 
 interface AreaSelectionControlsProps {
   selectedAreaCode: string | null;
@@ -12,24 +12,17 @@ export const AreaSelectionControls: React.FC<AreaSelectionControlsProps> = ({
   onClearSelection
 }) => {
   return (
-    <div className="bg-gradient-to-br from-white to-purple-50 rounded-xl shadow-lg border border-purple-100 overflow-hidden">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-5 py-3">
-        <h3 className="text-white font-bold text-lg flex items-center gap-2">
-          Seleção por Área (MSOA)
-        </h3>
-        <p className="text-purple-100 text-xs mt-1">
-          Selecione uma área específica para análise detalhada
-        </p>
+    <div className="overflow-hidden rounded-2xl border border-purple-100 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-purple-100 bg-purple-50/60 px-4 py-2.5">
+        <h3 className="text-base font-semibold text-purple-900">Selecao por Area (MSOA)</h3>
       </div>
-      
-      {/* Content */}
-      <div className="p-5">
-        <div className="flex gap-3 items-center">
+
+      <div className="p-4">
+        <div className="flex items-center gap-2.5">
           <input
             type="text"
-            placeholder="Digite o código da área (ex: E02000001)"
-            className="flex-1 px-4 py-3 border-2 border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-gray-800 placeholder-gray-400 font-medium"
+            placeholder="Digite o codigo da area (ex: E02000001)"
+            className="flex-1 rounded-xl border border-purple-200 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 transition-all focus:border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-300"
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 const input = e.currentTarget.value.trim();
@@ -40,44 +33,30 @@ export const AreaSelectionControls: React.FC<AreaSelectionControlsProps> = ({
               }
             }}
           />
-        
+
           {selectedAreaCode && (
             <button
               onClick={onClearSelection}
-              className="px-5 py-3 bg-gradient-to-r from-rose-500 to-rose-600 text-white rounded-lg hover:from-rose-600 hover:to-rose-700 transition-all font-bold shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-              title="Limpar seleção"
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-purple-200 bg-white font-semibold text-purple-700 transition-colors hover:bg-purple-100"
+              title="Limpar selecao"
+              type="button"
             >
-              ✕
+              x
             </button>
           )}
         </div>
-        
-        {/* Área selecionada */}
+
         {selectedAreaCode ? (
-          <div className="mt-4">
-            <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg p-4 shadow-md">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
-                  <div className="text-white text-xs font-semibold uppercase tracking-wider mb-1 opacity-90">
-                    Área MSOA Selecionada
-                  </div>
-                  <div className="text-white text-xl font-bold font-mono leading-tight">
-                    {selectedAreaCode}
-                  </div>
-                </div>
-              </div>
-            </div>
+          <div className="mt-4 rounded-xl border border-purple-200 bg-purple-50 p-3.5">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-purple-700">Area MSOA selecionada</div>
+            <div className="mt-1 font-mono text-lg font-bold text-purple-950">{selectedAreaCode}</div>
           </div>
         ) : (
-          <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <div className="flex items-start gap-2">
-              <div>
-                <p className="text-sm text-blue-800 font-medium">Como usar</p>
-                <p className="text-xs text-blue-600 mt-1">
-                  Digite o código da área MSOA e pressione Enter para ver as conexões de mobilidade
-                </p>
-              </div>
-            </div>
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="text-sm font-medium text-slate-700">Como usar</p>
+            <p className="mt-1 text-xs text-slate-600">
+              Digite o codigo da area MSOA e pressione Enter para ver as conexoes de mobilidade.
+            </p>
           </div>
         )}
       </div>

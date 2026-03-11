@@ -21,6 +21,7 @@ interface FlowFeature {
 interface FlowsVisualizationProps {
   selectedCode: string | null;
   isVisible?: boolean;
+  isFullscreen?: boolean;
   flowDirection?: 'incoming' | 'outgoing';
   dataSource: 'ltla' | 'msoa';
   socialGrade?: string;
@@ -33,6 +34,7 @@ interface FlowsVisualizationProps {
 export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   selectedCode,
   isVisible = true,
+  isFullscreen = false,
   flowDirection = 'incoming',
   dataSource,
   socialGrade = 'all',
@@ -299,6 +301,14 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
     { value: stats.max, label: `${stats.max.toLocaleString()}+`, color: '#6D28D9' }
   ];
 
+  const isCompactUI = !isFullscreen;
+  const intensityWidth = isIntensityMinimized
+    ? (isCompactUI ? '156px' : '200px')
+    : (isCompactUI ? '180px' : '220px');
+  const statsWidth = isStatsMinimized
+    ? (isCompactUI ? '150px' : '180px')
+    : (isCompactUI ? '170px' : '200px');
+
   return (
     <>
       {/* Filtros de Fluxos */}
@@ -316,20 +326,26 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
         onToggleMinimize={() => setIsFiltersMinimized(!isFiltersMinimized)}
         socialGrade={socialGrade}
         ageGroup={ageGroup}
+        isCompact={isCompactUI}
       />
 
       {/* Legenda de Intensidade - Design Melhorado */}
-      <div className="absolute bottom-10 right-4 bg-white/98 backdrop-blur-md rounded-xl shadow-2xl border border-purple-200 p-3 z-10" style={{ width: isIntensityMinimized ? '200px' : '220px' }}>
+      <div
+        className={`absolute bg-white/98 backdrop-blur-md shadow-2xl border border-purple-200 z-10 ${
+          isCompactUI ? 'bottom-6 right-2 rounded-lg p-2' : 'bottom-10 right-4 rounded-xl p-3'
+        }`}
+        style={{ width: intensityWidth }}
+      >
         <div className="flex items-center gap-2">
 
-          <h3 className="text-base font-bold text-purple-900 flex-1">
+          <h3 className={`${isCompactUI ? 'text-sm' : 'text-base'} font-bold text-purple-900 flex-1`}>
             Intensidade de Fluxo
                   {isFiltersMinimized.valueOf() ? ' (Filtros Minimizado)' : ''}
 
           </h3>
           <button
             onClick={() => setIsIntensityMinimized(!isIntensityMinimized)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg bg-purple-100 hover:bg-purple-200 transition-colors text-purple-700 font-bold"
+            className={`${isCompactUI ? 'w-6 h-6 text-xs rounded-md' : 'w-7 h-7 rounded-lg'} flex items-center justify-center bg-purple-100 hover:bg-purple-200 transition-colors text-purple-700 font-bold`}
             title={isIntensityMinimized ? "Expandir" : "Minimizar"}
           >
             {isIntensityMinimized ? '▾' : '▴'}
@@ -339,7 +355,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
         {!isIntensityMinimized && (
           <>
             {/* Barra de Gradiente Contínuo */}
-            <div className="mb-4">
+            <div className={isCompactUI ? 'mb-2.5' : 'mb-4'}>
               <div className="h-6 rounded-lg shadow-inner relative overflow-hidden" 
                    style={{ 
                      background: 'linear-gradient(to right, #F5F3FF 0%, #EDE9FE 14%, #DDD6FE 28%, #C4B5FD 42%, #A78BFA 57%, #8B5CF6 71%, #6D28D9 100%)'
@@ -347,20 +363,20 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
                 <div className="absolute inset-0 border-2 border-gray-300 rounded-lg pointer-events-none"></div>
               </div>
               <div className="flex justify-between mt-1 px-1">
-                <span className="text-xs font-semibold text-gray-600">0</span>
-                <span className="text-xs font-semibold text-gray-600">{stats.max.toLocaleString()}</span>
+                <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-semibold text-gray-600`}>0</span>
+                <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-semibold text-gray-600`}>{stats.max.toLocaleString()}</span>
               </div>
             </div>
 
             {/* Lista de Faixas com Ícones Visuais - Dinâmico */}
-            <div className="space-y-2.5">
+            <div className={isCompactUI ? 'space-y-1.5' : 'space-y-2.5'}>
               {intervals.map((interval, index) => (
-                <div key={index} className="flex items-center gap-3 group hover:bg-gray-50 p-2 rounded-lg transition-colors">
+                <div key={index} className={`flex items-center group hover:bg-gray-50 rounded-lg transition-colors ${isCompactUI ? 'gap-2 p-1.5' : 'gap-3 p-2'}`}>
                   <div 
-                    className={`w-12 h-5 rounded shadow-sm ${index === 0 ? 'border-2 border-gray-300' : index === intervals.length - 1 ? 'shadow-lg border border-gray-700' : ''}`}
+                    className={`${isCompactUI ? 'w-9 h-4' : 'w-12 h-5'} rounded shadow-sm ${index === 0 ? 'border-2 border-gray-300' : index === intervals.length - 1 ? 'shadow-lg border border-gray-700' : ''}`}
                     style={{ backgroundColor: interval.color }}
                   ></div>
-                  <span className={`text-sm ${index >= intervals.length - 2 ? 'font-bold text-gray-900' : index >= intervals.length - 4 ? 'font-semibold text-gray-800' : 'font-medium text-gray-700'}`}>
+                  <span className={`${isCompactUI ? 'text-[11px]' : 'text-sm'} ${index >= intervals.length - 2 ? 'font-bold text-gray-900' : index >= intervals.length - 4 ? 'font-semibold text-gray-800' : 'font-medium text-gray-700'}`}>
                     {index === 0 ? interval.label : `${intervals[index - 1]?.value || 0} - ${interval.label}`}
                   </span>
                 </div>
@@ -371,7 +387,16 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       </div>
 
       {/* Estatísticas Compactas */}
-      <div className="absolute bottom-4 left-4 bg-white/98 backdrop-blur-md rounded-xl shadow-2xl border border-purple-200 p-3 z-10" style={{ width: isStatsMinimized ? '180px' : '200px' }}>
+      <div
+        className={`absolute bg-white/98 backdrop-blur-md shadow-2xl border border-purple-200 z-10 ${
+          isCompactUI ? 'bottom-2 left-2 rounded-lg p-2' : 'bottom-4 left-4 rounded-xl p-3'
+        }`}
+        style={{
+          width: statsWidth,
+          transform: isCompactUI ? 'scale(0.9)' : undefined,
+          transformOrigin: 'bottom left',
+        }}
+      >
         <div className="flex items-center gap-2 ">
 
           <h3 className="text-sm font-bold text-purple-900 flex-1">

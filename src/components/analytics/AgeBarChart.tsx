@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { getAgeStats } from '../../utils/duckdb';
 import { debugLog, debugWarn, getAnalyticsErrorMessage } from './analyticsUtils';
 import type { AgeGroup } from '../../types';
@@ -146,7 +146,7 @@ export function AgeBarChart({
     <div className="w-full">
       <div className="mb-4">
         <div className="flex items-center gap-2">
-          <h3 className="text-lg font-semibold text-gray-800">
+          <h3 className="text-base font-semibold text-gray-800">
             Age Groups Distribution
           </h3>
           <ChartObjectiveHelp objective="Evidenciar a distribuiÃ§Ã£o etÃ¡ria dos fluxos para comparar perfis demogrÃ¡ficos de mobilidade." />
@@ -156,21 +156,21 @@ export function AgeBarChart({
         </p>
       </div>
 
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="name" />
-          <YAxis />
+      <ResponsiveContainer width="100%" height={340}>
+        <BarChart data={data} margin={{ top: 12, right: 16, left: 8, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey="name" interval={0} tick={{ fontSize: 12 }} />
+          <YAxis width={44} tick={{ fontSize: 12 }} />
           <Tooltip 
             formatter={(value: number | string | Array<number | string> | undefined, _name: string | undefined, props: any) => [
               `${Number(value ?? 0).toLocaleString()} (${props.payload.percentage}%)`,
               'Commuters'
             ]}
           />
-          <Legend formatter={() => 'Commuters'} />
           <Bar
             dataKey="total"
             fill="#8884d8"
+            radius={[6, 6, 0, 0]}
             onClick={(entry: any) => {
               const clickedAge = entry?.fullName as AgeGroup | undefined;
               if (!clickedAge || !onSelectAgeGroup) return;
@@ -191,7 +191,7 @@ export function AgeBarChart({
         </BarChart>
       </ResponsiveContainer>
 
-      <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
+      <div className="mt-4 grid grid-cols-2 gap-2 text-sm md:grid-cols-3">
         {data.map((item) => (
           <button
             key={item.name}
