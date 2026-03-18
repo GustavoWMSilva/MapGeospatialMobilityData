@@ -1,18 +1,18 @@
-# 🗺️ Visualização de Mobilidade Geoespacial do Reino Unido
+# Visualização de Mobilidade Geoespacial do Reino Unido
 
 Sistema interativo de visualização de dados de mobilidade e fluxos de deslocamento casa-trabalho (commuting) no Reino Unido, utilizando dados do censo de 2021.
 
-## ✨ Novidade: Analytics Demográficos!
+## Novidade: Analytics Demográficos!
 
-🎉 **Os dados demográficos (Social Grade e Age) agora suportam tanto MSOA quanto LTLA!**
+**Os dados demográficos (Social Grade e Age) agora suportam tanto MSOA quanto LTLA!**
 
-- ✅ **Social Grade (NS-SeC)**: Perfil socioeconômico dos trabalhadores
-- ✅ **Age Groups**: Distribuição etária dos fluxos de mobilidade
-- ✅ **Direção**: Análise separada de incoming (quem chega) vs outgoing (quem sai)
-- ✅ **Agregação Automática**: Para LTLA, dados de todos os MSOAs são agregados automaticamente
-- 🆕 **Filtros no Mapa**: Filtros demográficos aplicados em tempo real nas linhas do mapa!
+- **Social Grade (NS-SeC)**: Perfil socioeconômico dos trabalhadores
+- **Age Groups**: Distribuição etária dos fluxos de mobilidade
+- **Direção**: Análise separada de incoming (quem chega) vs outgoing (quem sai)
+- **Agregação Automática**: Para LTLA, dados de todos os MSOAs são agregados automaticamente
+- **Filtros no Mapa**: Filtros demográficos aplicados em tempo real nas linhas do mapa!
 
-📚 **Guias Completos**:
+**Guias Completos**:
 
 - [DEMOGRAPHIC_DATA_GUIDE.md](DEMOGRAPHIC_DATA_GUIDE.md) - Como funcionam os dados
 - [DEMOGRAPHIC_FILTERS_USAGE.md](DEMOGRAPHIC_FILTERS_USAGE.md) - Como usar os filtros
@@ -28,7 +28,7 @@ Os arquivos necessários são:
 
 **Status no UI**: O Analytics Dashboard agora mostra um painel visual indicando quais datasets estão disponíveis.
 
-## 🎯 Objetivo do Projeto
+## Objetivo do Projeto
 
 Este projeto tem como objetivo visualizar e analisar padrões de mobilidade urbana no Reino Unido através de mapas interativos, permitindo:
 
@@ -38,7 +38,7 @@ Este projeto tem como objetivo visualizar e analisar padrões de mobilidade urba
 - **Análise Direcional**: Ver tanto fluxos que chegam quanto que saem de uma área específica
 - **Intensidade Visual**: Cores e espessuras de linhas representam volume de pessoas em movimento
 
-## 🏗️ Arquitetura do Projeto
+## Arquitetura do Projeto
 
 ### Stack Tecnológico
 
@@ -48,7 +48,7 @@ Este projeto tem como objetivo visualizar e analisar padrões de mobilidade urba
 - **Processamento de Dados**: Python (pandas, geopandas)
 - **Fonte de Dados**: UK Census 2021 (Office for National Statistics)
 
-## 📦 Componentes do Sistema
+## Componentes do Sistema
 
 ### Componentes Principais de Visualização
 
@@ -185,7 +185,7 @@ Este projeto tem como objetivo visualizar e analisar padrões de mobilidade urba
 - Linhas tracejadas para diferenciação visual
 - Espessura baseada em volume de fluxo
 
-## 🔧 Hooks Customizados
+## Hooks Customizados
 
 #### `useMapNavigation.ts`
 
@@ -220,7 +220,7 @@ Este projeto tem como objetivo visualizar e analisar padrões de mobilidade urba
 - Sincroniza seleção entre componentes
 - Lógica de limpar seleção
 
-## 🐍 Scripts Python de Processamento
+## Scripts Python de Processamento
 
 ### `01_csv_to_parquet.py`
 
@@ -278,7 +278,7 @@ Este projeto tem como objetivo visualizar e analisar padrões de mobilidade urba
 - Download de boundaries dos 331 LTLAs
 - Formato GeoJSON para renderização no mapa
 
-## 📊 Estrutura de Dados
+## Estrutura de Dados
 
 ### Dados de Input
 
@@ -295,7 +295,7 @@ Este projeto tem como objetivo visualizar e analisar padrões de mobilidade urba
 - **top1000-geral.geojson**: Top 1000 fluxos nacionais
 - **london-inflows-\*.geojson**: Fluxos para Londres
 
-## 🎮 Funcionalidades Principais
+## Funcionalidades Principais
 
 ### Modos de Visualização
 
@@ -317,23 +317,23 @@ Este projeto tem como objetivo visualizar e analisar padrões de mobilidade urba
 - Labels que aparecem em zoom alto
 - Cores dinâmicas baseadas em intensidade
 
-## 🎨 Sistema de Cores
+## Sistema de Cores
 
 ### Intensidade de Fluxo (pessoas/dia)
 
 Escala de gradiente **branco → vermelho escuro**:
 
-- ⚪ **Branco** (0-100): Fluxos muito baixos
-- 🔴 **Vermelho Muito Claro** (100-500): Fluxos baixos
-- 🔴 **Vermelho Claro** (500-1.000): Fluxos médios-baixos
-- 🔴 **Vermelho Médio** (1.000-2.000): Fluxos médios
-- 🔴 **Vermelho** (2.000-5.000): Fluxos altos
-- 🔴 **Vermelho Escuro** (5.000-10.000): Fluxos muito altos
-- ⚫ **Vermelho Muito Escuro** (10.000+): Fluxos extremos
+- **Branco** (0-100): Fluxos muito baixos
+- **Vermelho Muito Claro** (100-500): Fluxos baixos
+- **Vermelho Claro** (500-1.000): Fluxos médios-baixos
+- **Vermelho Médio** (1.000-2.000): Fluxos médios
+- **Vermelho** (2.000-5.000): Fluxos altos
+- **Vermelho Escuro** (5.000-10.000): Fluxos muito altos
+- **Vermelho Muito Escuro** (10.000+): Fluxos extremos
 
-> 💡 A espessura das linhas também aumenta proporcionalmente ao volume de fluxo
+> A espessura das linhas também aumenta proporcionalmente ao volume de fluxo
 
-## 📈 Estatísticas do Dataset
+## Estatísticas do Dataset
 
 - **Total de MSOAs**: 7.201 áreas
 - **Total de LTLAs**: 331 distritos
@@ -351,7 +351,7 @@ Escala de gradiente **branco → vermelho escuro**:
 4. Westminster - 259.633 pessoas
 5. Buckinghamshire - 258.433 pessoas
 
-## 🚀 Como Executar
+## Como Executar
 
 ```bash
 # Instalar dependências
@@ -382,7 +382,7 @@ python scripts/05_create_ltla_aggregation.py
 python scripts/06_aggregate_flows_by_ltla.py
 ```
 
-## 📚 Referências e Créditos
+## Referências e Créditos
 
 - **Dados**: [Office for National Statistics (ONS)](https://www.ons.gov.uk/) - UK Census 2021
 - **Mapa Base**: MapLibre GL JS - Renderização WebGL de mapas
