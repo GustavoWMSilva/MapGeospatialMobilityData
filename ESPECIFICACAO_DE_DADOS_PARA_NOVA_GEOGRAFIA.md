@@ -249,9 +249,9 @@ Ou seja, se a nova base mantiver esse contrato e continuar no mesmo modelo de ge
 
 Se a nova base usar outra geografia, estes pontos provavelmente vao precisar de ajuste:
 
-- [src/utils/duckdb.ts](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/src/utils/duckdb.ts)
-- [src/utils/dataService.ts](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/src/utils/dataService.ts)
-- [src/types/index.ts](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/src/types/index.ts)
+- [src/utils/duckdb.ts](./src/utils/duckdb.ts)
+- [src/utils/dataService.ts](./src/utils/dataService.ts)
+- [src/types/index.ts](./src/types/index.ts)
 
 Motivo:
 

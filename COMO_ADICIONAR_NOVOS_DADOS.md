@@ -10,7 +10,7 @@ Este guia documenta como outra pessoa da area, com conhecimento basico de progra
 
 A ideia central do projeto e simples: o frontend nao le CSV bruto direto. Ele trabalha sobre um pequeno conjunto de contratos de dados bem definidos.
 
-Se a necessidade for passar uma especificacao fechada para quem vai produzir uma nova base, consulte tambem [ESPECIFICACAO_DE_DADOS_PARA_NOVA_GEOGRAFIA.md](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/ESPECIFICACAO_DE_DADOS_PARA_NOVA_GEOGRAFIA.md).
+Se a necessidade for passar uma especificacao fechada para quem vai produzir uma nova base, consulte tambem [ESPECIFICACAO_DE_DADOS_PARA_NOVA_GEOGRAFIA.md](./ESPECIFICACAO_DE_DADOS_PARA_NOVA_GEOGRAFIA.md).
 
 ## Visao Geral da Arquitetura
 
@@ -99,12 +99,12 @@ Schema esperado:
 
 Os pontos centrais de extensao sao estes:
 
-- [src/utils/dataService.ts](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/src/utils/dataService.ts): escolhe a fonte de dados e transforma resultados em GeoJSON.
-- [src/utils/duckdb.ts](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/src/utils/duckdb.ts): registra os arquivos Parquet e executa as consultas.
-- [src/types/index.ts](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/src/types/index.ts): define os tipos de dados usados na aplicacao.
-- [src/components/FlowsVisualization.tsx](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/src/components/FlowsVisualization.tsx): renderiza os fluxos no mapa.
+- [src/utils/dataService.ts](./src/utils/dataService.ts): escolhe a fonte de dados e transforma resultados em GeoJSON.
+- [src/utils/duckdb.ts](./src/utils/duckdb.ts): registra os arquivos Parquet e executa as consultas.
+- [src/types/index.ts](./src/types/index.ts): define os tipos de dados usados na aplicacao.
+- [src/components/FlowsVisualization.tsx](./src/components/FlowsVisualization.tsx): renderiza os fluxos no mapa.
 
-Essa separacao ajuda no TCC porque mostra que a logica de negocio ficou concentrada em poucos pontos.
+Essa separacao ajuda a manter a logica de negocio concentrada em poucos pontos.
 
 ## Caso 1: Atualizar os Dados Atuais Sem Mudar o Codigo
 
@@ -123,8 +123,8 @@ entao basta substituir o arquivo fonte e regenerar os artefatos.
 ### Passo a passo
 
 1. Colocar o CSV bruto em `data/raw/`.
-2. Ajustar o caminho em [config.yaml](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/config.yaml), se necessario.
-3. Executar o script [scripts/01_csv_to_parquet.py](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/scripts/01_csv_to_parquet.py).
+2. Ajustar o caminho em [config.yaml](./config.yaml), se necessario.
+3. Executar o script [scripts/01_csv_to_parquet.py](./scripts/01_csv_to_parquet.py).
 4. Se a geografia mudou, regenerar centroides e lookups.
 5. Publicar o novo Parquet em `public/data/processed/` ou no repositorio/CDN usado em producao.
 
@@ -167,21 +167,21 @@ Suponha um arquivo de sexo:
 
 2. **Registrar o arquivo em DuckDB**
 
-   Em [src/utils/duckdb.ts](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/src/utils/duckdb.ts), incluir o novo nome em `DATASETS` e carregar a tabela como dataset opcional, do mesmo jeito que hoje acontece com social grade e age.
+   Em [src/utils/duckdb.ts](./src/utils/duckdb.ts), incluir o novo nome em `DATASETS` e carregar a tabela como dataset opcional, do mesmo jeito que hoje acontece com social grade e age.
 
 3. **Criar um tipo novo**
 
-   Em [src/types/index.ts](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/src/types/index.ts), adicionar a interface correspondente.
+   Em [src/types/index.ts](./src/types/index.ts), adicionar a interface correspondente.
 
 4. **Criar a funcao de consulta**
 
-   Ainda em [src/utils/duckdb.ts](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/src/utils/duckdb.ts), criar uma funcao no padrao:
+   Ainda em [src/utils/duckdb.ts](./src/utils/duckdb.ts), criar uma funcao no padrao:
 
    - `getMSOAFlowsBySex(...)`
 
 5. **Conectar ao servico de dados**
 
-   Em [src/utils/dataService.ts](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/src/utils/dataService.ts), adicionar o caminho que transforma o resultado em GeoJSON.
+   Em [src/utils/dataService.ts](./src/utils/dataService.ts), adicionar o caminho que transforma o resultado em GeoJSON.
 
 6. **Expor no frontend**
 
@@ -213,9 +213,9 @@ Se alguem quiser adicionar outra geografia, como LSOA ou regioes administrativas
 - arquivos de centroides;
 - lookup entre niveis geograficos;
 - deteccao de tipo de codigo;
-- agregacoes em [src/utils/dataService.ts](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/src/utils/dataService.ts) e [src/utils/duckdb.ts](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/src/utils/duckdb.ts).
+- agregacoes em [src/utils/dataService.ts](./src/utils/dataService.ts) e [src/utils/duckdb.ts](./src/utils/duckdb.ts).
 
-Para o TCC, a mensagem correta e:
+A mensagem central e:
 
 - **adicionar novos dados na mesma geografia e facil**;
 - **adicionar uma geografia nova e possivel, mas demanda mais adaptacao estrutural**.
@@ -242,7 +242,7 @@ Do ponto de vista de engenharia, o projeto ja tem algumas caracteristicas que fa
 
 Em outras palavras: quem quiser adicionar dados novos nao precisa reescrever o mapa. Normalmente precisa apenas preparar o arquivo e, em casos analiticos novos, adicionar uma consulta nova.
 
-## Limites Atuais Que Vale Citar No TCC
+## Limites Atuais
 
 Para a documentacao ficar honesta, vale registrar estes limites:
 
@@ -261,7 +261,7 @@ Se a pessoa quiser adicionar um novo dado com o menor esforco possivel, ela deve
 - O novo dado segue a mesma geografia dos dados atuais?
 - Se houver uma nova categoria, existe uma funcao de consulta correspondente em `duckdb.ts`?
 
-## Sugestao de Texto Para o TCC
+## Resumo Pronto
 
 Voce pode descrever assim:
 
@@ -269,9 +269,9 @@ Voce pode descrever assim:
 
 ## Arquivos Mais Importantes Para Quem Vai Estender
 
-- [config.yaml](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/config.yaml)
-- [scripts/01_csv_to_parquet.py](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/scripts/01_csv_to_parquet.py)
-- [scripts/02_build_centroids.py](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/scripts/02_build_centroids.py)
-- [src/utils/dataService.ts](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/src/utils/dataService.ts)
-- [src/utils/duckdb.ts](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/src/utils/duckdb.ts)
-- [src/types/index.ts](/c:/Users/gusta/Documents/CriandoTCC/meu-projeto-tailwind/src/types/index.ts)
+- [config.yaml](./config.yaml)
+- [scripts/01_csv_to_parquet.py](./scripts/01_csv_to_parquet.py)
+- [scripts/02_build_centroids.py](./scripts/02_build_centroids.py)
+- [src/utils/dataService.ts](./src/utils/dataService.ts)
+- [src/utils/duckdb.ts](./src/utils/duckdb.ts)
+- [src/types/index.ts](./src/types/index.ts)

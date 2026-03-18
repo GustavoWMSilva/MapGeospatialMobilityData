@@ -433,7 +433,7 @@ Com isso:
 
 - `src/components/CityBoundaries.tsx`
 
-### Nota para o TCC
+### Nota tecnica
 
 Este caso mostra uma licao importante de engenharia de dados geoespaciais:
 
