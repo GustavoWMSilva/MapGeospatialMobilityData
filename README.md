@@ -16,6 +16,8 @@ Sistema interativo de visualização de dados de mobilidade e fluxos de deslocam
 
 - [DEMOGRAPHIC_DATA_GUIDE.md](DEMOGRAPHIC_DATA_GUIDE.md) - Como funcionam os dados
 - [DEMOGRAPHIC_FILTERS_USAGE.md](DEMOGRAPHIC_FILTERS_USAGE.md) - Como usar os filtros
+- [COMO_ADICIONAR_NOVOS_DADOS.md](COMO_ADICIONAR_NOVOS_DADOS.md) - Como atualizar a base e incluir novos datasets
+- [ESPECIFICACAO_DE_DADOS_PARA_NOVA_GEOGRAFIA.md](ESPECIFICACAO_DE_DADOS_PARA_NOVA_GEOGRAFIA.md) - Especificacao objetiva para quem vai produzir uma nova base
 
 ### Como habilitar dados demográficos
 
