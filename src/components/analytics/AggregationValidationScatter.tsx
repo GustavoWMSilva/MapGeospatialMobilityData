@@ -10,7 +10,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { getLTLAAggregationDiagnostics } from '../../utils/duckdb';
+import { ACTIVE_DATASET_PROFILE } from '../../constants/datasetProfiles';
+import { getAggregateAreaAggregationDiagnostics } from '../../utils/duckdb';
 import { getAnalyticsErrorMessage } from './analyticsUtils';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
 import { MAP_COLORS } from '../../constants/mapColors';
@@ -31,14 +32,14 @@ interface ReferenceFlowFeature {
 }
 
 interface ValidationPoint {
-  ltlaCode: string;
-  ltlaName: string;
+  aggregateAreaCode: string;
+  aggregateAreaName: string;
   reference: number;
   dynamic: number;
   absDiff: number;
   errorPct: number | null;
   isOutlier?: boolean;
-  mappedMsoaCount: number;
+  mappedBaseAreaCount: number;
   mismatchType: 'ok' | 'reference_only' | 'dynamic_only' | 'missing_lookup';
 }
 
@@ -47,7 +48,7 @@ function isReferenceFlowFeature(value: unknown): value is ReferenceFlowFeature {
   return true;
 }
 
-function isValidLTLACode(code: string): boolean {
+function isValidAggregateAreaCode(code: string): boolean {
   return /^(E0[6-9]|W06)[0-9]{6}$/.test(code);
 }
 
@@ -55,6 +56,9 @@ export function AggregationValidationScatter({
   direction = 'incoming',
   includeInternalFlows = false,
 }: AggregationValidationScatterProps) {
+  const aggregateUnitLabel = ACTIVE_DATASET_PROFILE.labels.aggregate.singular;
+  const aggregateUnitPluralLabel = ACTIVE_DATASET_PROFILE.labels.aggregate.plural;
+  const baseUnitPluralLabel = ACTIVE_DATASET_PROFILE.labels.base.plural;
   const [comparisonMode, setComparisonMode] = useState<'fair' | 'full'>('fair');
   const [metricMode, setMetricMode] = useState<'legacy' | 'robust'>('robust');
   const [diagnosticsSummary, setDiagnosticsSummary] = useState<{
@@ -84,12 +88,12 @@ export function AggregationValidationScatter({
 
       try {
         const [diagnostics, referenceResponse] = await Promise.all([
-          getLTLAAggregationDiagnostics(direction, includeInternalFlows),
+          getAggregateAreaAggregationDiagnostics(direction, includeInternalFlows),
           fetch('/ltla_flows_complete.geojson'),
         ]);
 
         if (!referenceResponse.ok) {
-          throw new Error(`Falha ao carregar referência LTLA (${referenceResponse.status})`);
+          throw new Error(`Falha ao carregar referencia agregada (${referenceResponse.status})`);
         }
 
         const referenceJson = await referenceResponse.json() as { features?: unknown[] };
@@ -106,7 +110,7 @@ export function AggregationValidationScatter({
 
           if (!targetCode || !targetName || count <= 0) return;
           if (!includeInternalFlows && props.origin_code === props.dest_code) return;
-          if (!isValidLTLACode(targetCode)) return;
+          if (!isValidAggregateAreaCode(targetCode)) return;
 
           const current = referenceTotals.get(targetCode) || { total: 0, name: targetName };
           referenceTotals.set(targetCode, {
@@ -115,23 +119,29 @@ export function AggregationValidationScatter({
           });
         });
 
-        const dynamicMap = new Map(diagnostics.ltlas.map((row) => [row.ltla_code, row.dynamic_total]));
-        const mappedMsoaMap = new Map(diagnostics.ltlas.map((row) => [row.ltla_code, row.mapped_msoa_count]));
-        const ltlaNameMap = new Map(diagnostics.ltlas.map((row) => [row.ltla_code, row.ltla_name]));
+        const dynamicMap = new Map(
+          diagnostics.aggregate_areas.map((row) => [row.aggregate_area_code, row.dynamic_total])
+        );
+        const mappedBaseAreaMap = new Map(
+          diagnostics.aggregate_areas.map((row) => [row.aggregate_area_code, row.mapped_base_area_count])
+        );
+        const aggregateAreaNameMap = new Map(
+          diagnostics.aggregate_areas.map((row) => [row.aggregate_area_code, row.aggregate_area_name])
+        );
         const allCodes = new Set<string>(
-          [...Array.from(referenceTotals.keys()), ...Array.from(dynamicMap.keys())].filter(isValidLTLACode)
+          [...Array.from(referenceTotals.keys()), ...Array.from(dynamicMap.keys())].filter(isValidAggregateAreaCode)
         );
 
         const merged: ValidationPoint[] = Array.from(allCodes).map((code) => {
           const referenceRow = referenceTotals.get(code);
           const reference = referenceRow?.total || 0;
           const dynamic = dynamicMap.get(code) || 0;
-          const mappedMsoaCount = Number(mappedMsoaMap.get(code) || 0);
+          const mappedBaseAreaCount = Number(mappedBaseAreaMap.get(code) || 0);
           const absDiff = Math.abs(dynamic - reference);
           const errorPct = reference > 0 ? (absDiff * 100) / reference : null;
           let mismatchType: ValidationPoint['mismatchType'] = 'ok';
 
-          if (mappedMsoaCount === 0) {
+          if (mappedBaseAreaCount === 0) {
             mismatchType = 'missing_lookup';
           } else if (reference > 0 && dynamic === 0) {
             mismatchType = 'reference_only';
@@ -140,13 +150,13 @@ export function AggregationValidationScatter({
           }
 
           return {
-            ltlaCode: code,
-            ltlaName: referenceRow?.name || ltlaNameMap.get(code) || code,
+            aggregateAreaCode: code,
+            aggregateAreaName: referenceRow?.name || aggregateAreaNameMap.get(code) || code,
             reference,
             dynamic,
             absDiff,
             errorPct,
-            mappedMsoaCount,
+            mappedBaseAreaCount,
             mismatchType,
           };
         }).filter((row) => row.reference > 0 || row.dynamic > 0);
@@ -177,9 +187,9 @@ export function AggregationValidationScatter({
           setPoints(chartRows);
           setEvaluationPoints(safeFairRows);
           setDiagnosticsSummary({
-            unmappedMsoaCount: diagnostics.unmapped_msoa_count,
-            unmappedMsoaSample: diagnostics.unmapped_msoa_sample,
-            ignoredNonMsoaCount: diagnostics.ignored_non_msoa_count,
+            unmappedMsoaCount: diagnostics.unmapped_base_area_count,
+            unmappedMsoaSample: diagnostics.unmapped_base_area_sample,
+            ignoredNonMsoaCount: diagnostics.ignored_non_base_area_count,
             referenceOnlyCodes,
             dynamicOnlyCodes,
           });
@@ -350,7 +360,7 @@ export function AggregationValidationScatter({
   if (points.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-80 text-gray-500 p-4 text-center">
-        <p className="font-semibold">Sem dados para validação MSOA→LTLA</p>
+        <p className="font-semibold">Sem dados para validacao base→agregado</p>
         <p className="text-sm mt-2">Verifique a referência e os dados dinâmicos</p>
       </div>
     );
@@ -360,8 +370,8 @@ export function AggregationValidationScatter({
     <div className="w-full">
       <div className="mb-3">
         <div className="flex items-center gap-2">
-          <h3 className="text-base font-semibold text-gray-800">Validação MSOA→LTLA (Referência vs Dinâmico)</h3>
-          <ChartObjectiveHelp objective="Validar a consistência técnica da agregação MSOA→LTLA comparando totais dinâmicos com uma referência externa." />
+          <h3 className="text-base font-semibold text-gray-800">Validacao base→agregado (Referencia vs Dinamico)</h3>
+          <ChartObjectiveHelp objective={`Validar a consistencia tecnica da agregacao da unidade base para ${aggregateUnitLabel} comparando totais dinamicos com uma referencia externa.`} />
         </div>
         <p className="text-xs text-gray-600">
           Scatter com linha y=x ({direction === 'incoming' ? 'incoming' : 'outgoing'})
@@ -371,7 +381,7 @@ export function AggregationValidationScatter({
       <div className={`mb-4 rounded-lg border px-3 py-2 text-xs ${validationSummary.color}`}>
         <strong className="uppercase">Validação {validationSummary.level}:</strong> {validationSummary.text}
         <div className="mt-1 text-[11px] opacity-80">
-          Outliers detectados: {outlierPoints.length} de {points.length} LTLAs.
+          Outliers detectados: {outlierPoints.length} de {points.length} {aggregateUnitPluralLabel}.
           {comparisonMode === 'full' && ' Métricas calculadas na base de comparação justa.'}
         </div>
       </div>
@@ -400,7 +410,7 @@ export function AggregationValidationScatter({
           Comparação Completa
         </button>
         <span className="text-[11px] text-gray-600">
-          Justa: somente LTLAs com códigos casados nos dois lados e com lookup válido.
+          Justa: somente {aggregateUnitPluralLabel.toLowerCase()} com codigos casados nos dois lados e com lookup valido.
         </span>
       </div>
 
@@ -431,7 +441,7 @@ export function AggregationValidationScatter({
 
       <div className="mb-4 grid grid-cols-1 gap-2 md:grid-cols-3">
         <div className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          MSOAs sem match no lookup: <strong>{diagnosticsSummary.unmappedMsoaCount}</strong>
+          {baseUnitPluralLabel} sem match no lookup: <strong>{diagnosticsSummary.unmappedMsoaCount}</strong>
         </div>
         <div className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-900">
           Códigos apenas na referência: <strong>{diagnosticsSummary.referenceOnlyCodes}</strong>
@@ -442,12 +452,12 @@ export function AggregationValidationScatter({
       </div>
 
       <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-[11px] text-gray-700">
-        Códigos não-MSOA válidos ignorados automaticamente: <strong>{diagnosticsSummary.ignoredNonMsoaCount}</strong>
+        Codigos nao-{ACTIVE_DATASET_PROFILE.labels.base.singular} validos ignorados automaticamente: <strong>{diagnosticsSummary.ignoredNonMsoaCount}</strong>
       </div>
 
       {diagnosticsSummary.unmappedMsoaSample.length > 0 && (
         <div className="mb-4 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-          Exemplo de MSOAs sem lookup: {diagnosticsSummary.unmappedMsoaSample.slice(0, 8).join(', ')}
+          Exemplo de {baseUnitPluralLabel.toLowerCase()} sem lookup: {diagnosticsSummary.unmappedMsoaSample.slice(0, 8).join(', ')}
         </div>
       )}
 
@@ -517,12 +527,12 @@ export function AggregationValidationScatter({
             labelFormatter={(_label, payload) => {
               const row = payload && payload.length > 0 ? payload[0]?.payload as ValidationPoint | undefined : undefined;
               if (!row) return '';
-              return `${row.ltlaName} (${row.ltlaCode})`;
+              return `${row.aggregateAreaName} (${row.aggregateAreaCode})`;
             }}
           />
           <Legend />
-          <Scatter name="LTLAs (regulares)" data={regularPoints} fill={MAP_COLORS.analytics.scatter.regular} />
-          <Scatter name="LTLAs (outliers)" data={outlierPoints} fill={MAP_COLORS.analytics.scatter.outlier} />
+          <Scatter name={`${aggregateUnitPluralLabel} (regulares)`} data={regularPoints} fill={MAP_COLORS.analytics.scatter.regular} />
+          <Scatter name={`${aggregateUnitPluralLabel} (outliers)`} data={outlierPoints} fill={MAP_COLORS.analytics.scatter.outlier} />
         </ScatterChart>
       </ResponsiveContainer>
 
@@ -530,10 +540,10 @@ export function AggregationValidationScatter({
         <table className="min-w-full text-xs border border-purple-100 rounded-lg overflow-hidden">
           <thead className="bg-purple-50 text-purple-900">
             <tr>
-              <th className="px-3 py-2 text-left">LTLA</th>
+              <th className="px-3 py-2 text-left">{aggregateUnitLabel}</th>
               <th className="px-3 py-2 text-right">Referência</th>
               <th className="px-3 py-2 text-right">Dinâmico</th>
-              <th className="px-3 py-2 text-right">MSOAs Lookup</th>
+              <th className="px-3 py-2 text-right">{baseUnitPluralLabel} Lookup</th>
               <th className="px-3 py-2 text-right">Dif. Abs.</th>
               <th className="px-3 py-2 text-right">Erro (%)</th>
               <th className="px-3 py-2 text-center">Status</th>
@@ -543,16 +553,16 @@ export function AggregationValidationScatter({
           <tbody>
             {topDeviations.map((row) => (
               <tr
-                key={row.ltlaCode}
+                key={row.aggregateAreaCode}
                 className={`border-t border-purple-50 ${row.isOutlier ? 'bg-red-50/60' : ''}`}
               >
                 <td className="px-3 py-2">
-                  <div className="font-medium text-gray-800">{row.ltlaName}</div>
-                  <div className="text-gray-500">{row.ltlaCode}</div>
+                  <div className="font-medium text-gray-800">{row.aggregateAreaName}</div>
+                  <div className="text-gray-500">{row.aggregateAreaCode}</div>
                 </td>
                 <td className="px-3 py-2 text-right">{row.reference.toLocaleString()}</td>
                 <td className="px-3 py-2 text-right">{row.dynamic.toLocaleString()}</td>
-                <td className="px-3 py-2 text-right">{row.mappedMsoaCount.toLocaleString()}</td>
+                <td className="px-3 py-2 text-right">{row.mappedBaseAreaCount.toLocaleString()}</td>
                 <td className="px-3 py-2 text-right font-semibold">{row.absDiff.toLocaleString()}</td>
                 <td className="px-3 py-2 text-right">
                   {row.errorPct === null ? '-' : `${row.errorPct.toFixed(2)}%`}

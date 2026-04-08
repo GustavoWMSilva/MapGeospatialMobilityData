@@ -1,3 +1,5 @@
+import type { GeographyLevel } from '../types';
+
 export type LatencyScenario = 'api' | 'duckdb' | 'duckdb_cache';
 export type CacheState = 'cold' | 'warm' | 'n/a';
 
@@ -8,7 +10,7 @@ export interface LatencySample {
   scenario: LatencyScenario;
   cacheState: CacheState;
   areaCode: string;
-  dataSource: 'msoa' | 'ltla';
+  dataSource: GeographyLevel;
   direction: 'incoming' | 'outgoing';
   filtersActive: boolean;
   resultCount: number;

@@ -18,6 +18,7 @@ import {
   type LatencySample,
   type LatencyScenario,
 } from '../../utils/performanceMetrics';
+import { ACTIVE_DATASET_PROFILE } from '../../constants/datasetProfiles';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
 
 interface ScenarioStats {
@@ -88,6 +89,7 @@ function renderBoxplot(stats: ScenarioStats, globalMax: number) {
 export function PerformanceLatencyPanel() {
   const [benchmarkEnabled, setBenchmarkEnabledState] = useState<boolean>(isLatencyBenchmarkEnabled());
   const [samples, setSamples] = useState<LatencySample[]>(getLatencySamples());
+  const aggregatePluralLabel = ACTIVE_DATASET_PROFILE.labels.aggregate.plural;
 
   useEffect(() => {
     const unsubscribe = subscribeLatencySamples(() => {
@@ -186,7 +188,7 @@ export function PerformanceLatencyPanel() {
             <h4 className="mb-2 text-sm font-semibold text-gray-700">Série temporal (DuckDB+Cache: cold vs warm)</h4>
             {timeSeriesRows.length === 0 ? (
               <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
-                Ainda não há amostras de cache LTLA. Selecione LTLAs repetidamente para gerar cold/warm.
+                Ainda nao ha amostras de cache agregado. Selecione {aggregatePluralLabel.toLowerCase()} repetidamente para gerar cold/warm.
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={280}>

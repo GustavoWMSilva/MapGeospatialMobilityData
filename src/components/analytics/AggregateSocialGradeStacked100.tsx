@@ -9,22 +9,23 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { getLTLASocialGradeShares } from '../../utils/duckdb';
+import { ACTIVE_DATASET_PROFILE } from '../../constants/datasetProfiles';
+import { getAggregateSocialGradeShares } from '../../utils/duckdb';
 import { getAnalyticsErrorMessage } from './analyticsUtils';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
 import { MAP_COLORS } from '../../constants/mapColors';
 
-interface LTLASocialGradeStacked100Props {
+interface AggregateSocialGradeStacked100Props {
   direction?: 'incoming' | 'outgoing';
   includeInternalFlows?: boolean;
   initialTopN?: 12 | 20;
 }
 
-interface LTLAStackedDatum {
-  ltlaCode: string;
-  ltlaName: string;
-  ltlaLabel: string;
-  ltlaTotal: number;
+interface AggregateStackedDatum {
+  aggregateAreaCode: string;
+  aggregateAreaName: string;
+  aggregateAreaLabel: string;
+  aggregateAreaTotal: number;
   AB: number;
   C1: number;
   C2: number;
@@ -35,19 +36,21 @@ const GRADE_COLORS = MAP_COLORS.analytics.socialGrade;
 
 function truncateLabel(value: string, maxLength = 24): string {
   if (value.length <= maxLength) return value;
-  return `${value.slice(0, maxLength - 1)}…`;
+  return `${value.slice(0, maxLength - 1)}...`;
 }
 
-export function LTLASocialGradeStacked100({
+export function AggregateSocialGradeStacked100({
   direction = 'incoming',
   includeInternalFlows = false,
   initialTopN = 12,
-}: LTLASocialGradeStacked100Props) {
+}: AggregateSocialGradeStacked100Props) {
   const [selectedTopN, setSelectedTopN] = useState<12 | 20>(initialTopN);
   const [orderBy, setOrderBy] = useState<'total' | 'AB' | 'DE'>('total');
-  const [rows, setRows] = useState<LTLAStackedDatum[]>([]);
+  const [rows, setRows] = useState<AggregateStackedDatum[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const aggregateUnitLabel = ACTIVE_DATASET_PROFILE.labels.aggregate.singular;
+  const aggregateUnitPluralLabel = ACTIVE_DATASET_PROFILE.labels.aggregate.plural;
 
   useEffect(() => {
     let cancelled = false;
@@ -57,17 +60,16 @@ export function LTLASocialGradeStacked100({
       setError(null);
 
       try {
-        // Carrega um pool maior e aplica ordenação/filtro no cliente para dar mais flexibilidade.
-        const result = await getLTLASocialGradeShares(direction, 30, includeInternalFlows);
-        const byLTLA = new Map<string, LTLAStackedDatum>();
+        const result = await getAggregateSocialGradeShares(direction, 30, includeInternalFlows);
+        const byAggregateArea = new Map<string, AggregateStackedDatum>();
 
         result.forEach((row) => {
-          if (!byLTLA.has(row.ltla_code)) {
-            byLTLA.set(row.ltla_code, {
-              ltlaCode: row.ltla_code,
-              ltlaName: row.ltla_name || row.ltla_code,
-              ltlaLabel: truncateLabel(row.ltla_name || row.ltla_code),
-              ltlaTotal: row.ltla_total,
+          if (!byAggregateArea.has(row.aggregate_area_code)) {
+            byAggregateArea.set(row.aggregate_area_code, {
+              aggregateAreaCode: row.aggregate_area_code,
+              aggregateAreaName: row.aggregate_area_name || row.aggregate_area_code,
+              aggregateAreaLabel: truncateLabel(row.aggregate_area_name || row.aggregate_area_code),
+              aggregateAreaTotal: row.aggregate_area_total,
               AB: 0,
               C1: 0,
               C2: 0,
@@ -75,16 +77,14 @@ export function LTLASocialGradeStacked100({
             });
           }
 
-          const target = byLTLA.get(row.ltla_code);
+          const target = byAggregateArea.get(row.aggregate_area_code);
           if (!target) return;
 
           target[row.social_grade_group] = row.percentage;
         });
 
-        const normalized = Array.from(byLTLA.values());
-
         if (!cancelled) {
-          setRows(normalized);
+          setRows(Array.from(byAggregateArea.values()));
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -111,7 +111,7 @@ export function LTLASocialGradeStacked100({
     sorted.sort((a, b) => {
       if (orderBy === 'AB') return b.AB - a.AB;
       if (orderBy === 'DE') return b.DE - a.DE;
-      return b.ltlaTotal - a.ltlaTotal;
+      return b.aggregateAreaTotal - a.aggregateAreaTotal;
     });
 
     return sorted.slice(0, selectedTopN);
@@ -121,25 +121,21 @@ export function LTLASocialGradeStacked100({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-80">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="flex h-80 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   if (error) {
-    return (
-      <div className="flex items-center justify-center h-80 text-red-600 text-sm">
-        {error}
-      </div>
-    );
+    return <div className="flex h-80 items-center justify-center text-sm text-red-600">{error}</div>;
   }
 
   if (visibleRows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-80 text-gray-500 p-4 text-center">
-        <p className="font-semibold">Sem dados de Social Grade para LTLA</p>
-        <p className="text-sm mt-2">Verifique disponibilidade do dataset demográfico</p>
+      <div className="flex h-80 flex-col items-center justify-center p-4 text-center text-gray-500">
+        <p className="font-semibold">Sem dados de Social Grade para {aggregateUnitLabel}</p>
+        <p className="mt-2 text-sm">Verifique a disponibilidade do dataset demografico</p>
       </div>
     );
   }
@@ -148,11 +144,15 @@ export function LTLASocialGradeStacked100({
     <div className="w-full">
       <div className="mb-3">
         <div className="flex items-center gap-2">
-          <h3 className="text-base font-semibold text-gray-800">Social Grade por LTLA (100%)</h3>
-          <ChartObjectiveHelp objective="Comparar proporcionalmente o perfil social (AB/C1/C2/DE) entre LTLAs, independentemente do volume absoluto." />
+          <h3 className="text-base font-semibold text-gray-800">
+            Social Grade por {aggregateUnitLabel} (100%)
+          </h3>
+          <ChartObjectiveHelp
+            objective={`Comparar proporcionalmente o perfil social (AB/C1/C2/DE) entre ${aggregateUnitPluralLabel.toLowerCase()}, independentemente do volume absoluto.`}
+          />
         </div>
         <p className="text-xs text-gray-600">
-          Comparativo proporcional por área ({direction === 'incoming' ? 'incoming' : 'outgoing'})
+          Comparativo proporcional por area ({direction === 'incoming' ? 'incoming' : 'outgoing'})
         </p>
       </div>
 
@@ -179,7 +179,6 @@ export function LTLASocialGradeStacked100({
         >
           Top 20
         </button>
-
         <button
           type="button"
           onClick={() => setOrderBy('total')}
@@ -218,13 +217,9 @@ export function LTLASocialGradeStacked100({
       <ResponsiveContainer width="100%" height={chartHeight}>
         <BarChart data={visibleRows} layout="vertical" margin={{ top: 4, right: 20, left: 24, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" />
-          <XAxis
-            type="number"
-            domain={[0, 100]}
-            tickFormatter={(value: number) => `${Number(value)}%`}
-          />
+          <XAxis type="number" domain={[0, 100]} tickFormatter={(value: number) => `${Number(value)}%`} />
           <YAxis
-            dataKey="ltlaLabel"
+            dataKey="aggregateAreaLabel"
             type="category"
             interval={0}
             width={180}
@@ -236,9 +231,12 @@ export function LTLASocialGradeStacked100({
               String(name ?? ''),
             ]}
             labelFormatter={(_label, payload) => {
-              const row = payload && payload.length > 0 ? payload[0]?.payload as LTLAStackedDatum | undefined : undefined;
+              const row =
+                payload && payload.length > 0
+                  ? (payload[0]?.payload as AggregateStackedDatum | undefined)
+                  : undefined;
               if (!row) return '';
-              return `${row.ltlaName} (${row.ltlaCode})`;
+              return `${row.aggregateAreaName} (${row.aggregateAreaCode})`;
             }}
           />
           <Legend />

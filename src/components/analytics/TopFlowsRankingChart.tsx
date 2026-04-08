@@ -10,17 +10,16 @@ import {
   YAxis,
 } from 'recharts';
 import { loadFlowsFiltered } from '../../utils/dataService';
-import type { AgeGroup, SocialGrade } from '../../types';
+import type { DemographicFilters, GeographyLevel } from '../../types';
 import { getAnalyticsErrorMessage } from './analyticsUtils';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
 import { MAP_COLORS } from '../../constants/mapColors';
 
 interface TopFlowsRankingChartProps {
   areaCode: string;
-  dataSource: 'msoa' | 'ltla';
+  geographyLevel: GeographyLevel;
   direction?: 'incoming' | 'outgoing';
-  socialGrade?: SocialGrade;
-  ageGroup?: AgeGroup;
+  demographicFilters?: DemographicFilters;
   includeInternalFlows?: boolean;
   topN?: number;
 }
@@ -72,10 +71,9 @@ function shortenRouteLabel(label: string, maxLength = 44): string {
 
 export function TopFlowsRankingChart({
   areaCode,
-  dataSource,
+  geographyLevel,
   direction = 'incoming',
-  socialGrade = 'all',
-  ageGroup = 'all',
+  demographicFilters = {},
   includeInternalFlows = false,
   topN = 10,
 }: TopFlowsRankingChartProps) {
@@ -95,9 +93,8 @@ export function TopFlowsRankingChart({
           areaCode,
           direction,
           50000,
-          dataSource,
-          socialGrade,
-          ageGroup
+          geographyLevel,
+          demographicFilters
         );
 
         const features = result.features.filter(isFlowFeature);
@@ -139,7 +136,7 @@ export function TopFlowsRankingChart({
     return () => {
       cancelled = true;
     };
-  }, [areaCode, dataSource, direction, socialGrade, ageGroup, includeInternalFlows, topN]);
+  }, [areaCode, geographyLevel, direction, demographicFilters, includeInternalFlows, topN]);
 
   const chartHeight = useMemo(() => Math.max(300, rows.length * 32 + 80), [rows.length]);
 

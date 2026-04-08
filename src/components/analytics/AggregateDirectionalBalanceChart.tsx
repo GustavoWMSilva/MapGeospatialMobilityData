@@ -10,22 +10,23 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { getLTLADirectionalBalances } from '../../utils/duckdb';
+import { ACTIVE_DATASET_PROFILE } from '../../constants/datasetProfiles';
+import { getAggregateDirectionalBalances } from '../../utils/duckdb';
 import type { AgeGroup, SocialGrade } from '../../types';
 import { getAnalyticsErrorMessage } from './analyticsUtils';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
 import { MAP_COLORS } from '../../constants/mapColors';
 
-interface DirectionalBalanceChartProps {
+interface AggregateDirectionalBalanceChartProps {
   socialGrade?: SocialGrade;
   ageGroup?: AgeGroup;
   includeInternalFlows?: boolean;
   topN?: number;
 }
 
-interface DirectionalBalanceDatum {
-  ltlaCode: string;
-  ltlaName: string;
+interface AggregateDirectionalBalanceDatum {
+  aggregateAreaCode: string;
+  aggregateAreaName: string;
   incoming: number;
   outgoing: number;
   balance: number;
@@ -34,15 +35,16 @@ interface DirectionalBalanceDatum {
 const POSITIVE_COLOR = MAP_COLORS.analytics.directional.positive;
 const NEGATIVE_COLOR = MAP_COLORS.analytics.directional.negative;
 
-export function DirectionalBalanceChart({
+export function AggregateDirectionalBalanceChart({
   socialGrade = 'all',
   ageGroup = 'all',
   includeInternalFlows = false,
   topN = 15,
-}: DirectionalBalanceChartProps) {
-  const [rows, setRows] = useState<DirectionalBalanceDatum[]>([]);
+}: AggregateDirectionalBalanceChartProps) {
+  const [rows, setRows] = useState<AggregateDirectionalBalanceDatum[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const aggregateUnitLabel = ACTIVE_DATASET_PROFILE.labels.aggregate.singular;
 
   useEffect(() => {
     let cancelled = false;
@@ -52,11 +54,16 @@ export function DirectionalBalanceChart({
       setError(null);
 
       try {
-        const balances = await getLTLADirectionalBalances(socialGrade, ageGroup, topN, includeInternalFlows);
+        const balances = await getAggregateDirectionalBalances(
+          socialGrade,
+          ageGroup,
+          topN,
+          includeInternalFlows
+        );
 
         const normalized = balances.map((row) => ({
-          ltlaCode: row.ltla_code,
-          ltlaName: row.ltla_name || row.ltla_code,
+          aggregateAreaCode: row.aggregate_area_code,
+          aggregateAreaName: row.aggregate_area_name || row.aggregate_area_code,
           incoming: row.incoming_total,
           outgoing: row.outgoing_total,
           balance: row.balance,
@@ -92,25 +99,21 @@ export function DirectionalBalanceChart({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-80">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="flex h-80 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   if (error) {
-    return (
-      <div className="flex items-center justify-center h-80 text-red-600 text-sm">
-        {error}
-      </div>
-    );
+    return <div className="flex h-80 items-center justify-center text-sm text-red-600">{error}</div>;
   }
 
   if (rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-80 text-gray-500 p-4 text-center">
-        <p className="font-semibold">Sem dados para saldo direcional LTLA</p>
-        <p className="text-sm mt-2">Ajuste os filtros demográficos para tentar novamente</p>
+      <div className="flex h-80 flex-col items-center justify-center p-4 text-center text-gray-500">
+        <p className="font-semibold">Sem dados para saldo direcional por {aggregateUnitLabel}</p>
+        <p className="mt-2 text-sm">Ajuste os filtros demograficos para tentar novamente</p>
       </div>
     );
   }
@@ -119,10 +122,14 @@ export function DirectionalBalanceChart({
     <div className="w-full">
       <div className="mb-4">
         <div className="flex items-center gap-2">
-          <h3 className="text-lg font-semibold text-gray-800">Saldo Direcional por LTLA</h3>
-          <ChartObjectiveHelp objective="Identificar áreas atratoras e emissoras com o saldo líquido (incoming - outgoing) por LTLA." />
+          <h3 className="text-lg font-semibold text-gray-800">
+            Saldo Direcional por {aggregateUnitLabel}
+          </h3>
+          <ChartObjectiveHelp
+            objective={`Identificar areas atratoras e emissoras com o saldo liquido (incoming - outgoing) por ${aggregateUnitLabel}.`}
+          />
         </div>
-        <p className="text-sm text-gray-600">Saldo = incoming - outgoing (positivo = área atratora)</p>
+        <p className="text-sm text-gray-600">Saldo = incoming - outgoing (positivo = area atratora)</p>
       </div>
 
       <ResponsiveContainer width="100%" height={chartHeight}>
@@ -135,7 +142,7 @@ export function DirectionalBalanceChart({
           />
           <YAxis
             type="category"
-            dataKey="ltlaName"
+            dataKey="aggregateAreaName"
             width={250}
             interval={0}
             tick={{ fontSize: 11 }}
@@ -147,15 +154,18 @@ export function DirectionalBalanceChart({
               name === 'balance' ? 'Saldo' : String(name ?? 'Valor'),
             ]}
             labelFormatter={(label, payload) => {
-              const row = payload && payload.length > 0 ? payload[0]?.payload as DirectionalBalanceDatum | undefined : undefined;
+              const row =
+                payload && payload.length > 0
+                  ? (payload[0]?.payload as AggregateDirectionalBalanceDatum | undefined)
+                  : undefined;
               if (!row) return String(label);
-              return `${row.ltlaName} (${row.ltlaCode})`;
+              return `${row.aggregateAreaName} (${row.aggregateAreaCode})`;
             }}
           />
           <Bar dataKey="balance" name="balance" radius={[4, 4, 4, 4]}>
             {rows.map((row) => (
               <Cell
-                key={row.ltlaCode}
+                key={row.aggregateAreaCode}
                 fill={row.balance >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR}
               />
             ))}
@@ -165,11 +175,11 @@ export function DirectionalBalanceChart({
 
       <div className="mt-3 flex flex-wrap gap-4 text-xs text-gray-600">
         <span className="inline-flex items-center gap-1">
-          <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: POSITIVE_COLOR }}></span>
+          <span className="h-3 w-3 rounded-sm" style={{ backgroundColor: POSITIVE_COLOR }}></span>
           Atratora (saldo positivo)
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: NEGATIVE_COLOR }}></span>
+          <span className="h-3 w-3 rounded-sm" style={{ backgroundColor: NEGATIVE_COLOR }}></span>
           Emissora (saldo negativo)
         </span>
       </div>

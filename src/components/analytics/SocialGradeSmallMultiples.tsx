@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { getLTLADirectionalBalances } from '../../utils/duckdb';
+import { getAggregateDirectionalBalances } from '../../utils/duckdb';
 import type { AgeGroup } from '../../types';
 import { getAnalyticsErrorMessage } from './analyticsUtils';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
@@ -15,8 +15,8 @@ interface SocialGradeSmallMultiplesProps {
 type GradeFilter = 'all' | 'AB' | 'C1' | 'DE';
 
 interface MultipleRow {
-  ltlaCode: string;
-  ltlaName: string;
+  aggregateAreaCode: string;
+  aggregateAreaName: string;
   balance: number;
 }
 
@@ -59,10 +59,10 @@ export function SocialGradeSmallMultiples({
       try {
         const results = await Promise.all(
           GRADE_CONFIG.map(async (config) => {
-            const balances = await getLTLADirectionalBalances(config.grade, ageGroup, topN, includeInternalFlows);
+            const balances = await getAggregateDirectionalBalances(config.grade, ageGroup, topN, includeInternalFlows);
             const rows = balances.map((row) => ({
-              ltlaCode: row.ltla_code,
-              ltlaName: row.ltla_name || row.ltla_code,
+              aggregateAreaCode: row.aggregate_area_code,
+              aggregateAreaName: row.aggregate_area_name || row.aggregate_area_code,
               balance: row.balance,
             }));
 
@@ -137,7 +137,7 @@ export function SocialGradeSmallMultiples({
                 <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v: number) => Number(v).toLocaleString()} />
                 <YAxis
                   type="category"
-                  dataKey="ltlaName"
+                  dataKey="aggregateAreaName"
                   tick={{ fontSize: 10 }}
                   width={88}
                   tickFormatter={(value: string) => shortName(value)}
@@ -150,7 +150,7 @@ export function SocialGradeSmallMultiples({
                   labelFormatter={(label, payload) => {
                     const row = payload && payload.length > 0 ? payload[0]?.payload as MultipleRow | undefined : undefined;
                     if (!row) return String(label);
-                    return `${row.ltlaName} (${row.ltlaCode})`;
+                    return `${row.aggregateAreaName} (${row.aggregateAreaCode})`;
                   }}
                 />
                 <Bar dataKey="balance" fill={COLORS[chart.grade]} />

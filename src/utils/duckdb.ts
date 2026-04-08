@@ -6,6 +6,12 @@
  * - ODWP04EW_MSOA.parquet (age) - OPCIONAL
  */
 import * as duckdb from '@duckdb/duckdb-wasm';
+import {
+  ACTIVE_DATASET_PROFILE,
+  getAggregateLookupPath,
+  getDemographicFilterValue,
+} from '../constants/datasetProfiles';
+import type { DemographicDimensionConfig, DemographicFilters } from '../types';
 
 let db: duckdb.AsyncDuckDB | null = null;
 let conn: duckdb.AsyncDuckDBConnection | null = null;
@@ -26,24 +32,32 @@ function debugWarn(...args: unknown[]) {
   }
 }
 
-// URLs dos datasets
-const DATASETS = {
-  flows: 'ODWP01EW_MSOA.parquet',
-  socialGrade: 'ODWP09EW_MSOA.parquet',
-  age: 'ODWP04EW_MSOA.parquet',
-};
-
 /**
- * Verifica se o arquivo está disponível no jsdelivr
+ * Verifica se o arquivo remoto principal está disponível
  */
-async function isJsdelivrReady(): Promise<boolean> {
+async function isRemoteDatasetReady(): Promise<boolean> {
+  if (!ACTIVE_DATASET_PROFILE.storage.remoteBaseUrl) {
+    return false;
+  }
+
   try {
-    const url = 'https://cdn.jsdelivr.net/gh/GustavoWMSilva/MapGeospatialMobilityData@main/ODWP01EW_MSOA.parquet';
+    const url = `${ACTIVE_DATASET_PROFILE.storage.remoteBaseUrl}${ACTIVE_DATASET_PROFILE.baseFlowDataset.fileName}`;
     const response = await fetch(url, { method: 'HEAD' });
     return response.ok;
   } catch {
     return false;
   }
+}
+
+function getDimensionFilterCondition(dimension: DemographicDimensionConfig, selectedValue: string): string {
+  const safeValue = escapeSqlLiteral(selectedValue);
+  const matchMode = dimension.matchMode || 'equals';
+
+  if (matchMode === 'contains') {
+    return `${dimension.categoryColumn} LIKE '%${safeValue}%'`;
+  }
+
+  return `${dimension.categoryColumn} = '${safeValue}'`;
 }
 
 /**
@@ -88,13 +102,17 @@ export async function initDuckDB(): Promise<void> {
       // Conectar
       conn = await db.connect();
       
-      // Verificar se jsdelivr está disponível
-      const jsdelivrReady = await isJsdelivrReady();
-      const baseUrl = jsdelivrReady 
-        ? 'https://cdn.jsdelivr.net/gh/GustavoWMSilva/MapGeospatialMobilityData@main/'
-        : '/data/processed/';
-      
-      console.log(jsdelivrReady ? '?? jsdelivr CDN disponível!' : '?? Usando fallback local');
+      // Resolver base dos dados do dataset ativo
+      const remoteDatasetReady = await isRemoteDatasetReady();
+      const baseUrl = remoteDatasetReady && ACTIVE_DATASET_PROFILE.storage.remoteBaseUrl
+        ? ACTIVE_DATASET_PROFILE.storage.remoteBaseUrl
+        : ACTIVE_DATASET_PROFILE.storage.localProcessedBasePath;
+
+      console.log(
+        remoteDatasetReady
+          ? `?? Usando fonte remota do dataset ${ACTIVE_DATASET_PROFILE.label}`
+          : `?? Usando fallback local do dataset ${ACTIVE_DATASET_PROFILE.label}`
+      );
 
       // Função auxiliar para carregar dataset
       async function loadDataset(filename: string, tableName: string, optional: boolean = false) {
@@ -137,11 +155,24 @@ export async function initDuckDB(): Promise<void> {
 
       // Carregar todos os datasets
       console.log('\n?? Carregando datasets...');
-      await loadDataset(DATASETS.flows, 'flows', false); // Obrigatório
-      const hasSocialGrade = await loadDataset(DATASETS.socialGrade, 'flows_social_grade', true); // Opcional
-      const hasAge = await loadDataset(DATASETS.age, 'flows_age', true); // Opcional
-      
-      const loadedCount = 1 + (hasSocialGrade ? 1 : 0) + (hasAge ? 1 : 0);
+      await loadDataset(
+        ACTIVE_DATASET_PROFILE.baseFlowDataset.fileName,
+        ACTIVE_DATASET_PROFILE.baseFlowDataset.tableName,
+        !ACTIVE_DATASET_PROFILE.baseFlowDataset.required
+      );
+
+      let loadedCount = 1;
+      for (const dimension of ACTIVE_DATASET_PROFILE.demographicDimensions) {
+        const loaded = await loadDataset(
+          dimension.dataset.fileName,
+          dimension.dataset.tableName,
+          !dimension.dataset.required
+        );
+        if (loaded) {
+          loadedCount += 1;
+        }
+      }
+
       console.log(`\n? DuckDB-WASM inicializado com ${loadedCount} dataset(s)!`);
       initialized = true;
     } catch (error) {
@@ -164,7 +195,7 @@ async function loadLTLALookup(): Promise<Map<string, string>> {
     return ltlaLookupCache;
   }
 
-  const response = await fetch('/data/lookup/ltla_lookup.csv');
+  const response = await fetch(getAggregateLookupPath());
   const text = await response.text();
   const lines = text.split('\n');
   
@@ -183,15 +214,6 @@ async function loadLTLALookup(): Promise<Map<string, string>> {
   
   debugLog(`  ? Lookup MSOA->LTLA carregado (${ltlaLookupCache.size} entradas)`);
   return ltlaLookupCache;
-}
-
-/**
- * Helper: Detectar se código é LTLA (vs MSOA)
- */
-function isLTLACode(code: string): boolean {
-  return code.startsWith('E06') || code.startsWith('E07') || 
-         code.startsWith('E08') || code.startsWith('E09') ||
-         code.startsWith('W06');
 }
 
 /**
@@ -279,6 +301,50 @@ export interface LTLATopODFlow {
   count: number;
 }
 
+export interface AggregateDirectionalBalanceResult {
+  aggregate_area_code: string;
+  aggregate_area_name: string;
+  incoming_total: number;
+  outgoing_total: number;
+  balance: number;
+}
+
+export interface AggregateSocialGradeShareResult {
+  aggregate_area_code: string;
+  aggregate_area_name: string;
+  social_grade_group: 'AB' | 'C1' | 'C2' | 'DE';
+  total: number;
+  percentage: number;
+  aggregate_area_total: number;
+}
+
+export interface AggregateAreaAggregatedTotalResult {
+  aggregate_area_code: string;
+  total: number;
+}
+
+export interface AggregateAreaAggregationDiagnosticRow {
+  aggregate_area_code: string;
+  aggregate_area_name: string;
+  mapped_base_area_count: number;
+  dynamic_total: number;
+}
+
+export interface AggregateAreaAggregationDiagnosticsResult {
+  aggregate_areas: AggregateAreaAggregationDiagnosticRow[];
+  unmapped_base_area_count: number;
+  unmapped_base_area_sample: string[];
+  ignored_non_base_area_count: number;
+}
+
+export interface AggregateODFlow {
+  origin_aggregate_area_code: string;
+  origin_aggregate_area_name: string;
+  dest_aggregate_area_code: string;
+  dest_aggregate_area_name: string;
+  count: number;
+}
+
 function escapeSqlLiteral(value: string): string {
   return value.replace(/'/g, "''");
 }
@@ -316,7 +382,7 @@ async function ensureLTLALookupTable(): Promise<void> {
     return;
   }
 
-  const response = await fetch('/data/lookup/ltla_lookup.csv');
+  const response = await fetch(getAggregateLookupPath());
   if (!response.ok) {
     throw new Error(`Falha ao carregar ltla_lookup.csv (${response.status})`);
   }
@@ -346,11 +412,8 @@ async function resolveAreaWhereClause(
 ): Promise<{ whereClause: string }> {
   const filterCol = direction === 'incoming' ? 'dest_code' : 'origin_code';
 
-  if (isLTLACode(areaCode)) {
-    const msoas = await getMSOAsInLTLA(areaCode);
-    if (msoas.length === 0) {
-      return { whereClause: '1=0' };
-    }
+  const msoas = await getMSOAsInLTLA(areaCode);
+  if (msoas.length > 0) {
     const msoaList = msoas.map(m => `'${m}'`).join(',');
     return { whereClause: `${filterCol} IN (${msoaList})` };
   }
@@ -390,13 +453,109 @@ export async function getMSOAFlows(
     const data = result.toArray().map((row) => ({
       origin_code: row.origin_code,
       dest_code: row.dest_code,
-      count: row.count,
+      count: Number(row.count),
     }));
 
     console.log(`Carregados ${data.length} flows`);
     return data;
   } catch (error) {
     console.error('Erro ao carregar flows:', error);
+    throw error;
+  }
+}
+
+export async function getMSOAFlowsByDemographicFilters(
+  areaCode: string,
+  filters: DemographicFilters,
+  direction: 'incoming' | 'outgoing' = 'incoming',
+  limit: number = 2000,
+  includeInternalFlows: boolean = false
+): Promise<FlowResult[]> {
+  await initDuckDB();
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  const activeDimensions = ACTIVE_DATASET_PROFILE.demographicDimensions.filter(
+    (dimension) => getDemographicFilterValue(filters, dimension.key) !== 'all'
+  );
+
+  if (activeDimensions.length === 0) {
+    return getMSOAFlows(areaCode, direction, limit);
+  }
+
+  const { whereClause } = await resolveAreaWhereClause(areaCode, direction);
+  if (whereClause === '1=0') {
+    return [];
+  }
+
+  const internalFlowCondition = getInternalFlowCondition(includeInternalFlows);
+
+  for (const dimension of activeDimensions) {
+    if (!(await tableExists(dimension.dataset.tableName))) {
+      debugWarn(`Tabela ${dimension.dataset.tableName} não disponível para filtro ${dimension.key}`);
+      return [];
+    }
+  }
+
+  const dimensionCtes = activeDimensions.map((dimension, index) => {
+    const selectedValue = getDemographicFilterValue(filters, dimension.key);
+    const filterCondition = getDimensionFilterCondition(dimension, selectedValue);
+
+    return `
+      dim_${index} AS (
+        SELECT
+          origin_code,
+          dest_code,
+          SUM(count) AS dim_count_${index}
+        FROM ${dimension.dataset.tableName}
+        WHERE ${whereClause}
+          AND ${filterCondition}
+          AND ${internalFlowCondition}
+        GROUP BY origin_code, dest_code
+      )
+    `;
+  });
+
+  const joins = activeDimensions
+    .slice(1)
+    .map(
+      (_dimension, index) => `
+      INNER JOIN dim_${index + 1}
+        ON dim_0.origin_code = dim_${index + 1}.origin_code
+       AND dim_0.dest_code = dim_${index + 1}.dest_code
+    `
+    )
+    .join('');
+
+  const leastExpression =
+    activeDimensions.length === 1
+      ? 'dim_0.dim_count_0'
+      : `LEAST(${activeDimensions.map((_dimension, index) => `dim_${index}.dim_count_${index}`).join(', ')})`;
+
+  const query = `
+    WITH
+    ${dimensionCtes.join(',\n')}
+    SELECT
+      dim_0.origin_code,
+      dim_0.dest_code,
+      ${leastExpression} AS count
+    FROM dim_0
+    ${joins}
+    ORDER BY count DESC
+    LIMIT ${limit}
+  `;
+
+  try {
+    const result = await conn.query(query);
+    return result.toArray().map((row) => ({
+      origin_code: String(row.origin_code),
+      dest_code: String(row.dest_code),
+      count: Number(row.count),
+    }));
+  } catch (error) {
+    console.error('Erro ao carregar flows por filtros demográficos:', error);
     throw error;
   }
 }
@@ -454,7 +613,7 @@ export async function aggregateMSOAToLTLAFlows(
       if (!originLTLA || !destLTLA) return;
 
       const key = `${originLTLA}|${destLTLA}`;
-      ltlaAggregation.set(key, (ltlaAggregation.get(key) || 0) + row.count);
+      ltlaAggregation.set(key, (ltlaAggregation.get(key) || 0) + Number(row.count));
     });
 
     // Converter para array e ordenar
@@ -530,7 +689,7 @@ export async function getMSOAFlowsBySocialGrade(
       dest_code: row.dest_code,
       social_grade_code: row.social_grade_code,
       social_grade: row.social_grade,
-      count: row.count,
+      count: Number(row.count),
     }));
 
     debugLog(`Carregados ${data.length} flows (social grade)`);
@@ -597,7 +756,7 @@ export async function getMSOAFlowsByAge(
       dest_code: row.dest_code,
       age_code: row.age_code,
       age_group: row.age_group,
-      count: row.count,
+      count: Number(row.count),
     }));
 
     debugLog(`Carregados ${data.length} flows (age)`);
@@ -639,13 +798,9 @@ export async function getSocialGradeStats(
   
   // Se for LTLA, converter para MSOAs
   let whereClause: string;
-  if (isLTLACode(areaCode)) {
+  const msoas = await getMSOAsInLTLA(areaCode);
+  if (msoas.length > 0) {
     debugLog('  ? Codigo LTLA detectado, buscando MSOAs...');
-    const msoas = await getMSOAsInLTLA(areaCode);
-    if (msoas.length === 0) {
-      debugWarn(`Nenhum MSOA encontrado para LTLA ${areaCode}`);
-      return [];
-    }
     const msoaList = msoas.map(m => `'${m}'`).join(',');
     whereClause = `${filterCol} IN (${msoaList})`;
     debugLog(`  ? Consultando ${filterCol} IN (${msoas.length} MSOAs)`);
@@ -818,13 +973,9 @@ export async function getAgeStats(
   
   // Se for LTLA, converter para MSOAs
   let whereClause: string;
-  if (isLTLACode(areaCode)) {
+  const msoas = await getMSOAsInLTLA(areaCode);
+  if (msoas.length > 0) {
     debugLog('  ? Codigo LTLA detectado, buscando MSOAs...');
-    const msoas = await getMSOAsInLTLA(areaCode);
-    if (msoas.length === 0) {
-      debugWarn(`Nenhum MSOA encontrado para LTLA ${areaCode}`);
-      return [];
-    }
     const msoaList = msoas.map(m => `'${m}'`).join(',');
     whereClause = `${filterCol} IN (${msoaList})`;
     debugLog(`  ? Consultando ${filterCol} IN (${msoas.length} MSOAs)`);
@@ -1466,6 +1617,81 @@ export async function getTopLTLAODFlows(
     console.error('Erro ao calcular OD Top N LTLA:', error);
     throw error;
   }
+}
+
+export async function getAggregateDirectionalBalances(
+  socialGrade: 'AB' | 'C1' | 'C2' | 'DE' | 'all' = 'all',
+  ageGroup: string = 'all',
+  topN: number = 15,
+  includeInternalFlows: boolean = false
+): Promise<AggregateDirectionalBalanceResult[]> {
+  const results = await getLTLADirectionalBalances(
+    socialGrade,
+    ageGroup,
+    topN,
+    includeInternalFlows
+  );
+
+  return results.map((row) => ({
+    aggregate_area_code: row.ltla_code,
+    aggregate_area_name: row.ltla_name,
+    incoming_total: row.incoming_total,
+    outgoing_total: row.outgoing_total,
+    balance: row.balance,
+  }));
+}
+
+export async function getAggregateSocialGradeShares(
+  direction: 'incoming' | 'outgoing' = 'incoming',
+  topN: number = 30,
+  includeInternalFlows: boolean = false
+): Promise<AggregateSocialGradeShareResult[]> {
+  const results = await getLTLASocialGradeShares(direction, topN, includeInternalFlows);
+
+  return results.map((row) => ({
+    aggregate_area_code: row.ltla_code,
+    aggregate_area_name: row.ltla_name,
+    social_grade_group: row.social_grade_group,
+    total: row.total,
+    percentage: row.percentage,
+    aggregate_area_total: row.ltla_total,
+  }));
+}
+
+export async function getAggregateAreaAggregationDiagnostics(
+  direction: 'incoming' | 'outgoing' = 'incoming',
+  includeInternalFlows: boolean = false
+): Promise<AggregateAreaAggregationDiagnosticsResult> {
+  const diagnostics = await getLTLAAggregationDiagnostics(direction, includeInternalFlows);
+
+  return {
+    aggregate_areas: diagnostics.ltlas.map((row) => ({
+      aggregate_area_code: row.ltla_code,
+      aggregate_area_name: row.ltla_name,
+      mapped_base_area_count: row.mapped_msoa_count,
+      dynamic_total: row.dynamic_total,
+    })),
+    unmapped_base_area_count: diagnostics.unmapped_msoa_count,
+    unmapped_base_area_sample: diagnostics.unmapped_msoa_sample,
+    ignored_non_base_area_count: diagnostics.ignored_non_msoa_count,
+  };
+}
+
+export async function getTopAggregateODFlows(
+  socialGrade: 'AB' | 'C1' | 'C2' | 'DE' | 'all' = 'all',
+  ageGroup: string | 'all' = 'all',
+  topN: number = 10,
+  includeInternalFlows: boolean = false
+): Promise<AggregateODFlow[]> {
+  const results = await getTopLTLAODFlows(socialGrade, ageGroup, topN, includeInternalFlows);
+
+  return results.map((row) => ({
+    origin_aggregate_area_code: row.origin_ltla_code,
+    origin_aggregate_area_name: row.origin_ltla_name,
+    dest_aggregate_area_code: row.dest_ltla_code,
+    dest_aggregate_area_name: row.dest_ltla_name,
+    count: row.count,
+  }));
 }
 
 /**

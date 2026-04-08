@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getTopLTLAODFlows } from '../../utils/duckdb';
+import { ACTIVE_DATASET_PROFILE } from '../../constants/datasetProfiles';
+import { getTopAggregateODFlows } from '../../utils/duckdb';
 import type { AgeGroup, SocialGrade } from '../../types';
 import { getAnalyticsErrorMessage } from './analyticsUtils';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
 import { MAP_COLORS } from '../../constants/mapColors';
 
-interface ODTopNHeatmapProps {
+interface AggregateODHeatmapProps {
   socialGrade?: SocialGrade;
   ageGroup?: AgeGroup;
   includeInternalFlows?: boolean;
@@ -19,7 +20,7 @@ interface MatrixArea {
 
 function truncate(value: string, max = 18): string {
   if (value.length <= max) return value;
-  return `${value.slice(0, max - 1)}…`;
+  return `${value.slice(0, max - 1)}...`;
 }
 
 function getHeatColor(value: number, max: number): string {
@@ -32,17 +33,19 @@ function getHeatColor(value: number, max: number): string {
   return MAP_COLORS.analytics.heatmap.min;
 }
 
-export function ODTopNHeatmap({
+export function AggregateODHeatmap({
   socialGrade = 'all',
   ageGroup = 'all',
   includeInternalFlows = false,
   initialTopN = 10,
-}: ODTopNHeatmapProps) {
+}: AggregateODHeatmapProps) {
   const [topN, setTopN] = useState<number>(initialTopN);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [matrixData, setMatrixData] = useState<Map<string, Map<string, number>>>(new Map());
   const [areas, setAreas] = useState<MatrixArea[]>([]);
+  const aggregateUnitLabel = ACTIVE_DATASET_PROFILE.labels.aggregate.singular;
+  const aggregateUnitPlural = ACTIVE_DATASET_PROFILE.labels.aggregate.plural;
 
   useEffect(() => {
     let cancelled = false;
@@ -52,24 +55,35 @@ export function ODTopNHeatmap({
       setError(null);
 
       try {
-        const flows = await getTopLTLAODFlows(socialGrade, ageGroup, topN, includeInternalFlows);
+        const flows = await getTopAggregateODFlows(
+          socialGrade,
+          ageGroup,
+          topN,
+          includeInternalFlows
+        );
         const areaMap = new Map<string, string>();
         const matrix = new Map<string, Map<string, number>>();
 
         flows.forEach((flow) => {
-          areaMap.set(flow.origin_ltla_code, flow.origin_ltla_name);
-          areaMap.set(flow.dest_ltla_code, flow.dest_ltla_name);
+          areaMap.set(flow.origin_aggregate_area_code, flow.origin_aggregate_area_name);
+          areaMap.set(flow.dest_aggregate_area_code, flow.dest_aggregate_area_name);
 
-          if (!matrix.has(flow.origin_ltla_code)) {
-            matrix.set(flow.origin_ltla_code, new Map());
+          if (!matrix.has(flow.origin_aggregate_area_code)) {
+            matrix.set(flow.origin_aggregate_area_code, new Map());
           }
-          matrix.get(flow.origin_ltla_code)?.set(flow.dest_ltla_code, flow.count);
+          matrix.get(flow.origin_aggregate_area_code)?.set(flow.dest_aggregate_area_code, flow.count);
         });
 
         const areaTotals = new Map<string, number>();
         flows.forEach((flow) => {
-          areaTotals.set(flow.origin_ltla_code, (areaTotals.get(flow.origin_ltla_code) || 0) + flow.count);
-          areaTotals.set(flow.dest_ltla_code, (areaTotals.get(flow.dest_ltla_code) || 0) + flow.count);
+          areaTotals.set(
+            flow.origin_aggregate_area_code,
+            (areaTotals.get(flow.origin_aggregate_area_code) || 0) + flow.count
+          );
+          areaTotals.set(
+            flow.dest_aggregate_area_code,
+            (areaTotals.get(flow.dest_aggregate_area_code) || 0) + flow.count
+          );
         });
 
         const sortedAreas = Array.from(areaMap.entries())
@@ -113,21 +127,21 @@ export function ODTopNHeatmap({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-72">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="flex h-72 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   if (error) {
-    return <div className="h-72 flex items-center justify-center text-red-600 text-sm">{error}</div>;
+    return <div className="flex h-72 items-center justify-center text-sm text-red-600">{error}</div>;
   }
 
   if (areas.length === 0) {
     return (
-      <div className="h-72 flex flex-col items-center justify-center text-gray-500 text-center p-4">
+      <div className="flex h-72 flex-col items-center justify-center p-4 text-center text-gray-500">
         <p className="font-semibold">Sem dados OD para heatmap</p>
-        <p className="text-sm mt-1">Ajuste filtros demográficos ou top N</p>
+        <p className="mt-1 text-sm">Ajuste filtros demograficos ou top N</p>
       </div>
     );
   }
@@ -137,10 +151,14 @@ export function ODTopNHeatmap({
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-semibold text-gray-800">Heatmap OD (Top N LTLA)</h3>
-            <ChartObjectiveHelp objective="Evidenciar padrões de fluxo origem-destino que não ficam claros apenas no mapa, focando nas áreas de maior atividade." />
+            <h3 className="text-base font-semibold text-gray-800">
+              Heatmap OD (Top N {aggregateUnitLabel})
+            </h3>
+            <ChartObjectiveHelp
+              objective={`Evidenciar padroes de fluxo origem-destino que nao ficam claros apenas no mapa, focando nas ${aggregateUnitPlural.toLowerCase()} de maior atividade.`}
+            />
           </div>
-          <p className="text-xs text-gray-600">Matriz origem x destino para padrões de fluxo</p>
+          <p className="text-xs text-gray-600">Matriz origem x destino para padroes de fluxo</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -177,9 +195,9 @@ export function ODTopNHeatmap({
         <table className="min-w-full text-xs">
           <thead>
             <tr className="bg-purple-50 text-purple-900">
-              <th className="sticky left-0 z-10 bg-purple-50 px-2 py-2 text-left">Origem \ Destino</th>
+              <th className="sticky left-0 z-10 bg-purple-50 px-2 py-2 text-left">Origem / Destino</th>
               {areas.map((area) => (
-                <th key={area.code} className="px-2 py-2 text-center min-w-[92px]" title={area.name}>
+                <th key={area.code} className="min-w-[92px] px-2 py-2 text-center" title={area.name}>
                   {truncate(area.name)}
                 </th>
               ))}
@@ -201,7 +219,7 @@ export function ODTopNHeatmap({
                       key={`${origin.code}-${dest.code}`}
                       className="px-2 py-2 text-center"
                       style={{ backgroundColor: color, color: textColor }}
-                      title={`${origin.name} → ${dest.name}: ${value.toLocaleString()}`}
+                      title={`${origin.name} -> ${dest.name}: ${value.toLocaleString()}`}
                     >
                       {value > 0 ? value.toLocaleString() : '-'}
                     </td>
