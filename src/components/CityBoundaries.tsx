@@ -2,6 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Source, Layer } from '@vis.gl/react-maplibre';
 import { fetchWithCache } from '../utils/cacheService';
 import { MAP_COLORS } from '../constants/mapColors';
+import {
+  getAggregateBoundariesPath,
+  getAggregateLookupPath,
+  getBaseBoundariesPath,
+} from '../constants/datasetProfiles';
+import type { GeographyLevel } from '../types';
 
 interface CityBoundariesProps {
   isVisible?: boolean;
@@ -9,7 +15,7 @@ interface CityBoundariesProps {
   borderWidth?: number;
   fillColor?: string;
   fillOpacity?: number;
-  dataSource?: 'ltla' | 'msoa';
+  geographyLevel?: GeographyLevel;
   selectedCode?: string | null;
   connectedCodes?: string[];
 }
@@ -67,7 +73,7 @@ const augmentMissingLTLABoundaries = async (
       .filter(Boolean)
   );
 
-  const lookupCSVText = (await fetchWithCache('/data/lookup/ltla_lookup.csv', false, 'text')) as string;
+  const lookupCSVText = (await fetchWithCache(getAggregateLookupPath(), false, 'text')) as string;
   const lookupRows = parseLTLALookupCSV(lookupCSVText);
 
   const fallbackByLTLA = new Map<string, { name: string; msoaCodes: Set<string> }>();
@@ -90,7 +96,7 @@ const augmentMissingLTLABoundaries = async (
     return ltlaBoundaries;
   }
 
-  const msoaBoundaries = (await fetchWithCache('/data/lookup/boundaries.geojson')) as GeoJSON.FeatureCollection;
+  const msoaBoundaries = (await fetchWithCache(getBaseBoundariesPath())) as GeoJSON.FeatureCollection;
   const fallbackFeatures: GeoJSON.Feature[] = [];
 
   fallbackByLTLA.forEach((group, ltlaCode) => {
@@ -137,7 +143,7 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
   borderWidth = 5,
   fillColor = MAP_COLORS.boundaries.fill,
   fillOpacity = MAP_COLORS.boundaries.fillOpacity,
-  dataSource = 'ltla',
+  geographyLevel = 'aggregate',
   selectedCode = null,
   connectedCodes = []
 }) => {
@@ -148,22 +154,22 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
     setLoading(true);
 
     const boundaryFile =
-      dataSource === 'ltla'
-        ? '/data/lookup/ltla_boundaries.geojson'
-        : '/data/lookup/boundaries.geojson';
+      geographyLevel === 'aggregate'
+        ? getAggregateBoundariesPath()
+        : getBaseBoundariesPath();
 
     const loadBoundaries = async () => {
       try {
         const data = await fetchWithCache(boundaryFile);
         let geojson = data as GeoJSON.FeatureCollection;
 
-        if (dataSource === 'ltla') {
+        if (geographyLevel === 'aggregate') {
           geojson = await augmentMissingLTLABoundaries(geojson);
         }
 
         setBoundariesData(geojson);
         console.log(
-          `Boundaries ${dataSource.toUpperCase()} carregadas:`,
+          `Boundaries ${geographyLevel.toUpperCase()} carregadas:`,
           geojson.features?.length || 0,
           'áreas'
         );
@@ -175,7 +181,7 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
     };
 
     void loadBoundaries();
-  }, [dataSource]);
+  }, [geographyLevel]);
 
   if (loading || !boundariesData || !isVisible) {
     return null;
@@ -195,9 +201,9 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
 
   return (
     <>
-      <Source id={`${dataSource}-boundaries`} type="geojson" data={boundariesData}>
+      <Source id={`${geographyLevel}-boundaries`} type="geojson" data={boundariesData}>
         <Layer
-          id={`${dataSource}-boundaries-fill`}
+          id={`${geographyLevel}-boundaries-fill`}
           type="fill"
           paint={{
             'fill-color': [
@@ -222,7 +228,7 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
         />
 
         <Layer
-          id={`${dataSource}-boundaries-clickable`}
+          id={`${geographyLevel}-boundaries-clickable`}
           type="fill"
           paint={{
             'fill-color': 'transparent',
@@ -231,7 +237,7 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
         />
 
         <Layer
-          id={`${dataSource}-boundaries-line`}
+          id={`${geographyLevel}-boundaries-line`}
           type="line"
           paint={{
             'line-color': [

@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react';
+import { getActiveDemographicBadges } from '../constants/datasetProfiles';
+import type { DatasetProfile, DemographicFilters } from '../types';
 
 interface FlowFiltersProps {
   maxFlows: number;
@@ -12,8 +14,8 @@ interface FlowFiltersProps {
   maxPeopleCount: number;
   isMinimized: boolean;
   onToggleMinimize: () => void;
-  socialGrade?: string;
-  ageGroup?: string;
+  datasetProfile: DatasetProfile;
+  demographicFilters?: DemographicFilters;
   isCompact?: boolean;
 }
 
@@ -26,13 +28,14 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
   maxPeopleCount,
   isMinimized,
   onToggleMinimize,
-  socialGrade = 'all',
-  ageGroup = 'all',
+  datasetProfile,
+  demographicFilters = {},
   isCompact = false,
 }) => {
   const minCountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousMaxPeopleCount = useRef<number>(maxPeopleCount);
-  const hasDemographicFilters = socialGrade !== 'all' || ageGroup !== 'all';
+  const activeBadges = getActiveDemographicBadges(datasetProfile, demographicFilters);
+  const hasDemographicFilters = activeBadges.length > 0;
 
   useEffect(() => {
     return () => {
@@ -112,19 +115,13 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
                 </span>
               </div>
 
-              {socialGrade !== 'all' && (
-                <div className={`${isCompact ? 'text-[11px]' : 'text-xs'} flex items-center gap-1 text-purple-700`}>
-                  <strong>Social Grade:</strong> {socialGrade}
+              {activeBadges.map((badge) => (
+                <div key={badge.key} className={`${isCompact ? 'text-[11px]' : 'text-xs'} flex items-center gap-1 text-purple-700`}>
+                  <strong>{badge.label}:</strong> {badge.valueLabel}
                 </div>
-              )}
+              ))}
 
-              {ageGroup !== 'all' && (
-                <div className={`${isCompact ? 'text-[11px]' : 'text-xs'} flex items-center gap-1 text-purple-700`}>
-                  <strong>Grupo Etario:</strong> {ageGroup}
-                </div>
-              )}
-
-              {socialGrade !== 'all' && ageGroup !== 'all' && (
+              {activeBadges.length > 1 && (
                 <div className={`rounded border border-purple-300 bg-purple-100 px-2 py-1 ${isCompact ? 'mt-1.5' : 'mt-2'}`}>
                   <div className={`${isCompact ? 'text-[11px]' : 'text-xs'} font-medium text-purple-800`}>
                     Filtro combinado ativo no mapa
@@ -146,8 +143,8 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
               max={Math.max(totalAvailable, 1)}
               min="1"
               onChange={(e) => {
-                const val = parseInt(e.target.value, 10);
-                if (!isNaN(val) && val >= 1) onMaxFlowsChange(val);
+                const value = parseInt(e.target.value, 10);
+                if (!isNaN(value) && value >= 1) onMaxFlowsChange(value);
               }}
               step="1"
               type="range"
@@ -173,8 +170,8 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
               max={Math.max(maxPeopleCount, 100)}
               min={0}
               onChange={(e) => {
-                const val = parseInt(e.target.value, 10);
-                if (!isNaN(val) && val >= 0) handleMinCountChange(val);
+                const value = parseInt(e.target.value, 10);
+                if (!isNaN(value) && value >= 0) handleMinCountChange(value);
               }}
               step={Math.max(1, Math.floor(Math.max(maxPeopleCount, 100) / 100))}
               type="range"

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Source, Layer } from '@vis.gl/react-maplibre';
 import { MAP_COLORS } from '../constants/mapColors';
+import { getBaseCentroidsPath } from '../constants/datasetProfiles';
 
 interface AreaCentroid {
   code: string;
@@ -26,7 +27,7 @@ export const AllAreaPoints: React.FC<AllAreaPointsProps> = ({
 
   useEffect(() => {
     setLoading(true);
-    fetch('/data/lookup/areas_centroids.csv')
+    fetch(getBaseCentroidsPath())
       .then(response => response.text())
       .then(csvText => {
         // Função para fazer parsing correto de CSV com campos entre aspas

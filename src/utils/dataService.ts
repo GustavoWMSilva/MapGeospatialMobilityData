@@ -3,10 +3,17 @@
  * - Localhost: API Flask
  * - Produção: DuckDB-WASM + GitHub Releases
  */
-import { getMSOAFlows, getMSOAFlowsBySocialGrade, getMSOAFlowsByAge, getMSOAFlowsBySocialGradeAndAge } from './duckdb';
+import { getMSOAFlows, getMSOAFlowsByDemographicFilters } from './duckdb';
+import {
+  ACTIVE_DATASET_PROFILE,
+  getAggregateCentroidsPath,
+  getAggregateLookupPath,
+  getBaseCentroidsPath,
+  hasActiveDemographicFilters,
+} from '../constants/datasetProfiles';
 import { cacheService } from './cacheService';
 import { recordLatencySample } from './performanceMetrics';
-import type { SocialGrade, SocialGradeFlowResult, AgeFlowResult, CombinedDemographicFlowResult } from '../types';
+import type { DemographicFilters, FlowResult, GeographyLevel } from '../types';
 
 interface Coordinates {
   [code: string]: {
@@ -31,7 +38,7 @@ function recordLatency(params: {
   scenario: 'api' | 'duckdb' | 'duckdb_cache';
   cacheState: 'cold' | 'warm' | 'n/a';
   areaCode: string;
-  dataSource: 'msoa' | 'ltla';
+  geographyLevel: GeographyLevel;
   direction: 'incoming' | 'outgoing';
   filtersActive: boolean;
   resultCount: number;
@@ -44,7 +51,7 @@ function recordLatency(params: {
     scenario: params.scenario,
     cacheState: params.cacheState,
     areaCode: params.areaCode,
-    dataSource: params.dataSource,
+    dataSource: params.geographyLevel,
     direction: params.direction,
     filtersActive: params.filtersActive,
     resultCount: params.resultCount,
@@ -68,7 +75,7 @@ async function loadCoordinates(): Promise<Coordinates> {
 
   try {
     // Tentar buscar do cache IndexedDB primeiro
-    const cacheKey = 'areas_centroids';
+    const cacheKey = `areas_centroids:${ACTIVE_DATASET_PROFILE.id}`;
     const cached = await cacheService.get(cacheKey) as Coordinates | null;
     if (cached) {
       coordinatesCache = cached;
@@ -77,7 +84,7 @@ async function loadCoordinates(): Promise<Coordinates> {
     }
 
     // Se não tiver no cache, fazer fetch
-    const response = await fetch('/data/lookup/areas_centroids.csv');
+    const response = await fetch(getBaseCentroidsPath());
     const text = await response.text();
     const lines = text.split('\n');
     
@@ -117,10 +124,9 @@ export async function loadFlows(
   areaCode: string,
   direction: 'incoming' | 'outgoing' = 'incoming',
   limit: number = 2000,
-  dataSource: 'msoa' | 'ltla' = 'msoa'
+  geographyLevel: GeographyLevel = 'base'
 ): Promise<{ type: string; features: unknown[] }> {
-  // Se for LTLA, agregar MSOA dinamicamente
-  if (dataSource === 'ltla') {
+  if (geographyLevel === 'aggregate') {
     return loadLTLAFlowsAggregated(areaCode, direction, limit);
   }
 
@@ -139,36 +145,23 @@ export async function loadFlowsFiltered(
   areaCode: string,
   direction: 'incoming' | 'outgoing' = 'incoming',
   limit: number = 2000,
-  dataSource: 'msoa' | 'ltla' = 'msoa',
-  socialGrade: string = 'all',
-  ageGroup: string = 'all'
+  geographyLevel: GeographyLevel = 'base',
+  filters: DemographicFilters = {}
 ): Promise<{ type: string; features: unknown[] }> {
   const requestStartMs = nowMs();
 
   // Se nenhum filtro está ativo, usar função normal
-  if (socialGrade === 'all' && ageGroup === 'all') {
-    return loadFlows(areaCode, direction, limit, dataSource);
+  if (!hasActiveDemographicFilters(filters, ACTIVE_DATASET_PROFILE.demographicDimensions)) {
+    return loadFlows(areaCode, direction, limit, geographyLevel);
   }
 
-  console.log(`?? Carregando flows filtrados - SocialGrade: ${socialGrade}, Age: ${ageGroup}, DataSource: ${dataSource}`);
+  console.log(`?? Carregando flows filtrados - filtros:`, filters, `GeographyLevel: ${geographyLevel}`);
 
-  let flows: (SocialGradeFlowResult | AgeFlowResult | CombinedDemographicFlowResult)[] = [];
-
-  if (socialGrade !== 'all' && ageGroup !== 'all') {
-    console.log(`?? Filtrando por Social Grade + Age Group: ${socialGrade} + ${ageGroup}`);
-    flows = await getMSOAFlowsBySocialGradeAndAge(areaCode, socialGrade as SocialGrade, ageGroup, direction, limit);
-  } else if (socialGrade !== 'all') {
-    console.log(`?? Filtrando por Social Grade: ${socialGrade}`);
-    flows = await getMSOAFlowsBySocialGrade(areaCode, socialGrade as SocialGrade, direction, limit);
-  } else if (ageGroup !== 'all') {
-    console.log(`?? Filtrando por Age Group: ${ageGroup}`);
-    flows = await getMSOAFlowsByAge(areaCode, ageGroup, direction, limit);
-  }
+  const flows: FlowResult[] = await getMSOAFlowsByDemographicFilters(areaCode, filters, direction, limit);
 
   console.log(`?? Flows MSOA carregados: ${flows.length}`);
 
-  // Se dataSource é LTLA, agregar MSOA->LTLA
-  if (dataSource === 'ltla') {
+  if (geographyLevel === 'aggregate') {
     console.log(`?? Agregando ${flows.length} flows MSOA para LTLA...`);
     
     const lookup = await loadLTLALookup();
@@ -228,7 +221,7 @@ export async function loadFlowsFiltered(
       scenario: 'duckdb',
       cacheState: 'n/a',
       areaCode,
-      dataSource,
+      geographyLevel,
       direction,
       filtersActive: true,
       resultCount: features.length,
@@ -240,7 +233,7 @@ export async function loadFlowsFiltered(
     };
   }
 
-  // Se dataSource é MSOA, usar coordenadas MSOA normalmente
+  // Se o nível for base, usar coordenadas da unidade base normalmente
   const coords = await loadCoordinates();
   
   const features = flows
@@ -279,7 +272,7 @@ export async function loadFlowsFiltered(
     scenario: 'duckdb',
     cacheState: 'n/a',
     areaCode,
-    dataSource,
+    geographyLevel,
     direction,
     filtersActive: true,
     resultCount: features.length,
@@ -318,7 +311,7 @@ async function loadFlowsFromAPI(
       scenario: 'api',
       cacheState: 'n/a',
       areaCode,
-      dataSource: 'msoa',
+      geographyLevel: 'base',
       direction: direction as 'incoming' | 'outgoing',
       filtersActive: false,
       resultCount: Array.isArray(data.features) ? data.features.length : 0,
@@ -388,7 +381,7 @@ async function loadFlowsFromDuckDB(
       scenario: 'duckdb',
       cacheState: 'n/a',
       areaCode,
-      dataSource: 'msoa',
+      geographyLevel: 'base',
       direction,
       filtersActive: false,
       resultCount: features.length,
@@ -416,7 +409,7 @@ async function loadLTLALookup(): Promise<Map<string, string>> {
 
   try {
     // Tentar buscar do cache IndexedDB primeiro
-    const cacheKey = 'ltla_lookup';
+    const cacheKey = `aggregate_lookup:${ACTIVE_DATASET_PROFILE.id}`;
     const cached = await cacheService.get(cacheKey) as Record<string, string> | null;
     if (cached) {
       ltlaLookupCache = new Map(Object.entries(cached));
@@ -425,7 +418,7 @@ async function loadLTLALookup(): Promise<Map<string, string>> {
     }
 
     // Se não tiver no cache, fazer fetch
-    const response = await fetch('/data/lookup/ltla_lookup.csv');
+    const response = await fetch(getAggregateLookupPath());
     const text = await response.text();
     const lines = text.split('\n');
     
@@ -469,7 +462,7 @@ async function loadLTLACoordinates(): Promise<Coordinates> {
 
   try {
     // Tentar buscar do cache IndexedDB primeiro
-    const cacheKey = 'ltla_centroids';
+    const cacheKey = `aggregate_centroids:${ACTIVE_DATASET_PROFILE.id}`;
     const cached = await cacheService.get(cacheKey) as Coordinates | null;
     if (cached) {
       ltlaCoordsCache = cached;
@@ -478,7 +471,7 @@ async function loadLTLACoordinates(): Promise<Coordinates> {
     }
 
     // Se não tiver no cache, fazer fetch
-    const response = await fetch('/data/lookup/ltla_centroids.csv');
+    const response = await fetch(getAggregateCentroidsPath());
     const text = await response.text();
     const lines = text.split('\n');
     
@@ -555,7 +548,7 @@ async function loadLTLAFlowsAggregated(
       scenario: 'duckdb_cache',
       cacheState: 'warm',
       areaCode: ltlaCode,
-      dataSource: 'ltla',
+      geographyLevel: 'aggregate',
       direction,
       filtersActive: false,
       resultCount: Array.isArray(cached.features) ? cached.features.length : 0,
@@ -659,7 +652,7 @@ async function loadLTLAFlowsAggregated(
       scenario: 'duckdb_cache',
       cacheState: 'cold',
       areaCode: ltlaCode,
-      dataSource: 'ltla',
+      geographyLevel: 'aggregate',
       direction,
       filtersActive: false,
       resultCount: limitedFeatures.length,

@@ -2,6 +2,8 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Source, Layer } from '@vis.gl/react-maplibre';
 import { FlowFilters } from './FlowFilters';
 import { loadFlows, loadFlowsFiltered } from '../utils/dataService';
+import { hasActiveDemographicFilters } from '../constants/datasetProfiles';
+import type { DatasetProfile, DemographicFilters, GeographyLevel } from '../types';
 
 interface FlowFeature {
   type: 'Feature';
@@ -23,9 +25,9 @@ interface FlowsVisualizationProps {
   isVisible?: boolean;
   isFullscreen?: boolean;
   flowDirection?: 'incoming' | 'outgoing';
-  dataSource: 'ltla' | 'msoa';
-  socialGrade?: string;
-  ageGroup?: string;
+  geographyLevel: GeographyLevel;
+  datasetProfile: DatasetProfile;
+  demographicFilters?: DemographicFilters;
   showInternal?: boolean;
   onShowInternalChange?: (value: boolean) => void;
   onActiveConnectionsChange?: (codes: string[]) => void;
@@ -36,9 +38,9 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   isVisible = true,
   isFullscreen = false,
   flowDirection = 'incoming',
-  dataSource,
-  socialGrade = 'all',
-  ageGroup = 'all',
+  geographyLevel,
+  datasetProfile,
+  demographicFilters = {},
   showInternal = false,
   // onShowInternalChange,
   onActiveConnectionsChange
@@ -50,8 +52,8 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   const [isFiltersMinimized, setIsFiltersMinimized] = useState(false);
   
   // Estados dos filtros - valores padrão dependem do tipo de dados
-  const [maxFlows, setMaxFlows] = useState(dataSource === 'ltla' ? 200 : 500);
-  const [minCount, setMinCount] = useState(dataSource === 'ltla' ? 50 : 10);
+  const [maxFlows, setMaxFlows] = useState(geographyLevel === 'aggregate' ? 200 : 500);
+  const [minCount, setMinCount] = useState(geographyLevel === 'aggregate' ? 50 : 10);
 
   // Usar useRef para evitar re-execuções duplicadas
   const loadingRef = useRef(false);
@@ -69,14 +71,20 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
 
   // Carregar dados usando dataService (DuckDB-WASM ou API)
   useEffect(() => {
-    const loadKey = `${dataSource}|${selectedCode}|${flowDirection}|${socialGrade}|${ageGroup}`;
+    const filtersKey = JSON.stringify(
+      datasetProfile.demographicDimensions.map((dimension) => ({
+        key: dimension.key,
+        value: demographicFilters[dimension.key] || 'all',
+      }))
+    );
+    const loadKey = `${geographyLevel}|${selectedCode}|${flowDirection}|${filtersKey}`;
     
     // Evitar carregamentos duplicados
     if (loadingRef.current && currentLoadRef.current === loadKey) {
       return;
     }
 
-    console.log(`FlowsVisualization useEffect disparado - dataSource: ${dataSource}, selectedCode: ${selectedCode}, filters: SocialGrade=${socialGrade}, Age=${ageGroup}`);
+    console.log(`FlowsVisualization useEffect disparado - geographyLevel: ${geographyLevel}, selectedCode: ${selectedCode}, filters:`, demographicFilters);
     
     if (!selectedCode) {
       setFlowsData([]);
@@ -90,13 +98,13 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
     
     const loadData = async () => {
       try {
-        console.log(`Carregando flows para ${selectedCode} (${dataSource})...`);
+        console.log(`Carregando flows para ${selectedCode} (${geographyLevel})...`);
         
         // Usar loadFlowsFiltered se há filtros demográficos
-        const hasFilters = socialGrade !== 'all' || ageGroup !== 'all';
+        const hasFilters = hasActiveDemographicFilters(demographicFilters, datasetProfile.demographicDimensions);
         const data = hasFilters
-          ? await loadFlowsFiltered(selectedCode, flowDirection, 50000, dataSource, socialGrade, ageGroup)
-          : await loadFlows(selectedCode, flowDirection, 50000, dataSource);
+          ? await loadFlowsFiltered(selectedCode, flowDirection, 50000, geographyLevel, demographicFilters)
+          : await loadFlows(selectedCode, flowDirection, 50000, geographyLevel);
         
         console.log(`Fluxos carregados:`, data.features?.length || 0);
         setFlowsData(data.features as FlowFeature[] || []);
@@ -120,11 +128,11 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
     };
     
     loadData();
-  }, [dataSource, selectedCode, flowDirection, socialGrade, ageGroup]);
+  }, [geographyLevel, selectedCode, flowDirection, demographicFilters, datasetProfile]);
 
   // Filtrar fluxos baseado na direção e calcular estatísticas
   const { flowsGeoJSON, stats } = useMemo(() => {
-    console.log(`useMemo disparado - selectedCode: ${selectedCode}, flowsData.length: ${flowsData.length}, dataSource: ${dataSource}`);
+    console.log(`useMemo disparado - selectedCode: ${selectedCode}, flowsData.length: ${flowsData.length}, geographyLevel: ${geographyLevel}`);
     
     if (!selectedCode || flowsData.length === 0) {
       console.log(`Retornando null - selectedCode: ${selectedCode}, flowsData.length: ${flowsData.length}`);
@@ -199,7 +207,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
     const avgFlow = totalFlow / counts.length;
     
     const directionText = flowDirection === 'incoming' ? 'chegando em' : 'saindo de';
-    console.log(`${filteredFlows.length} fluxos ${directionText} ${selectedCode} (${dataSource.toUpperCase()})`);
+    console.log(`${filteredFlows.length} fluxos ${directionText} ${selectedCode} (${geographyLevel.toUpperCase()})`);
     console.log(`Total de pessoas: ${totalFlow.toLocaleString()}`);
     console.log(`Fluxo máximo: ${maxFlow.toLocaleString()}`);
     console.log(`Fluxo mínimo: ${minFlow.toLocaleString()}`);
@@ -217,7 +225,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
         count: filteredFlows.length
       }
     };
-  }, [selectedCode, flowsData, flowDirection, dataSource, maxFlows, minCount, showInternal]);
+  }, [selectedCode, flowsData, flowDirection, geographyLevel, maxFlows, minCount, showInternal]);
 
   // Contar total de flows disponíveis e máximo de pessoas (APÓS aplicar filtros)
   const { totalAvailableFlows, maxPeopleCount } = useMemo(() => {
@@ -324,8 +332,8 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
         maxPeopleCount={maxPeopleCount}
         isMinimized={isFiltersMinimized}
         onToggleMinimize={() => setIsFiltersMinimized(!isFiltersMinimized)}
-        socialGrade={socialGrade}
-        ageGroup={ageGroup}
+        datasetProfile={datasetProfile}
+        demographicFilters={demographicFilters}
         isCompact={isCompactUI}
       />
 
@@ -441,13 +449,13 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
 
       {/* Camada de linhas com cores baseadas no volume de fluxo */}
       <Source
-        id={`${dataSource}-flows`}
+        id={`${geographyLevel}-flows`}
         type="geojson"
         data={flowsGeoJSON}
       >
         {/* Linhas principais - cor baseada no volume */}
         <Layer
-          id={`${dataSource}-flow-lines`}
+          id={`${geographyLevel}-flow-lines`}
           type="line"
           paint={{
             // Cor: gradiente de roxo claro a roxo intenso
@@ -480,7 +488,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
         
         {/* Camada de brilho para destacar linhas */}
         <Layer
-          id={`${dataSource}-flow-glow`}
+          id={`${geographyLevel}-flow-glow`}
           type="line"
           paint={{
             'line-color': [

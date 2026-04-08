@@ -1,4 +1,3 @@
-// Mobility Flows Visualization App - Fixed ltlaName state
 import * as React from 'react';
 import { useRef, useCallback, useEffect } from 'react';
 import type { MapRef } from '@vis.gl/react-maplibre';
@@ -6,21 +5,25 @@ import type { MapRef } from '@vis.gl/react-maplibre';
 // Components
 import { InteractiveMap } from './components/InteractiveMap';
 import { AreaSelectionControls } from './components/AreaSelectionControls';
-import { LTLASelector } from './components/LTLASelector';
+import { AggregateAreaSelector } from './components/AggregateAreaSelector';
 import { CacheDebugPanel } from './components/CacheDebugPanel';
 import { AnalyticsDashboard } from './components/analytics';
 import { AnalyticsFilters } from './components/analytics/AnalyticsFilters';
 
 // Hooks
 import { useSelectedArea } from './hooks/useSelectedArea';
+import {
+  ACTIVE_DATASET_PROFILE,
+  createInitialDemographicFilters,
+} from './constants/datasetProfiles';
 
 // Constants & Types
-import type { ViewState, SocialGrade, AgeGroup } from './types';
+import type { DemographicFilters, GeographyLevel, ViewState } from './types';
 
 const DEFAULT_VIEW_STATE: ViewState = {
-  longitude: -1.5,
-  latitude: 52.5,
-  zoom: 6,
+  longitude: ACTIVE_DATASET_PROFILE.mapView.longitude,
+  latitude: ACTIVE_DATASET_PROFILE.mapView.latitude,
+  zoom: ACTIVE_DATASET_PROFILE.mapView.zoom,
 };
 
 interface MapClickEvent {
@@ -34,19 +37,20 @@ interface MapClickEvent {
 export default function App() {
   const [viewState, setViewState] = React.useState<ViewState>(DEFAULT_VIEW_STATE);
   const [mobilityDataSource] = React.useState<'general' | 'london'>('general');
-  const [showAllPoints, setShowAllPoints] = React.useState(false);
-  const [showLTLAs, setShowLTLAs] = React.useState(true);
-  const [selectedLTLA, setSelectedLTLA] = React.useState<string | null>(null);
-  const [selectedLTLAName, setSelectedLTLAName] = React.useState<string>('');
-  const [selectedMSOAName, setSelectedMSOAName] = React.useState<string>('');
-  const [viewMode, setViewMode] = React.useState<'msoa' | 'ltla'>('ltla');
+  const [showBasePoints, setShowBasePoints] = React.useState(false);
+  const [showAggregateAreas, setShowAggregateAreas] = React.useState(true);
+  const [selectedAggregateAreaCode, setSelectedAggregateAreaCode] = React.useState<string | null>(null);
+  const [selectedAggregateAreaName, setSelectedAggregateAreaName] = React.useState<string>('');
+  const [selectedBaseAreaName, setSelectedBaseAreaName] = React.useState<string>('');
+  const [geographyLevel, setGeographyLevel] = React.useState<GeographyLevel>('aggregate');
   const [flowDirection, setFlowDirection] = React.useState<'incoming' | 'outgoing'>('incoming');
   const [isFullscreen, setIsFullscreen] = React.useState(false);
   const [includeInternalFlows, setIncludeInternalFlows] = React.useState(false);
 
   // Filtros demograficos (compartilhados entre Dashboard e Mapa)
-  const [socialGrade, setSocialGrade] = React.useState<SocialGrade>('all');
-  const [ageGroup, setAgeGroup] = React.useState<AgeGroup>('all');
+  const [demographicFilters, setDemographicFilters] = React.useState<DemographicFilters>(() =>
+    createInitialDemographicFilters(ACTIVE_DATASET_PROFILE)
+  );
 
   const mapRef = useRef<MapRef>(null);
 
@@ -65,12 +69,45 @@ export default function App() {
     preinitDB();
   }, []);
 
+  useEffect(() => {
+    setDemographicFilters(createInitialDemographicFilters(ACTIVE_DATASET_PROFILE));
+  }, []);
+
   // Hooks
-  const { selectedAreaCode, selectArea, clearSelection } = useSelectedArea();
+  const {
+    selectedAreaCode: selectedBaseAreaCode,
+    selectArea: selectBaseArea,
+    clearSelection: clearBaseSelection,
+  } = useSelectedArea();
 
   const onMove = useCallback(({ viewState: newViewState }: { viewState: ViewState }) => {
     setViewState(newViewState);
   }, []);
+
+  const activateAggregateLevel = useCallback(() => {
+    setGeographyLevel('aggregate');
+    setShowBasePoints(false);
+    setShowAggregateAreas(true);
+    selectBaseArea(null);
+    setSelectedBaseAreaName('');
+  }, [selectBaseArea]);
+
+  const activateBaseLevel = useCallback(() => {
+    setGeographyLevel('base');
+    setShowBasePoints(true);
+    setShowAggregateAreas(false);
+    setSelectedAggregateAreaCode(null);
+    setSelectedAggregateAreaName('');
+  }, []);
+
+  const toggleGeographyLevel = useCallback(() => {
+    if (geographyLevel === 'aggregate') {
+      activateBaseLevel();
+      return;
+    }
+
+    activateAggregateLevel();
+  }, [activateAggregateLevel, activateBaseLevel, geographyLevel]);
 
   const handleMapClick = useCallback((event: MapClickEvent) => {
     const { lng, lat } = event.lngLat;
@@ -79,55 +116,74 @@ export default function App() {
     if (mapRef.current && event.features && event.features.length > 0) {
       const feature = event.features[0];
 
-      // Se clicou em um ponto LTLA
+      // Seleção de área agregada
       if (
-        feature.layer.id === 'ltla-points-layer' ||
+        feature.layer.id === 'aggregate-area-points-layer' ||
         feature.layer.id === 'ltla-heatmap-circles' ||
-        feature.layer.id === 'ltla-points-selected'
+        feature.layer.id === 'aggregate-area-points-selected'
       ) {
-        const ltlaCode = String(feature.properties.code || '');
-        const ltlaName = String(feature.properties.name || '');
-        console.log('Distrito LTLA selecionado:', ltlaName, ltlaCode);
-        setSelectedLTLA(ltlaCode);
-        setSelectedLTLAName(ltlaName);
-        selectArea(null); // Limpa selecao MSOA
-        setSelectedMSOAName(''); // Limpa nome MSOA
+        const aggregateAreaCode = String(feature.properties.code || '');
+        const aggregateAreaName = String(feature.properties.name || '');
+        console.log(
+          `${ACTIVE_DATASET_PROFILE.labels.aggregate.singular} selecionado:`,
+          aggregateAreaName,
+          aggregateAreaCode
+        );
+        setSelectedAggregateAreaCode(aggregateAreaCode);
+        setSelectedAggregateAreaName(aggregateAreaName);
+        selectBaseArea(null);
+        setSelectedBaseAreaName('');
         return;
       }
 
-      // Se clicou em um boundary LTLA
-      if (feature.layer.id === 'ltla-boundaries-clickable') {
-        const ltlaCode = String(feature.properties.ltla_code || feature.properties.code || '');
-        const ltlaName = String(feature.properties.ltla_name || feature.properties.name || '');
-        console.log('Boundary LTLA clicado:', ltlaName, ltlaCode);
-        setSelectedLTLA(ltlaCode);
-        setSelectedLTLAName(ltlaName);
-        selectArea(null); // Limpa selecao MSOA
-        setSelectedMSOAName(''); // Limpa nome MSOA
+      if (feature.layer.id === 'aggregate-boundaries-clickable') {
+        const aggregateAreaCode = String(feature.properties.ltla_code || feature.properties.code || '');
+        const aggregateAreaName = String(feature.properties.ltla_name || feature.properties.name || '');
+        console.log(
+          `Boundary ${ACTIVE_DATASET_PROFILE.labels.aggregate.singular} clicado:`,
+          aggregateAreaName,
+          aggregateAreaCode
+        );
+        setSelectedAggregateAreaCode(aggregateAreaCode);
+        setSelectedAggregateAreaName(aggregateAreaName);
+        selectBaseArea(null);
+        setSelectedBaseAreaName('');
         return;
       }
 
-      // Se clicou em um ponto MSOA
+      // Seleção de área base
       if (feature.layer.id === 'all-area-points-layer') {
-        const msoaCode = String(feature.properties.code || '');
-        const msoaName = String(feature.properties.name || '');
-        console.log('Area MSOA selecionada:', msoaName, msoaCode);
-        selectArea(msoaCode);
-        setSelectedMSOAName(msoaName); // Salva nome MSOA
-        setSelectedLTLA(null); // Limpa selecao LTLA
-        setSelectedLTLAName(''); // Limpa nome LTLA
+        const baseAreaCode = String(feature.properties.code || '');
+        const baseAreaName = String(feature.properties.name || '');
+        console.log(
+          `${ACTIVE_DATASET_PROFILE.labels.base.singular} selecionada:`,
+          baseAreaName,
+          baseAreaCode
+        );
+        selectBaseArea(baseAreaCode);
+        setSelectedBaseAreaName(baseAreaName);
+        setSelectedAggregateAreaCode(null);
+        setSelectedAggregateAreaName('');
         return;
       }
 
-      // Se clicou em um boundary MSOA
-      if (feature.layer.id === 'msoa-boundaries-clickable') {
-        const msoaCode = String(feature.properties.MSOA21CD || feature.properties.msoa_code || feature.properties.code || '');
-        const msoaName = String(feature.properties.MSOA21NM || feature.properties.name || '');
-        console.log('Boundary MSOA clicado:', msoaName, msoaCode);
-        selectArea(msoaCode);
-        setSelectedMSOAName(msoaName); // Salva nome MSOA
-        setSelectedLTLA(null); // Limpa selecao LTLA
-        setSelectedLTLAName(''); // Limpa nome LTLA
+      if (feature.layer.id === 'base-boundaries-clickable') {
+        const baseAreaCode = String(
+          feature.properties.MSOA21CD ||
+          feature.properties.msoa_code ||
+          feature.properties.code ||
+          ''
+        );
+        const baseAreaName = String(feature.properties.MSOA21NM || feature.properties.name || '');
+        console.log(
+          `Boundary ${ACTIVE_DATASET_PROFILE.labels.base.singular} clicado:`,
+          baseAreaName,
+          baseAreaCode
+        );
+        selectBaseArea(baseAreaCode);
+        setSelectedBaseAreaName(baseAreaName);
+        setSelectedAggregateAreaCode(null);
+        setSelectedAggregateAreaName('');
         return;
       }
     }
@@ -135,10 +191,16 @@ export default function App() {
     // Se nao clicou em nenhuma feature, apenas registra o ponto (comportamento antigo)
     console.log('Clicou em:', { longitude: lng, latitude: lat });
     // addPoint(lng, lat); // Comentado para nao adicionar marcador
-  }, [mapRef, selectArea, setSelectedLTLA]);
+  }, [mapRef, selectBaseArea]);
 
-  const selectedArea = viewMode === 'ltla' ? (selectedLTLA || undefined) : (selectedAreaCode || undefined);
-  const selectedAreaName = viewMode === 'ltla' ? selectedLTLAName : selectedMSOAName;
+  const selectedArea =
+    geographyLevel === 'aggregate'
+      ? (selectedAggregateAreaCode || undefined)
+      : (selectedBaseAreaCode || undefined);
+  const selectedAreaName =
+    geographyLevel === 'aggregate'
+      ? selectedAggregateAreaName
+      : selectedBaseAreaName;
 
   return (
     <main style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #faf5ff 0%, #ffffff 50%, #f3e8ff 100%)' }}>
@@ -150,7 +212,7 @@ export default function App() {
             Visualização de Mobilidade Geoespacial
           </h1>
           <p className="mt-1 text-sm text-purple-100">
-            Análise interativa de fluxos de mobilidade no Reino Unido
+            {ACTIVE_DATASET_PROFILE.description}
           </p>
         </div>
       </div>
@@ -165,27 +227,16 @@ export default function App() {
               <div className="flex flex-wrap items-center gap-2">
                 <div className="mr-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-700">Controles:</div>
                 <button
-                  onClick={() => {
-                    const newMode = viewMode === 'msoa' ? 'ltla' : 'msoa';
-                    setViewMode(newMode);
-                    setShowAllPoints(newMode === 'msoa');
-                    setShowLTLAs(newMode === 'ltla');
-
-                    if (newMode === 'ltla') {
-                      selectArea(null);
-                      setSelectedMSOAName('');
-                    } else {
-                      setSelectedLTLA(null);
-                      setSelectedLTLAName('');
-                    }
-                  }}
+                  onClick={toggleGeographyLevel}
                   className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors sm:text-xs ${
-                    viewMode === 'ltla'
+                    geographyLevel === 'aggregate'
                       ? 'border-purple-700 bg-purple-700 text-white hover:bg-purple-800'
                       : 'border-purple-300 bg-purple-50 text-purple-800 hover:bg-purple-100'
                   }`}
                 >
-                  {viewMode === 'ltla' ? 'Cidades (LTLA)' : 'Areas (MSOA)'}
+                  {geographyLevel === 'aggregate'
+                    ? ACTIVE_DATASET_PROFILE.labels.aggregate.modeLabel
+                    : ACTIVE_DATASET_PROFILE.labels.base.modeLabel}
                 </button>
                 <button
                   onClick={() => setIsFullscreen(!isFullscreen)}
@@ -196,32 +247,32 @@ export default function App() {
                 </button>
               </div>
             </div>
-            {viewMode === 'ltla' ? (
-              <LTLASelector
-                selectedLTLA={selectedLTLA}
-                onSelectLTLA={(ltlaCode, ltlaName) => {
-                  setSelectedLTLA(ltlaCode);
-                  setSelectedLTLAName(ltlaName);
-                  selectArea(null); // Limpa selecao MSOA
-                  setSelectedMSOAName(''); // Limpa nome MSOA
+            {geographyLevel === 'aggregate' ? (
+              <AggregateAreaSelector
+                selectedAggregateAreaCode={selectedAggregateAreaCode}
+                onSelectAggregateArea={(aggregateAreaCode, aggregateAreaName) => {
+                  setSelectedAggregateAreaCode(aggregateAreaCode);
+                  setSelectedAggregateAreaName(aggregateAreaName);
+                  selectBaseArea(null);
+                  setSelectedBaseAreaName('');
                 }}
                 onClearSelection={() => {
-                  setSelectedLTLA(null);
-                  setSelectedLTLAName('');
+                  setSelectedAggregateAreaCode(null);
+                  setSelectedAggregateAreaName('');
                 }}
               />
             ) : (
               <AreaSelectionControls
-                selectedAreaCode={selectedAreaCode}
+                selectedAreaCode={selectedBaseAreaCode}
                 onSelectArea={(code) => {
-                  selectArea(code);
-                  setSelectedMSOAName(''); // Nome sera atualizado ao clicar no mapa
-                  setSelectedLTLA(null); // Limpa selecao LTLA
-                  setSelectedLTLAName(''); // Limpa nome LTLA
+                  selectBaseArea(code);
+                  setSelectedBaseAreaName('');
+                  setSelectedAggregateAreaCode(null);
+                  setSelectedAggregateAreaName('');
                 }}
                 onClearSelection={() => {
-                  clearSelection();
-                  setSelectedMSOAName(''); // Limpa nome MSOA
+                  clearBaseSelection();
+                  setSelectedBaseAreaName('');
                 }}
               />
             )}
@@ -232,13 +283,20 @@ export default function App() {
               Filtros dos Gráficos
             </p>
 
+            <div className="rounded-lg border border-purple-100 bg-purple-50/60 px-3 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-purple-700">
+                {ACTIVE_DATASET_PROFILE.labels.datasetActiveLabel}
+              </p>
+              <p className="text-sm font-semibold text-purple-950">{ACTIVE_DATASET_PROFILE.label}</p>
+              <p className="text-[11px] text-purple-700">{ACTIVE_DATASET_PROFILE.description}</p>
+            </div>
+
             <AnalyticsFilters
-              socialGrade={socialGrade}
-              ageGroup={ageGroup}
+              datasetProfile={ACTIVE_DATASET_PROFILE}
+              filters={demographicFilters}
               direction={flowDirection}
               compact
-              onSocialGradeChange={setSocialGrade}
-              onAgeGroupChange={setAgeGroup}
+              onFiltersChange={setDemographicFilters}
               onDirectionChange={setFlowDirection}
             />
 
@@ -269,14 +327,15 @@ export default function App() {
               onClick={handleMapClick}
               onFlyToPoint={() => {}}
               mobilityDataSource={mobilityDataSource}
-              selectedAreaCode={selectedAreaCode}
-              showAllPoints={showAllPoints}
-              showLTLAs={showLTLAs}
-              selectedLTLA={selectedLTLA}
+              selectedBaseAreaCode={selectedBaseAreaCode}
+              showBasePoints={showBasePoints}
+              showAggregateAreas={showAggregateAreas}
+              selectedAggregateAreaCode={selectedAggregateAreaCode}
               flowDirection={flowDirection}
               isFullscreen={false}
-              socialGrade={socialGrade}
-              ageGroup={ageGroup}
+              geographyLevel={geographyLevel}
+              datasetProfile={ACTIVE_DATASET_PROFILE}
+              demographicFilters={demographicFilters}
               includeInternalFlows={includeInternalFlows}
               onIncludeInternalFlowsChange={setIncludeInternalFlows}
             />
@@ -286,14 +345,13 @@ export default function App() {
             <AnalyticsDashboard
               selectedArea={selectedArea}
               areaName={selectedAreaName}
-              dataSource={viewMode}
-              socialGrade={socialGrade}
-              ageGroup={ageGroup}
+              geographyLevel={geographyLevel}
+              datasetProfile={ACTIVE_DATASET_PROFILE}
+              demographicFilters={demographicFilters}
               direction={flowDirection}
               includeInternalFlows={includeInternalFlows}
               showTopControls={false}
-              onSocialGradeChange={setSocialGrade}
-              onAgeGroupChange={setAgeGroup}
+              onDemographicFiltersChange={setDemographicFilters}
               onDirectionChange={setFlowDirection}
               onIncludeInternalFlowsChange={setIncludeInternalFlows}
             />
@@ -312,14 +370,15 @@ export default function App() {
           onClick={handleMapClick}
           onFlyToPoint={() => {}}
           mobilityDataSource={mobilityDataSource}
-          selectedAreaCode={selectedAreaCode}
-          showAllPoints={showAllPoints}
-          showLTLAs={showLTLAs}
-          selectedLTLA={selectedLTLA}
+          selectedBaseAreaCode={selectedBaseAreaCode}
+          showBasePoints={showBasePoints}
+          showAggregateAreas={showAggregateAreas}
+          selectedAggregateAreaCode={selectedAggregateAreaCode}
           flowDirection={flowDirection}
           isFullscreen
-          socialGrade={socialGrade}
-          ageGroup={ageGroup}
+          geographyLevel={geographyLevel}
+          datasetProfile={ACTIVE_DATASET_PROFILE}
+          demographicFilters={demographicFilters}
           includeInternalFlows={includeInternalFlows}
           onIncludeInternalFlowsChange={setIncludeInternalFlows}
         />
@@ -339,19 +398,16 @@ export default function App() {
           <div className="fixed top-4 left-4 z-[60] flex flex-col gap-3">
             {/* Botao de alternar modo */}
             <button
-              onClick={() => {
-                const newMode = viewMode === 'msoa' ? 'ltla' : 'msoa';
-                setViewMode(newMode);
-                setShowAllPoints(newMode === 'msoa');
-                setShowLTLAs(newMode === 'ltla');
-              }}
+              onClick={toggleGeographyLevel}
               className={`px-5 py-2.5 rounded-lg font-semibold transition-all shadow-2xl transform hover:scale-105 border-2 border-white ${
-                viewMode === 'ltla'
+                geographyLevel === 'aggregate'
                   ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800'
                   : 'bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700'
               }`}
             >
-              {viewMode === 'ltla' ? 'Modo: Cidades (LTLA)' : 'Modo: Áreas (MSOA)'}
+              {geographyLevel === 'aggregate'
+                ? `Modo: ${ACTIVE_DATASET_PROFILE.labels.aggregate.modeLabel}`
+                : `Modo: ${ACTIVE_DATASET_PROFILE.labels.base.modeLabel}`}
             </button>
           </div>
         </>

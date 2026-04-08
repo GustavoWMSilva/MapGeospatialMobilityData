@@ -1,14 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Map, Marker } from '@vis.gl/react-maplibre';
 import type { MapRef } from '@vis.gl/react-maplibre';
-import type { Point, ViewState } from '../types';
+import type { DatasetProfile, DemographicFilters, GeographyLevel, Point, ViewState } from '../types';
 import { AnimatedLines } from './AnimatedLines';
 import { CityBoundaries } from './CityBoundaries';
 import { AllAreaPoints } from './AllAreaPoints';
-import { LTLAPoints } from './LTLAPoints';
+import { AggregateAreaPoints } from './AggregateAreaPoints';
 import { FlowsVisualization } from './FlowsVisualization';
 import { MAP_COLORS } from '../constants/mapColors';
-// import { LTLABoundaries } from './LTLABoundaries'; // Temporariamente desabilitado
 
 interface InteractiveMapProps {
   mapRef: React.RefObject<MapRef | null>;
@@ -20,14 +19,15 @@ interface InteractiveMapProps {
   linesGeoJSON?: GeoJSON.FeatureCollection;
   animatedPointsGeoJSON?: GeoJSON.FeatureCollection;
   mobilityDataSource?: 'general' | 'london';
-  selectedAreaCode?: string | null;
-  showAllPoints?: boolean;
-  showLTLAs?: boolean;
-  selectedLTLA?: string | null;
+  selectedBaseAreaCode?: string | null;
+  showBasePoints?: boolean;
+  showAggregateAreas?: boolean;
+  selectedAggregateAreaCode?: string | null;
   flowDirection?: 'incoming' | 'outgoing';
   isFullscreen?: boolean;
-  socialGrade?: string;
-  ageGroup?: string;
+  geographyLevel: GeographyLevel;
+  datasetProfile: DatasetProfile;
+  demographicFilters?: DemographicFilters;
   includeInternalFlows?: boolean;
   onIncludeInternalFlowsChange?: (value: boolean) => void;
 }
@@ -42,19 +42,21 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   linesGeoJSON,
   animatedPointsGeoJSON,
   mobilityDataSource = 'general',
-  selectedAreaCode = null,
-  showAllPoints = false,
-  showLTLAs = false,
-  selectedLTLA = null,
+  selectedBaseAreaCode = null,
+  showBasePoints = false,
+  showAggregateAreas = false,
+  selectedAggregateAreaCode = null,
   flowDirection = 'incoming',
   isFullscreen = false,
-  socialGrade = 'all',
-  ageGroup = 'all',
+  geographyLevel,
+  datasetProfile,
+  demographicFilters = {},
   includeInternalFlows = false,
-  onIncludeInternalFlowsChange
+  onIncludeInternalFlowsChange,
 }) => {
   const [activeConnectedAreaCodes, setActiveConnectedAreaCodes] = useState<string[]>([]);
-  const selectedBoundaryCode = showLTLAs ? selectedLTLA : selectedAreaCode;
+  const selectedBoundaryCode =
+    geographyLevel === 'aggregate' ? selectedAggregateAreaCode : selectedBaseAreaCode;
 
   useEffect(() => {
     if (!selectedBoundaryCode) {
@@ -64,20 +66,26 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
   const markers = useMemo(
     () =>
-      points.map((p, i) => (
-        <Marker 
-          key={i} 
-          longitude={p.lng} 
-          latitude={p.lat} 
+      points.map((point, index) => (
+        <Marker
+          key={index}
+          longitude={point.lng}
+          latitude={point.lat}
           color="blue"
-          onClick={() => onFlyToPoint(p)}
+          onClick={() => onFlyToPoint(point)}
         />
       )),
     [points, onFlyToPoint]
   );
 
   return (
-    <div className={isFullscreen ? "h-screen w-screen overflow-hidden relative" : "h-[calc(100vh-8rem)] overflow-hidden shadow-2xl rounded-xl relative border-4 border-purple-200"}>
+    <div
+      className={
+        isFullscreen
+          ? 'relative h-screen w-screen overflow-hidden'
+          : 'relative h-[calc(100vh-8rem)] overflow-hidden rounded-xl border-4 border-purple-200 shadow-2xl'
+      }
+    >
       <Map
         ref={mapRef}
         {...viewState}
@@ -92,83 +100,69 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         }
         interactiveLayerIds={[
           'flow-lines',
-          'ltla-boundaries-clickable',  // Boundaries LTLA clicáveis
-          'msoa-boundaries-clickable'   // Boundaries MSOA clicáveis
+          'aggregate-boundaries-clickable',
+          'base-boundaries-clickable',
         ]}
         cursor="pointer"
       >
         {markers}
-        
-        {/* Todos os pontos/centróides das áreas */}
-        <AllAreaPoints 
-          isVisible={showAllPoints}
-          pointColor={MAP_COLORS.points.msoa}
-          pointSize={2}
-        />
-        
-        {/* City Boundaries - Bordas das áreas/cidades - varia entre LTLA e MSOA */}
-        <CityBoundaries 
-          key={showLTLAs ? 'ltla' : 'msoa'}  // Forçar re-montagem ao mudar
-          isVisible={true}
+
+        <AllAreaPoints isVisible={showBasePoints} pointColor={MAP_COLORS.points.msoa} pointSize={2} />
+
+        <CityBoundaries
+          key={geographyLevel}
+          isVisible
           borderColor={MAP_COLORS.boundaries.line}
           borderWidth={MAP_COLORS.boundaries.baseLineWidth}
           fillColor={MAP_COLORS.boundaries.fill}
           fillOpacity={MAP_COLORS.boundaries.baseFillOpacity}
           selectedCode={selectedBoundaryCode}
           connectedCodes={activeConnectedAreaCodes}
-          dataSource={showLTLAs ? 'ltla' : 'msoa'}  // Alterar baseado no modo
+          geographyLevel={geographyLevel}
         />
-        
-        {/* LTLA Boundaries - Temporariamente desabilitado (requer Stadia Maps API key) */}
-        {/* {showLTLAs && (
-          <LTLABoundaries 
-            selectedLTLA={selectedLTLA}
-          />
-        )} */}
-        
-        {/* LTLA Flows Visualization - renderizar ANTES dos pontos */}
-        {showLTLAs && selectedLTLA && (
-          <FlowsVisualization 
-            selectedCode={selectedLTLA}
-            isVisible={true}
+
+        {showAggregateAreas && selectedAggregateAreaCode && (
+          <FlowsVisualization
+            selectedCode={selectedAggregateAreaCode}
+            isVisible
             flowDirection={flowDirection}
-            dataSource="ltla"
+            geographyLevel="aggregate"
             isFullscreen={isFullscreen}
-            socialGrade={socialGrade}
-            ageGroup={ageGroup}
+            datasetProfile={datasetProfile}
+            demographicFilters={demographicFilters}
             showInternal={includeInternalFlows}
             onShowInternalChange={onIncludeInternalFlowsChange}
             onActiveConnectionsChange={setActiveConnectedAreaCodes}
           />
         )}
-        
-        {/* MSOA Flows Visualization - renderizar ANTES dos pontos */}
-        {showAllPoints && selectedAreaCode && (
+
+        {showBasePoints && selectedBaseAreaCode && (
           <>
-            {console.log('🎯 Renderizando FlowsVisualization MSOA:', { showAllPoints, selectedAreaCode, mobilityDataSource, flowDirection })}
-            <FlowsVisualization 
-              selectedCode={selectedAreaCode}
-              isVisible={true}
+            {console.log('Renderizando FlowsVisualization base:', {
+              showBasePoints,
+              selectedBaseAreaCode,
+              mobilityDataSource,
+              flowDirection,
+            })}
+            <FlowsVisualization
+              selectedCode={selectedBaseAreaCode}
+              isVisible
               flowDirection={flowDirection}
-              dataSource="msoa"
+              geographyLevel="base"
               isFullscreen={isFullscreen}
-              socialGrade={socialGrade}
-              ageGroup={ageGroup}
+              datasetProfile={datasetProfile}
+              demographicFilters={demographicFilters}
               showInternal={includeInternalFlows}
               onShowInternalChange={onIncludeInternalFlowsChange}
               onActiveConnectionsChange={setActiveConnectedAreaCodes}
             />
           </>
         )}
-        
-        {/* LTLA Points - City-level Aggregation - renderizar POR ÚLTIMO para ficar por cima */}
-        {showLTLAs && (
-          <LTLAPoints 
-            selectedLTLA={selectedLTLA}
-          />
+
+        {showAggregateAreas && (
+          <AggregateAreaPoints selectedAggregateAreaCode={selectedAggregateAreaCode} />
         )}
-        
-        {/* Linhas animadas */}
+
         {linesGeoJSON && animatedPointsGeoJSON && (
           <AnimatedLines
             mapRef={mapRef}

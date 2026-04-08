@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Source, Layer } from '@vis.gl/react-maplibre';
+import { getAggregateCentroidsPath } from '../constants/datasetProfiles';
 
 interface LTLACentroid {
   code: string;
@@ -31,7 +32,7 @@ export const LTLAHeatmap: React.FC<LTLAHeatmapProps> = ({
 
   // Carregar centróides LTLA
   useEffect(() => {
-    fetch('/data/lookup/ltla_centroids.csv')
+    fetch(getAggregateCentroidsPath())
       .then(response => response.text())
       .then(text => {
         // Função para fazer parsing correto de CSV com campos entre aspas
