@@ -1,0 +1,69 @@
+dataset:
+  id: example_city
+  output_root: public/data
+  output_subdir: example_city
+
+flows:
+  source:
+    path: "~/Downloads/example_od.csv"
+    format: csv
+    read_options:
+      sep: ","
+    drop_columns: []
+
+  base:
+    output_file: flows_base.parquet
+    drop_zero_counts: true
+    columns:
+      origin_code: origin_code
+      origin_name: origin_name
+      dest_code: dest_code
+      dest_name: dest_name
+      count: count
+
+  dimensions:
+    - key: age
+      source: base
+      output_file: flows_age.parquet
+      code_column: age_code
+      category_column: age_group
+      drop_zero_counts: true
+      categories:
+        - code: 1
+          value: children
+          source_column: age_children
+        - code: 2
+          value: adults
+          source_column: age_adults
+
+geography:
+  base:
+    source:
+      path: "~/Downloads/**/base_areas.shp"
+      format: geofile
+    code_column: BASE_CODE
+    name_column: BASE_NAME
+    centroid_name_column: BASE_NAME
+    simplify_tolerance: 0.00002
+
+  aggregate_lookup:
+    base_code_column: BASE_CODE
+    base_name_column: BASE_NAME
+    aggregate_code_column: AGG_CODE
+    aggregate_name_column: AGG_NAME
+    output_base_code_column: msoa21cd
+    output_base_name_column: msoa21nm
+    output_aggregate_code_column: ltla22cd
+    output_aggregate_name_column: ltla22nm
+
+  aggregate:
+    source:
+      path: "~/Downloads/**/aggregate_areas.shp"
+      format: geofile
+    code_column: AGG_CODE
+    name_column: AGG_NAME
+    centroid_name_column: AGG_NAME
+    centroid_count_column: msoa_count
+    boundary_code_property: ltla_code
+    boundary_name_property: ltla_name
+    simplify_tolerance: 0.00005

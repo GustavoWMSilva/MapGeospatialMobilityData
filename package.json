@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "dev:api": "bash -c 'source venv/Scripts/activate && python api/flows_api.py'",
+    "dataset:build": "python scripts/build_dataset.py",
+    "dataset:build:poa": "python scripts/build_dataset.py --config dataset_pipeline_configs/porto_alegre.yaml",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

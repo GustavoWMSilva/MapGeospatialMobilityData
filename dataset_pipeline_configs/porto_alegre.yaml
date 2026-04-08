@@ -1,0 +1,90 @@
+dataset:
+  id: porto_alegre
+  output_root: public/data
+  output_subdir: porto_alegre
+
+flows:
+  source:
+    path: "~/Downloads/od_matrix_enumeration_area.csv"
+    format: csv
+    read_options:
+      sep: ";"
+    drop_columns:
+      - "Unnamed: 0"
+
+  base:
+    output_file: od_matrix_enumeration_area.parquet
+    drop_zero_counts: true
+    columns:
+      origin_code: Origin
+      origin_name: Origin
+      dest_code: Destination
+      dest_name: Destination
+      count: Total
+
+  dimensions:
+    - key: age
+      source: base
+      output_file: od_matrix_enumeration_area_age.parquet
+      code_column: age_code
+      category_column: age_group
+      drop_zero_counts: true
+      categories:
+        - code: 1
+          value: children
+          source_column: "age: [children]"
+        - code: 2
+          value: youngs
+          source_column: "age: [youngs]"
+        - code: 3
+          value: adults
+          source_column: "age: [adults]"
+        - code: 4
+          value: elders
+          source_column: "age: [elders]"
+
+    - key: occupation
+      source: base
+      output_file: od_matrix_enumeration_area_occupation.parquet
+      code_column: occupation_code
+      category_column: occupation
+      drop_zero_counts: true
+      categories:
+        - code: 1
+          value: student
+          source_column: "occupation: [student]"
+        - code: 2
+          value: worker
+          source_column: "occupation: [worker]"
+        - code: 3
+          value: other
+          source_column: "occupation: [other]"
+
+geography:
+  base:
+    source:
+      path: "~/Downloads/**/setores_2022_poa.shp"
+      format: geofile
+    code_column: CD_SETOR
+    name_column: NM_BAIRRO
+    centroid_name_column: CD_SETOR
+    simplify_tolerance: 0.00001
+
+  aggregate_lookup:
+    base_code_column: CD_SETOR
+    base_name_column: CD_SETOR
+    aggregate_code_column: NM_BAIRRO
+    aggregate_name_column: NM_BAIRRO
+    output_base_code_column: msoa21cd
+    output_base_name_column: msoa21nm
+    output_aggregate_code_column: ltla22cd
+    output_aggregate_name_column: ltla22nm
+
+  aggregate:
+    code_column: ltla22cd
+    name_column: ltla22nm
+    centroid_name_column: ltla22nm
+    centroid_count_column: msoa_count
+    boundary_code_property: ltla_code
+    boundary_name_property: ltla_name
+    dissolve_simplify_tolerance: 0.00003

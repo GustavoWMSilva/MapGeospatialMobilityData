@@ -18,6 +18,11 @@ scripts/
 !public/data/lookup/boundaries.geojson
 !public/data/lookup/ltla_boundaries.geojson
 
+# Keep required Porto Alegre public data
+!public/data/porto_alegre/lookup/*.csv
+!public/data/porto_alegre/lookup/*.geojson
+!public/data/porto_alegre/processed/*.parquet
+
 # Keep required root lookup data (used in build/deploy workflows)
 !data/lookup/areas_centroids.csv
 !data/lookup/ltla_centroids.csv

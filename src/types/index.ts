@@ -16,6 +16,86 @@ export interface ViewState {
   zoom: number;
 }
 
+export type GeographyLevel = 'base' | 'aggregate';
+export type DemographicFilters = Record<string, string>;
+export type DimensionMatchMode = 'equals' | 'contains';
+export type DatasetAnalyticsMode = 'uk-legacy' | 'generic';
+
+export interface DatasetParquetConfig {
+  fileName: string;
+  tableName: string;
+  required?: boolean;
+}
+
+export interface DatasetStorageConfig {
+  remoteBaseUrl?: string;
+  localProcessedBasePath: string;
+}
+
+export interface DemographicDimensionOption {
+  value: string;
+  label: string;
+  description?: string;
+}
+
+export interface DemographicDimensionConfig {
+  key: string;
+  label: string;
+  categoryColumn: string;
+  codeColumn?: string;
+  matchMode?: DimensionMatchMode;
+  analyticsRole?: 'socialGrade' | 'age';
+  dataset: DatasetParquetConfig;
+  allLabel?: string;
+  options: DemographicDimensionOption[];
+}
+
+export interface DatasetUnitLabels {
+  singular: string;
+  plural: string;
+  selectorTitle: string;
+  selectedTitle: string;
+  helperText: string;
+  inputPlaceholder?: string;
+  searchPlaceholder?: string;
+  emptySearchTitle?: string;
+  emptySearchHint?: string;
+  modeLabel: string;
+}
+
+export interface DatasetLabels {
+  base: DatasetUnitLabels;
+  aggregate: DatasetUnitLabels;
+  analyticsEmptyTitle: string;
+  analyticsEmptyHint: string;
+  areaChipLabel: string;
+  levelChipLabel: string;
+  datasetActiveLabel: string;
+}
+
+export interface DatasetProfile {
+  id: string;
+  label: string;
+  description: string;
+  geography: {
+    base: string;
+    aggregate?: string;
+  };
+  mapView: ViewState;
+  labels: DatasetLabels;
+  lookup: {
+    baseCentroidsPath: string;
+    aggregateCentroidsPath: string;
+    aggregateLookupPath: string;
+    baseBoundariesPath: string;
+    aggregateBoundariesPath: string;
+  };
+  storage: DatasetStorageConfig;
+  baseFlowDataset: DatasetParquetConfig;
+  analyticsMode: DatasetAnalyticsMode;
+  demographicDimensions: DemographicDimensionConfig[];
+}
+
 // Flow Data Types
 export interface FlowResult {
   origin_code: string;
