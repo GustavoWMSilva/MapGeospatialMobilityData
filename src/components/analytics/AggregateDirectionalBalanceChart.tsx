@@ -129,7 +129,7 @@ export function AggregateDirectionalBalanceChart({
             objective={`Identificar areas atratoras e emissoras com o saldo liquido (incoming - outgoing) por ${aggregateUnitLabel}.`}
           />
         </div>
-        <p className="text-sm text-gray-600">Saldo = incoming - outgoing (positivo = area atratora)</p>
+        <p className="text-sm text-gray-600">Saldo = entrada - saida (positivo = area atratora)</p>
       </div>
 
       <ResponsiveContainer width="100%" height={chartHeight}>
@@ -138,7 +138,7 @@ export function AggregateDirectionalBalanceChart({
           <XAxis
             type="number"
             domain={[-maxAbsBalance, maxAbsBalance]}
-            tickFormatter={(value: number) => Number(value).toLocaleString()}
+            tickFormatter={(value: number) => Number(value).toLocaleString('pt-BR')}
           />
           <YAxis
             type="category"
@@ -150,7 +150,7 @@ export function AggregateDirectionalBalanceChart({
           <ReferenceLine x={0} stroke="#374151" strokeDasharray="4 4" />
           <Tooltip
             formatter={(value: number | string | Array<number | string> | undefined, name) => [
-              Number(value ?? 0).toLocaleString(),
+              Number(value ?? 0).toLocaleString('pt-BR'),
               name === 'balance' ? 'Saldo' : String(name ?? 'Valor'),
             ]}
             labelFormatter={(label, payload) => {
@@ -162,7 +162,7 @@ export function AggregateDirectionalBalanceChart({
               return `${row.aggregateAreaName} (${row.aggregateAreaCode})`;
             }}
           />
-          <Bar dataKey="balance" name="balance" radius={[4, 4, 4, 4]}>
+          <Bar dataKey="balance" name="saldo" radius={[4, 4, 4, 4]}>
             {rows.map((row) => (
               <Cell
                 key={row.aggregateAreaCode}

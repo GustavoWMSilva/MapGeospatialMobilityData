@@ -43,9 +43,9 @@ function quantile(sorted: number[], q: number): number {
 
 function computeScenarioStats(samples: LatencySample[], scenario: LatencyScenario, label: string): ScenarioStats | null {
   const values = samples
-    .filter((s) => s.scenario === scenario)
-    .map((s) => s.latencyMs)
-    .sort((a, b) => a - b);
+    .filter((sample) => sample.scenario === scenario)
+    .map((sample) => sample.latencyMs)
+    .sort((left, right) => left - right);
 
   if (values.length === 0) return null;
 
@@ -103,14 +103,14 @@ export function PerformanceLatencyPanel() {
     const stats = [
       computeScenarioStats(samples, 'api', 'API Flask'),
       computeScenarioStats(samples, 'duckdb', 'DuckDB-WASM'),
-      computeScenarioStats(samples, 'duckdb_cache', 'DuckDB + Cache'),
+      computeScenarioStats(samples, 'duckdb_cache', 'DuckDB + cache'),
     ].filter((item): item is ScenarioStats => item !== null);
 
     return stats;
   }, [samples]);
 
   const globalMax = useMemo(
-    () => Math.max(1, ...scenarioStats.map((s) => s.max)),
+    () => Math.max(1, ...scenarioStats.map((scenario) => scenario.max)),
     [scenarioStats]
   );
 
@@ -133,10 +133,10 @@ export function PerformanceLatencyPanel() {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-semibold text-gray-800">Performance de Latência</h3>
-            <ChartObjectiveHelp objective="Demonstrar ganho arquitetural comparando distribuição de latência por cenário e evolução temporal entre cache cold e warm." />
+            <h3 className="text-base font-semibold text-gray-800">Desempenho de latencia</h3>
+            <ChartObjectiveHelp objective="Demonstrar ganho arquitetural comparando distribuicao de latencia por cenario e evolucao temporal entre cache frio e quente." />
           </div>
-          <p className="text-xs text-gray-600">Boxplot por cenário + série temporal cold/warm cache</p>
+          <p className="text-xs text-gray-600">Boxplot por cenario + serie temporal de cache frio/quente</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -162,40 +162,40 @@ export function PerformanceLatencyPanel() {
 
       {!benchmarkEnabled && (
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
-          Coleta desativada para evitar impacto no mapa. Ative apenas durante medições de benchmark.
+          Coleta desativada para evitar impacto no mapa. Ative apenas durante medicoes de benchmark.
         </div>
       )}
 
       {samples.length === 0 && (
         <div className="rounded-lg border border-purple-100 bg-purple-50 p-3 text-sm text-purple-800">
-          Sem amostras ainda. Interaja com o mapa (troque área/direção/modo) para coletar latências.
+          Sem amostras ainda. Interaja com o mapa (troque area/direcao/modo) para coletar latencias.
         </div>
       )}
 
       {benchmarkEnabled && samples.length > 0 && (
         <div className="space-y-5">
           <div>
-            <h4 className="mb-2 text-sm font-semibold text-gray-700">Distribuição por cenário (ms)</h4>
+            <h4 className="mb-2 text-sm font-semibold text-gray-700">Distribuicao por cenario (ms)</h4>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               {scenarioStats.map((stats) => renderBoxplot(stats, globalMax))}
             </div>
             <div className="mt-1 text-[11px] text-gray-500">
-              Linha fina = min/max, caixa = Q1-Q3, traço central = mediana.
+              Linha fina = min/max, caixa = Q1-Q3, traco central = mediana.
             </div>
           </div>
 
           <div>
-            <h4 className="mb-2 text-sm font-semibold text-gray-700">Série temporal (DuckDB+Cache: cold vs warm)</h4>
+            <h4 className="mb-2 text-sm font-semibold text-gray-700">Serie temporal (DuckDB + cache: frio vs quente)</h4>
             {timeSeriesRows.length === 0 ? (
               <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
-                Ainda nao ha amostras de cache agregado. Selecione {aggregatePluralLabel.toLowerCase()} repetidamente para gerar cold/warm.
+                Ainda nao ha amostras de cache agregado. Selecione {aggregatePluralLabel.toLowerCase()} repetidamente para gerar cache frio/quente.
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={timeSeriesRows} margin={{ top: 8, right: 20, left: 8, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="idx" tick={{ fontSize: 11 }} />
-                  <YAxis tickFormatter={(v: number) => `${Number(v).toFixed(0)}`} tick={{ fontSize: 11 }} />
+                  <YAxis tickFormatter={(value: number) => `${Number(value).toFixed(0)}`} tick={{ fontSize: 11 }} />
                   <Tooltip
                     formatter={(value: number | string | Array<number | string> | undefined, name) => [
                       `${Number(value ?? 0).toFixed(2)} ms`,
@@ -203,8 +203,8 @@ export function PerformanceLatencyPanel() {
                     ]}
                   />
                   <Legend />
-                  <Line type="monotone" dataKey="cold" name="Cold cache" connectNulls={false} stroke="#DC2626" strokeWidth={2} dot={{ r: 2 }} />
-                  <Line type="monotone" dataKey="warm" name="Warm cache" connectNulls={false} stroke="#059669" strokeWidth={2} dot={{ r: 2 }} />
+                  <Line type="monotone" dataKey="cold" name="Cache frio" connectNulls={false} stroke="#DC2626" strokeWidth={2} dot={{ r: 2 }} />
+                  <Line type="monotone" dataKey="warm" name="Cache quente" connectNulls={false} stroke="#059669" strokeWidth={2} dot={{ r: 2 }} />
                 </LineChart>
               </ResponsiveContainer>
             )}

@@ -38,12 +38,12 @@ const DEFAULT_DASHBOARD_CHARTS: Record<DatasetChartId, DatasetChartConfig> = {
     defaultCollapsed: true,
   },
   odHeatmap: {
-    title: 'Heatmap OD Top N',
+    title: 'Mapa de calor OD (Top N)',
     enabled: true,
     defaultCollapsed: true,
   },
   socialMultiples: {
-    title: 'Small multiples por classe',
+    title: 'Multiplos paineis por classe',
     enabled: true,
     defaultCollapsed: true,
   },
@@ -71,8 +71,8 @@ const DEFAULT_DASHBOARD_CONFIG: Omit<DatasetDashboardConfig, 'charts'> = {
   mainChartsSubtitle: 'Graficos principais para leitura rapida do fluxo',
   directionLabel: 'Direcao',
   directionValues: {
-    incoming: 'Incoming',
-    outgoing: 'Outgoing',
+    incoming: 'Entrada',
+    outgoing: 'Saida',
   },
   includeInternalFlowsLabel: 'Incluir fluxo interno (origem = destino)',
   includeInternalFlowsHint: 'Quando desativado, os graficos ignoram fluxos dentro da mesma area.',

@@ -156,7 +156,7 @@ export default function App() {
         const aggregateAreaCode = String(feature.properties.ltla_code || feature.properties.code || '');
         const aggregateAreaName = String(feature.properties.ltla_name || feature.properties.name || '');
         console.log(
-          `Boundary ${ACTIVE_DATASET_PROFILE.labels.aggregate.singular} clicado:`,
+          `Limite de ${ACTIVE_DATASET_PROFILE.labels.aggregate.singular} clicado:`,
           aggregateAreaName,
           aggregateAreaCode
         );
@@ -192,7 +192,7 @@ export default function App() {
         );
         const baseAreaName = String(feature.properties.MSOA21NM || feature.properties.name || '');
         console.log(
-          `Boundary ${ACTIVE_DATASET_PROFILE.labels.base.singular} clicado:`,
+          `Limite de ${ACTIVE_DATASET_PROFILE.labels.base.singular} clicado:`,
           baseAreaName,
           baseAreaCode
         );
@@ -235,7 +235,7 @@ export default function App() {
 
           <div className="rounded-2xl border border-purple-300/40 bg-white/10 p-2 backdrop-blur-sm">
             <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-purple-100">
-              Dataset
+              Base de dados
             </div>
             <div className="flex flex-wrap gap-2">
               {DATASET_TOGGLE_OPTIONS.map((option) => {
@@ -456,7 +456,7 @@ export default function App() {
 
             <div className="rounded-xl border-2 border-white bg-white/90 p-2 shadow-2xl backdrop-blur-sm">
               <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-purple-700">
-                Dataset
+                Base de dados
               </div>
               <div className="flex gap-2">
                 {DATASET_TOGGLE_OPTIONS.map((option) => {

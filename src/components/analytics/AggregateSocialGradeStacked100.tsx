@@ -134,7 +134,7 @@ export function AggregateSocialGradeStacked100({
   if (visibleRows.length === 0) {
     return (
       <div className="flex h-80 flex-col items-center justify-center p-4 text-center text-gray-500">
-        <p className="font-semibold">Sem dados de Social Grade para {aggregateUnitLabel}</p>
+        <p className="font-semibold">Sem dados de classe social para {aggregateUnitLabel}</p>
         <p className="mt-2 text-sm">Verifique a disponibilidade do dataset demografico</p>
       </div>
     );
@@ -145,14 +145,14 @@ export function AggregateSocialGradeStacked100({
       <div className="mb-3">
         <div className="flex items-center gap-2">
           <h3 className="text-base font-semibold text-gray-800">
-            Social Grade por {aggregateUnitLabel} (100%)
+            Classe social por {aggregateUnitLabel} (100%)
           </h3>
           <ChartObjectiveHelp
             objective={`Comparar proporcionalmente o perfil social (AB/C1/C2/DE) entre ${aggregateUnitPluralLabel.toLowerCase()}, independentemente do volume absoluto.`}
           />
         </div>
         <p className="text-xs text-gray-600">
-          Comparativo proporcional por area ({direction === 'incoming' ? 'incoming' : 'outgoing'})
+          Comparativo proporcional por area ({direction === 'incoming' ? 'entrada' : 'saida'})
         </p>
       </div>
 

@@ -208,9 +208,9 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
     
     const directionText = flowDirection === 'incoming' ? 'chegando em' : 'saindo de';
     console.log(`${filteredFlows.length} fluxos ${directionText} ${selectedCode} (${geographyLevel.toUpperCase()})`);
-    console.log(`Total de pessoas: ${totalFlow.toLocaleString()}`);
-    console.log(`Fluxo máximo: ${maxFlow.toLocaleString()}`);
-    console.log(`Fluxo mínimo: ${minFlow.toLocaleString()}`);
+    console.log(`Total de pessoas: ${totalFlow.toLocaleString('pt-BR')}`);
+    console.log(`Fluxo máximo: ${maxFlow.toLocaleString('pt-BR')}`);
+    console.log(`Fluxo mínimo: ${minFlow.toLocaleString('pt-BR')}`);
 
     return {
       flowsGeoJSON: {
@@ -301,12 +301,12 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   // Calcular intervalos dinâmicos baseados nos dados
   const intervals = [
     { value: 0, label: '0', color: '#F5F3FF' },
-    { value: Math.round(stats.max * 0.01), label: Math.round(stats.max * 0.01).toLocaleString(), color: '#EDE9FE' },
-    { value: Math.round(stats.max * 0.05), label: Math.round(stats.max * 0.05).toLocaleString(), color: '#DDD6FE' },
-    { value: Math.round(stats.max * 0.1), label: Math.round(stats.max * 0.1).toLocaleString(), color: '#C4B5FD' },
-    { value: Math.round(stats.max * 0.2), label: Math.round(stats.max * 0.2).toLocaleString(), color: '#A78BFA' },
-    { value: Math.round(stats.max * 0.5), label: Math.round(stats.max * 0.5).toLocaleString(), color: '#8B5CF6' },
-    { value: stats.max, label: `${stats.max.toLocaleString()}+`, color: '#6D28D9' }
+    { value: Math.round(stats.max * 0.01), label: Math.round(stats.max * 0.01).toLocaleString('pt-BR'), color: '#EDE9FE' },
+    { value: Math.round(stats.max * 0.05), label: Math.round(stats.max * 0.05).toLocaleString('pt-BR'), color: '#DDD6FE' },
+    { value: Math.round(stats.max * 0.1), label: Math.round(stats.max * 0.1).toLocaleString('pt-BR'), color: '#C4B5FD' },
+    { value: Math.round(stats.max * 0.2), label: Math.round(stats.max * 0.2).toLocaleString('pt-BR'), color: '#A78BFA' },
+    { value: Math.round(stats.max * 0.5), label: Math.round(stats.max * 0.5).toLocaleString('pt-BR'), color: '#8B5CF6' },
+    { value: stats.max, label: `${stats.max.toLocaleString('pt-BR')}+`, color: '#6D28D9' }
   ];
 
   const isCompactUI = !isFullscreen;
@@ -372,7 +372,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
               </div>
               <div className="flex justify-between mt-1 px-1">
                 <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-semibold text-gray-600`}>0</span>
-                <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-semibold text-gray-600`}>{stats.max.toLocaleString()}</span>
+                <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-semibold text-gray-600`}>{stats.max.toLocaleString('pt-BR')}</span>
               </div>
             </div>
 
@@ -428,11 +428,11 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
               </div>
               <div className="flex justify-between items-center bg-purple-50 p-2 rounded-lg">
                 <span className="text-xs font-medium text-gray-700">Total de pessoas:</span>
-                <span className="text-sm font-bold text-purple-700">{stats.total.toLocaleString()}</span>
+                <span className="text-sm font-bold text-purple-700">{stats.total.toLocaleString('pt-BR')}</span>
               </div>
               <div className="flex justify-between items-center bg-purple-50 p-2 rounded-lg">
                 <span className="text-xs font-medium text-gray-700">Média por fluxo:</span>
-                <span className="text-sm font-bold text-purple-700">{Math.round(stats.avg).toLocaleString()}</span>
+                <span className="text-sm font-bold text-purple-700">{Math.round(stats.avg).toLocaleString('pt-BR')}</span>
               </div>
             </div>
 

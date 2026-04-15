@@ -25,10 +25,10 @@ interface SocialGradeChartDatum {
 const COLORS = MAP_COLORS.analytics.socialGrade;
 
 const GRADE_LABELS: Record<string, string> = {
-  AB: 'AB - Professional',
-  C1: 'C1 - Middle Class',
-  C2: 'C2 - Skilled Workers',
-  DE: 'DE - Working Class',
+  AB: 'AB - Profissionais',
+  C1: 'C1 - Classe media',
+  C2: 'C2 - Trabalhadores qualificados',
+  DE: 'DE - Classe trabalhadora',
 };
 
 export function SocialGradePieChart({
@@ -44,47 +44,46 @@ export function SocialGradePieChart({
 
   useEffect(() => {
     debugLog(`[SocialGradePieChart] useEffect areaCode=${areaCode} direction=${direction}`);
-    
-    // Limpar dados imediatamente ao trocar de Ã¡rea
+
     setData([]);
     setError(null);
     setLoading(true);
-    
+
     async function loadStats() {
       if (!areaCode) {
         debugLog('[SocialGradePieChart] aguardando selecao de area');
         setLoading(false);
         return;
       }
-      
+
       debugLog(`[SocialGradePieChart] carregando stats para ${areaCode} (${direction})`);
-      
+
       try {
         setLoading(true);
         setError(null);
-        
+
         const stats = await getSocialGradeStats(areaCode, direction, includeInternalFlows);
         debugLog('[SocialGradePieChart] stats recebidas', stats);
-        
+
         if (stats.length === 0) {
           debugWarn('[SocialGradePieChart] nenhum dado retornado');
           setData([]);
           setLoading(false);
           return;
         }
-        
-        const chartData = stats.map(s => {
-          const gradeCode = s.grade.split(' ')[0] as keyof typeof COLORS;
+
+        const chartData = stats.map((stat) => {
+          const gradeCode = stat.grade.split(' ')[0] as keyof typeof COLORS;
           return {
             code: (gradeCode as SocialGrade) || 'all',
             name: GRADE_LABELS[gradeCode] || gradeCode,
-            fullName: s.grade,
-            value: s.total,
-            percentage: s.percentage,
+            fullName: stat.grade,
+            value: stat.total,
+            percentage: stat.percentage,
             color: COLORS[gradeCode] || '#666',
           };
         });
-        
+
         debugLog(`[SocialGradePieChart] dados processados (${chartData.length} categorias)`);
         setData(chartData);
       } catch (err) {
@@ -94,10 +93,9 @@ export function SocialGradePieChart({
         setLoading(false);
       }
     }
-    
-    loadStats();
-    
-    // Cleanup ao desmontar ou trocar de Ã¡rea
+
+    void loadStats();
+
     return () => {
       debugLog(`[SocialGradePieChart] limpando dados de ${areaCode}`);
       setData([]);
@@ -123,8 +121,8 @@ export function SocialGradePieChart({
   if (data.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-gray-500 p-4 text-center">
-        <p className="font-semibold">Dados de Social Grade nÃ£o disponÃ­veis</p>
-        <p className="text-sm mt-2">Dataset ODWP09EW_MSOA nÃ£o carregado</p>
+        <p className="font-semibold">Dados de classe social nao disponiveis</p>
+        <p className="text-sm mt-2">Arquivo ODWP09EW_MSOA nao carregado</p>
       </div>
     );
   }
@@ -138,11 +136,11 @@ export function SocialGradePieChart({
     const y = cy + radius * Math.sin(-midAngle * RADIAN);
 
     return (
-      <text 
-        x={x} 
-        y={y} 
-        fill="white" 
-        textAnchor={x > cx ? 'start' : 'end'} 
+      <text
+        x={x}
+        y={y}
+        fill="white"
+        textAnchor={x > cx ? 'start' : 'end'}
         dominantBaseline="central"
         className="font-semibold text-sm"
       >
@@ -156,12 +154,12 @@ export function SocialGradePieChart({
       <div className="mb-4">
         <div className="flex items-center gap-2">
           <h3 className="text-base font-semibold text-gray-800">
-            Social Grade Distribution
+            Distribuicao por classe social
           </h3>
-          <ChartObjectiveHelp objective="Mostrar a composiÃ§Ã£o social dos fluxos da Ã¡rea selecionada para identificar diferenÃ§as estruturais entre classes." />
+          <ChartObjectiveHelp objective="Mostrar a composicao social dos fluxos da area selecionada para identificar diferencas estruturais entre classes." />
         </div>
         <p className="text-sm text-gray-600">
-          {direction === 'incoming' ? 'Incoming' : 'Outgoing'} commuters by social class
+          {direction === 'incoming' ? 'Entrada' : 'Saida'} de trabalhadores por classe social
         </p>
       </div>
 
@@ -195,10 +193,10 @@ export function SocialGradePieChart({
               />
             ))}
           </Pie>
-          <Tooltip 
+          <Tooltip
             formatter={(value: number | string | Array<number | string> | undefined, name: string | undefined, props: any) => [
-              `${Number(value ?? 0).toLocaleString()} (${props.payload.percentage}%)`,
-              name ?? 'Commuters'
+              `${Number(value ?? 0).toLocaleString('pt-BR')} (${props.payload.percentage}%)`,
+              name ?? 'Pessoas',
             ]}
           />
         </PieChart>
@@ -214,12 +212,12 @@ export function SocialGradePieChart({
               selectedGrade === item.code ? 'bg-gray-100 ring-1 ring-gray-300' : 'hover:bg-gray-50'
             }`}
           >
-            <div 
-              className="w-3 h-3 rounded-full" 
+            <div
+              className="w-3 h-3 rounded-full"
               style={{ backgroundColor: item.color }}
             />
             <span className="text-gray-700">
-              {item.name}: <strong>{item.value.toLocaleString()}</strong>
+              {item.name}: <strong>{item.value.toLocaleString('pt-BR')}</strong>
             </span>
           </button>
         ))}
@@ -227,4 +225,3 @@ export function SocialGradePieChart({
     </div>
   );
 }
-

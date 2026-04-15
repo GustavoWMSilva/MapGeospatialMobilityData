@@ -1,7 +1,3 @@
-/**
- * Painel de debug do cache IndexedDB
- * Mostra informações sobre o cache e permite limpar
- */
 import React, { useEffect, useState } from 'react';
 import { cacheService } from '../utils/cacheService';
 
@@ -22,8 +18,7 @@ export const CacheDebugPanel: React.FC = () => {
   };
 
   useEffect(() => {
-    updateCacheInfo();
-    // Atualizar a cada 5 segundos
+    void updateCacheInfo();
     const interval = setInterval(updateCacheInfo, 5000);
     return () => clearInterval(interval);
   }, []);
@@ -36,13 +31,18 @@ export const CacheDebugPanel: React.FC = () => {
     }
   };
 
+  const formattedCacheSize = (cacheSize / 1024 / 1024).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
   if (!isOpen) {
     return (
       <button
         onClick={() => setIsOpen(true)}
         className="fixed bottom-4 right-4 bg-gray-800 text-white px-3 py-2 rounded-lg shadow-lg hover:bg-gray-700 text-sm z-50"
       >
-        Cache: {(cacheSize / 1024 / 1024).toFixed(2)} MB
+        Cache: {formattedCacheSize} MB
       </button>
     );
   }
@@ -50,12 +50,12 @@ export const CacheDebugPanel: React.FC = () => {
   return (
     <div className="fixed bottom-4 right-4 bg-white border-2 border-gray-300 rounded-lg shadow-xl p-4 z-50 max-w-md">
       <div className="flex justify-between items-center mb-3">
-        <h3 className="font-bold text-lg">Cache IndexedDB</h3>
+        <h3 className="font-bold text-lg">Cache do IndexedDB</h3>
         <button
           onClick={() => setIsOpen(false)}
           className="text-gray-500 hover:text-gray-700"
         >
-          ✕
+          x
         </button>
       </div>
 
@@ -63,10 +63,10 @@ export const CacheDebugPanel: React.FC = () => {
         <div className="flex justify-between text-sm">
           <span className="text-gray-600">Tamanho total:</span>
           <span className="font-mono font-semibold">
-            {(cacheSize / 1024 / 1024).toFixed(2)} MB
+            {formattedCacheSize} MB
           </span>
         </div>
-        
+
         <div className="flex justify-between text-sm">
           <span className="text-gray-600">Entradas:</span>
           <span className="font-mono font-semibold">{cacheKeys.length}</span>
@@ -86,7 +86,7 @@ export const CacheDebugPanel: React.FC = () => {
         onClick={handleClearCache}
         className="w-full bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded text-sm font-semibold"
       >
-        Limpar Cache
+        Limpar cache
       </button>
     </div>
   );

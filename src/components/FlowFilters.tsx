@@ -135,7 +135,7 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
             <div className="flex items-center justify-between">
               <label className={`${isCompact ? 'text-xs' : 'text-sm'} font-medium text-gray-700`}>Quantidade Maxima</label>
               <span className={`${isCompact ? 'text-xs' : 'text-sm'} font-semibold text-purple-700`}>
-                {maxFlows >= totalAvailable ? 'Todos' : maxFlows.toLocaleString()}
+                {maxFlows >= totalAvailable ? 'Todos' : maxFlows.toLocaleString('pt-BR')}
               </span>
             </div>
             <input
@@ -152,9 +152,9 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
             />
             <div className={`flex justify-between text-gray-500 ${isCompact ? 'text-[10px]' : 'text-xs'}`}>
               <span>10</span>
-              <span>{Math.round(totalAvailable * 0.33).toLocaleString()}</span>
-              <span>{Math.round(totalAvailable * 0.67).toLocaleString()}</span>
-              <span>{totalAvailable.toLocaleString()}</span>
+              <span>{Math.round(totalAvailable * 0.33).toLocaleString('pt-BR')}</span>
+              <span>{Math.round(totalAvailable * 0.67).toLocaleString('pt-BR')}</span>
+              <span>{totalAvailable.toLocaleString('pt-BR')}</span>
             </div>
           </div>
 
@@ -162,7 +162,7 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
             <div className="flex items-center justify-between">
               <label className={`${isCompact ? 'text-xs' : 'text-sm'} font-medium text-gray-700`}>Minimo de Pessoas</label>
               <span className={`${isCompact ? 'text-xs' : 'text-sm'} font-semibold text-purple-700`}>
-                {minCount === 0 ? 'Sem filtro' : `${minCount.toLocaleString()}+`}
+                {minCount === 0 ? 'Sem filtro' : `${minCount.toLocaleString('pt-BR')}+`}
               </span>
             </div>
             <input
@@ -179,9 +179,9 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
             />
             <div className={`flex justify-between text-gray-500 ${isCompact ? 'text-[10px]' : 'text-xs'}`}>
               <span>0</span>
-              <span>{Math.round(Math.max(maxPeopleCount, 0) * 0.33).toLocaleString()}</span>
-              <span>{Math.round(Math.max(maxPeopleCount, 0) * 0.67).toLocaleString()}</span>
-              <span>{Math.max(maxPeopleCount, 0).toLocaleString()}</span>
+              <span>{Math.round(Math.max(maxPeopleCount, 0) * 0.33).toLocaleString('pt-BR')}</span>
+              <span>{Math.round(Math.max(maxPeopleCount, 0) * 0.67).toLocaleString('pt-BR')}</span>
+              <span>{Math.max(maxPeopleCount, 0).toLocaleString('pt-BR')}</span>
             </div>
           </div>
         </div>

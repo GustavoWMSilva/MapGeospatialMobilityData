@@ -143,7 +143,7 @@ export const LTLAHeatmap: React.FC<LTLAHeatmapProps> = ({
     });
 
     const maxIntensity = Math.max(...features.map(f => f.properties.intensity));
-    console.log(`📊 Heatmap: ${features.length} pontos, intensidade máxima: ${maxIntensity.toLocaleString()}`);
+    console.log(`📊 Heatmap: ${features.length} pontos, intensidade máxima: ${maxIntensity.toLocaleString('pt-BR')}`);
 
     return {
       type: 'FeatureCollection' as const,
@@ -162,7 +162,7 @@ export const LTLAHeatmap: React.FC<LTLAHeatmapProps> = ({
         <div className="flex items-center gap-2 mb-4">
 
           <h3 className="text-base font-bold text-gray-800">
-            Heatmap de Intensidade
+            Mapa de calor de intensidade
           </h3>
         </div>
         

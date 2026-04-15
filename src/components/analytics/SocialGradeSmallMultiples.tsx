@@ -27,7 +27,7 @@ interface MultipleChart {
 }
 
 const GRADE_CONFIG: Array<{ grade: GradeFilter; title: string }> = [
-  { grade: 'all', title: 'All' },
+  { grade: 'all', title: 'Todos' },
   { grade: 'AB', title: 'AB' },
   { grade: 'C1', title: 'C1' },
   { grade: 'DE', title: 'DE' },
@@ -37,7 +37,7 @@ const COLORS: Record<GradeFilter, string> = MAP_COLORS.analytics.socialMultiples
 
 function shortName(value: string): string {
   if (value.length <= 18) return value;
-  return `${value.slice(0, 17)}…`;
+  return `${value.slice(0, 17)}...`;
 }
 
 export function SocialGradeSmallMultiples({
@@ -111,8 +111,8 @@ export function SocialGradeSmallMultiples({
   if (charts.length === 0 || charts.every((chart) => chart.rows.length === 0)) {
     return (
       <div className="h-72 flex flex-col items-center justify-center text-gray-500 text-center p-4">
-        <p className="font-semibold">Sem dados para small multiples</p>
-        <p className="text-sm mt-1">Verifique filtros ou disponibilidade demográfica</p>
+        <p className="font-semibold">Sem dados para multiplos paineis</p>
+        <p className="text-sm mt-1">Verifique filtros ou disponibilidade demografica</p>
       </div>
     );
   }
@@ -121,10 +121,10 @@ export function SocialGradeSmallMultiples({
     <div className="w-full">
       <div className="mb-3">
         <div className="flex items-center gap-2">
-          <h3 className="text-base font-semibold text-gray-800">Small Multiples por Social Grade</h3>
-          <ChartObjectiveHelp objective="Comparar rapidamente o mesmo indicador entre segmentos sociais (All, AB, C1, DE) usando painéis padronizados." />
+          <h3 className="text-base font-semibold text-gray-800">Multiplos paineis por classe social</h3>
+          <ChartObjectiveHelp objective="Comparar rapidamente o mesmo indicador entre segmentos sociais (Todos, AB, C1, DE) usando paineis padronizados." />
         </div>
-        <p className="text-xs text-gray-600">Comparação lado a lado (All, AB, C1, DE) com o mesmo eixo visual</p>
+        <p className="text-xs text-gray-600">Comparacao lado a lado (Todos, AB, C1, DE) com o mesmo eixo visual</p>
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -134,7 +134,7 @@ export function SocialGradeSmallMultiples({
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={chart.rows} layout="vertical" margin={{ top: 4, right: 4, left: 4, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v: number) => Number(v).toLocaleString()} />
+                <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(value: number) => Number(value).toLocaleString('pt-BR')} />
                 <YAxis
                   type="category"
                   dataKey="aggregateAreaName"
@@ -144,7 +144,7 @@ export function SocialGradeSmallMultiples({
                 />
                 <Tooltip
                   formatter={(value: number | string | Array<number | string> | undefined) => [
-                    Number(value ?? 0).toLocaleString(),
+                    Number(value ?? 0).toLocaleString('pt-BR'),
                     'Saldo',
                   ]}
                   labelFormatter={(label, payload) => {

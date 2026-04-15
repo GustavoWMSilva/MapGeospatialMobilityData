@@ -169,11 +169,11 @@ export function TopFlowsRankingChart({
     <div className="w-full">
       <div className="mb-3">
         <div className="flex items-center gap-2">
-          <h3 className="text-base font-semibold text-gray-800">Top 10 Fluxos</h3>
+          <h3 className="text-base font-semibold text-gray-800">Top 10 fluxos</h3>
           <ChartObjectiveHelp objective="Mostrar os 10 maiores fluxos e como os filtros demográficos alteram o ranking entre origem e destino." />
         </div>
         <p className="text-xs text-gray-600">
-          Ranking por volume ({direction === 'incoming' ? 'incoming' : 'outgoing'}) com filtros ativos
+          Ranking por volume ({direction === 'incoming' ? 'entrada' : 'saida'}) com filtros ativos
         </p>
       </div>
 
@@ -190,8 +190,8 @@ export function TopFlowsRankingChart({
           />
           <Tooltip
             formatter={(value: number | string | Array<number | string> | undefined) => [
-              Number(value ?? 0).toLocaleString(),
-              'Commuters',
+              Number(value ?? 0).toLocaleString('pt-BR'),
+              'Pessoas',
             ]}
             labelFormatter={(_label, payload) => {
               const row = payload && payload.length > 0 ? payload[0]?.payload as RankingDatum | undefined : undefined;

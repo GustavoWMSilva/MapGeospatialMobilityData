@@ -485,13 +485,13 @@ export function AggregationValidationScatter({
         <div className="rounded-lg border border-purple-100 bg-purple-50 px-3 py-2">
           <div className="text-[11px] font-medium text-purple-700">MAE</div>
           <div className="text-sm font-semibold text-purple-900">
-            {qualityMetrics.mae === null ? '-' : qualityMetrics.mae.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            {qualityMetrics.mae === null ? '-' : qualityMetrics.mae.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}
           </div>
         </div>
         <div className="rounded-lg border border-purple-100 bg-purple-50 px-3 py-2">
           <div className="text-[11px] font-medium text-purple-700">RMSE</div>
           <div className="text-sm font-semibold text-purple-900">
-            {qualityMetrics.rmse === null ? '-' : qualityMetrics.rmse.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            {qualityMetrics.rmse === null ? '-' : qualityMetrics.rmse.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}
           </div>
         </div>
       </div>
@@ -503,13 +503,13 @@ export function AggregationValidationScatter({
             type="number"
             dataKey="reference"
             name="Referência"
-            tickFormatter={(value: number) => Number(value).toLocaleString()}
+            tickFormatter={(value: number) => Number(value).toLocaleString('pt-BR')}
           />
           <YAxis
             type="number"
             dataKey="dynamic"
             name="Dinâmico"
-            tickFormatter={(value: number) => Number(value).toLocaleString()}
+            tickFormatter={(value: number) => Number(value).toLocaleString('pt-BR')}
           />
           <ReferenceLine
             segment={[
@@ -521,7 +521,7 @@ export function AggregationValidationScatter({
           />
           <Tooltip
             formatter={(value: number | string | Array<number | string> | undefined, name) => [
-              Number(value ?? 0).toLocaleString(),
+              Number(value ?? 0).toLocaleString('pt-BR'),
               String(name ?? ''),
             ]}
             labelFormatter={(_label, payload) => {
@@ -560,10 +560,10 @@ export function AggregationValidationScatter({
                   <div className="font-medium text-gray-800">{row.aggregateAreaName}</div>
                   <div className="text-gray-500">{row.aggregateAreaCode}</div>
                 </td>
-                <td className="px-3 py-2 text-right">{row.reference.toLocaleString()}</td>
-                <td className="px-3 py-2 text-right">{row.dynamic.toLocaleString()}</td>
-                <td className="px-3 py-2 text-right">{row.mappedBaseAreaCount.toLocaleString()}</td>
-                <td className="px-3 py-2 text-right font-semibold">{row.absDiff.toLocaleString()}</td>
+                <td className="px-3 py-2 text-right">{row.reference.toLocaleString('pt-BR')}</td>
+                <td className="px-3 py-2 text-right">{row.dynamic.toLocaleString('pt-BR')}</td>
+                <td className="px-3 py-2 text-right">{row.mappedBaseAreaCount.toLocaleString('pt-BR')}</td>
+                <td className="px-3 py-2 text-right font-semibold">{row.absDiff.toLocaleString('pt-BR')}</td>
                 <td className="px-3 py-2 text-right">
                   {row.errorPct === null ? '-' : `${row.errorPct.toFixed(2)}%`}
                 </td>

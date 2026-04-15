@@ -57,47 +57,45 @@ export function AgeBarChart({
 
   useEffect(() => {
     debugLog(`[AgeBarChart] useEffect areaCode=${areaCode} direction=${direction}`);
-    
-    // Limpar dados imediatamente ao trocar de Ã¡rea
+
     setData([]);
     setError(null);
     setLoading(true);
-    
+
     async function loadStats() {
       if (!areaCode) {
         debugLog('[AgeBarChart] aguardando selecao de area');
         setLoading(false);
         return;
       }
-      
+
       debugLog(`[AgeBarChart] carregando stats para ${areaCode} (${direction})`);
-      
+
       try {
         setLoading(true);
         setError(null);
-        
+
         const stats = await getAgeStats(areaCode, direction, includeInternalFlows);
         debugLog('[AgeBarChart] stats recebidas', stats);
-        
+
         if (stats.length === 0) {
           debugWarn('[AgeBarChart] nenhum dado retornado');
           setData([]);
           setLoading(false);
           return;
         }
-        
-        const chartData = stats.map(s => ({
-          name: simplifyAgeLabel(s.ageGroup),
-          fullName: s.ageGroup as AgeGroup,
-          total: s.total,
-          percentage: s.percentage,
-          color: getAgeColor(s.ageGroup),
+
+        const chartData = stats.map((stat) => ({
+          name: simplifyAgeLabel(stat.ageGroup),
+          fullName: stat.ageGroup as AgeGroup,
+          total: stat.total,
+          percentage: stat.percentage,
+          color: getAgeColor(stat.ageGroup),
         }));
-        
-        // Ordenar por faixa etÃ¡ria
+
         const ageOrder = ['16-24', '25-34', '35-44', '45-54', '55-64', '65+'];
-        chartData.sort((a, b) => ageOrder.indexOf(a.name) - ageOrder.indexOf(b.name));
-        
+        chartData.sort((left, right) => ageOrder.indexOf(left.name) - ageOrder.indexOf(right.name));
+
         debugLog(`[AgeBarChart] dados processados (${chartData.length} grupos)`);
         setData(chartData);
       } catch (err) {
@@ -107,10 +105,9 @@ export function AgeBarChart({
         setLoading(false);
       }
     }
-    
-    loadStats();
-    
-    // Cleanup ao desmontar ou trocar de Ã¡rea
+
+    void loadStats();
+
     return () => {
       debugLog(`[AgeBarChart] limpando dados de ${areaCode}`);
       setData([]);
@@ -136,8 +133,8 @@ export function AgeBarChart({
   if (data.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-gray-500 p-4 text-center">
-        <p className="font-semibold">Dados de Age Group nÃ£o disponÃ­veis</p>
-        <p className="text-sm mt-2">Dataset ODWP04EW_MSOA nÃ£o carregado</p>
+        <p className="font-semibold">Dados de faixa etaria nao disponiveis</p>
+        <p className="text-sm mt-2">Arquivo ODWP04EW_MSOA nao carregado</p>
       </div>
     );
   }
@@ -147,12 +144,12 @@ export function AgeBarChart({
       <div className="mb-4">
         <div className="flex items-center gap-2">
           <h3 className="text-base font-semibold text-gray-800">
-            Age Groups Distribution
+            Distribuicao por faixa etaria
           </h3>
-          <ChartObjectiveHelp objective="Evidenciar a distribuiÃ§Ã£o etÃ¡ria dos fluxos para comparar perfis demogrÃ¡ficos de mobilidade." />
+          <ChartObjectiveHelp objective="Evidenciar a distribuicao etaria dos fluxos para comparar perfis demograficos de mobilidade." />
         </div>
         <p className="text-sm text-gray-600">
-          {direction === 'incoming' ? 'Incoming' : 'Outgoing'} commuters by age group
+          {direction === 'incoming' ? 'Entrada' : 'Saida'} de trabalhadores por faixa etaria
         </p>
       </div>
 
@@ -161,10 +158,10 @@ export function AgeBarChart({
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="name" interval={0} tick={{ fontSize: 12 }} />
           <YAxis width={44} tick={{ fontSize: 12 }} />
-          <Tooltip 
+          <Tooltip
             formatter={(value: number | string | Array<number | string> | undefined, _name: string | undefined, props: any) => [
-              `${Number(value ?? 0).toLocaleString()} (${props.payload.percentage}%)`,
-              'Commuters'
+              `${Number(value ?? 0).toLocaleString('pt-BR')} (${props.payload.percentage}%)`,
+              'Pessoas',
             ]}
           />
           <Bar
@@ -201,12 +198,12 @@ export function AgeBarChart({
               selectedAgeGroup === item.fullName ? 'bg-gray-100 ring-1 ring-gray-300' : 'hover:bg-gray-50'
             }`}
           >
-            <div 
-              className="w-3 h-3 rounded-full" 
+            <div
+              className="w-3 h-3 rounded-full"
               style={{ backgroundColor: item.color }}
             />
             <span className="text-gray-700">
-              {item.name}: <strong>{item.total.toLocaleString()}</strong>
+              {item.name}: <strong>{item.total.toLocaleString('pt-BR')}</strong>
             </span>
           </button>
         ))}
@@ -214,4 +211,3 @@ export function AgeBarChart({
     </div>
   );
 }
-

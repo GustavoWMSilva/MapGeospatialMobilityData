@@ -142,7 +142,7 @@ export async function initDuckDB(): Promise<void> {
 
           const count = await conn!.query(`SELECT COUNT(*) as total FROM ${tableName}`);
           const total = count.toArray()[0].total;
-          console.log(`   ? Tabela ${tableName}: ${total.toLocaleString()} registros`);
+          console.log(`   ? Tabela ${tableName}: ${total.toLocaleString('pt-BR')} registros`);
           return true;
         } catch (error) {
           if (optional) {

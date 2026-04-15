@@ -90,8 +90,8 @@ export const SelectedAreaConnections: React.FC<SelectedAreaConnectionsProps> = (
     const avgFlow = totalFlow / counts.length;
     
     console.log(`${filteredFlows.length} fluxos ${flowDirection === 'incoming' ? 'chegando em' : 'saindo de'} ${selectedAreaCode}`);
-    console.log(`Total de pessoas: ${totalFlow.toLocaleString()}`);
-    console.log(`Fluxo máximo: ${maxFlow.toLocaleString()}, mínimo: ${minFlow.toLocaleString()}, média: ${avgFlow.toFixed(0)}`);
+    console.log(`Total de pessoas: ${totalFlow.toLocaleString('pt-BR')}`);
+    console.log(`Fluxo máximo: ${maxFlow.toLocaleString('pt-BR')}, mínimo: ${minFlow.toLocaleString('pt-BR')}, média: ${avgFlow.toFixed(0)}`);
 
     return {
       flowsGeoJSON: {
@@ -118,12 +118,12 @@ export const SelectedAreaConnections: React.FC<SelectedAreaConnectionsProps> = (
   // Calcular intervalos dinâmicos baseados nos dados
   const intervals = [
     { value: 0, label: '0', color: '#FFFFFF' },
-    { value: Math.round(stats.max * 0.01), label: Math.round(stats.max * 0.01).toLocaleString(), color: '#FEE2E2' },
-    { value: Math.round(stats.max * 0.05), label: Math.round(stats.max * 0.05).toLocaleString(), color: '#FCA5A5' },
-    { value: Math.round(stats.max * 0.1), label: Math.round(stats.max * 0.1).toLocaleString(), color: '#F87171' },
-    { value: Math.round(stats.max * 0.2), label: Math.round(stats.max * 0.2).toLocaleString(), color: '#EF4444' },
-    { value: Math.round(stats.max * 0.5), label: Math.round(stats.max * 0.5).toLocaleString(), color: '#DC2626' },
-    { value: stats.max, label: `${stats.max.toLocaleString()}+`, color: '#991B1B' }
+    { value: Math.round(stats.max * 0.01), label: Math.round(stats.max * 0.01).toLocaleString('pt-BR'), color: '#FEE2E2' },
+    { value: Math.round(stats.max * 0.05), label: Math.round(stats.max * 0.05).toLocaleString('pt-BR'), color: '#FCA5A5' },
+    { value: Math.round(stats.max * 0.1), label: Math.round(stats.max * 0.1).toLocaleString('pt-BR'), color: '#F87171' },
+    { value: Math.round(stats.max * 0.2), label: Math.round(stats.max * 0.2).toLocaleString('pt-BR'), color: '#EF4444' },
+    { value: Math.round(stats.max * 0.5), label: Math.round(stats.max * 0.5).toLocaleString('pt-BR'), color: '#DC2626' },
+    { value: stats.max, label: `${stats.max.toLocaleString('pt-BR')}+`, color: '#991B1B' }
   ];
 
   return (
@@ -147,7 +147,7 @@ export const SelectedAreaConnections: React.FC<SelectedAreaConnectionsProps> = (
           </div>
           <div className="flex justify-between mt-1 px-1">
             <span className="text-xs font-semibold text-gray-600">0</span>
-            <span className="text-xs font-semibold text-gray-600">{stats.max.toLocaleString()}</span>
+            <span className="text-xs font-semibold text-gray-600">{stats.max.toLocaleString('pt-BR')}</span>
           </div>
         </div>
 
@@ -175,11 +175,11 @@ export const SelectedAreaConnections: React.FC<SelectedAreaConnectionsProps> = (
             </div>
             <div className="flex justify-between">
               <span className="font-medium">Total de pessoas:</span>
-              <span className="font-bold text-purple-700">{stats.total.toLocaleString()}</span>
+              <span className="font-bold text-purple-700">{stats.total.toLocaleString('pt-BR')}</span>
             </div>
             <div className="flex justify-between">
               <span className="font-medium">Média por fluxo:</span>
-              <span className="font-bold text-purple-700">{Math.round(stats.avg).toLocaleString()}</span>
+              <span className="font-bold text-purple-700">{Math.round(stats.avg).toLocaleString('pt-BR')}</span>
             </div>
           </div>
         </div>
