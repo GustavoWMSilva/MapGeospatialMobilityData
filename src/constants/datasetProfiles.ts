@@ -202,9 +202,54 @@ export const DATASET_PROFILES: Record<string, DatasetProfile> = {
 };
 
 export const DEFAULT_DATASET_ID = 'uk_commuting_ons';
+export const DATASET_STORAGE_KEY = 'map-geospatial-active-dataset';
+
+function isKnownDatasetId(datasetId: string | null | undefined): datasetId is keyof typeof DATASET_PROFILES {
+  return Boolean(datasetId && datasetId in DATASET_PROFILES);
+}
+
+export function getActiveDatasetId(): keyof typeof DATASET_PROFILES {
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    const datasetFromUrl = params.get('dataset');
+    if (isKnownDatasetId(datasetFromUrl)) {
+      return datasetFromUrl;
+    }
+
+    const datasetFromStorage = window.localStorage.getItem(DATASET_STORAGE_KEY);
+    if (isKnownDatasetId(datasetFromStorage)) {
+      return datasetFromStorage;
+    }
+  }
+
+  const datasetFromEnv = import.meta.env.VITE_ACTIVE_DATASET as string | undefined;
+  if (isKnownDatasetId(datasetFromEnv)) {
+    return datasetFromEnv;
+  }
+
+  return DEFAULT_DATASET_ID;
+}
+
+export function buildDatasetSwitchUrl(datasetId: keyof typeof DATASET_PROFILES): string {
+  if (typeof window === 'undefined') {
+    return `?dataset=${datasetId}`;
+  }
+
+  const nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.set('dataset', datasetId);
+  return nextUrl.toString();
+}
+
+export function persistActiveDataset(datasetId: keyof typeof DATASET_PROFILES): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(DATASET_STORAGE_KEY, datasetId);
+}
 
 export const ACTIVE_DATASET_PROFILE =
-  DATASET_PROFILES[import.meta.env.VITE_ACTIVE_DATASET as string] ||
+  DATASET_PROFILES[getActiveDatasetId()] ||
   DATASET_PROFILES[DEFAULT_DATASET_ID];
 
 export function createInitialDemographicFilters(profile: DatasetProfile): DemographicFilters {

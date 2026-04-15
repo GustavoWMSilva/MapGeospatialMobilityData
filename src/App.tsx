@@ -14,7 +14,11 @@ import { AnalyticsFilters } from './components/analytics/AnalyticsFilters';
 import { useSelectedArea } from './hooks/useSelectedArea';
 import {
   ACTIVE_DATASET_PROFILE,
+  DATASET_PROFILES,
+  buildDatasetSwitchUrl,
   createInitialDemographicFilters,
+  getActiveDatasetId,
+  persistActiveDataset,
 } from './constants/datasetProfiles';
 
 // Constants & Types
@@ -26,6 +30,11 @@ const DEFAULT_VIEW_STATE: ViewState = {
   zoom: ACTIVE_DATASET_PROFILE.mapView.zoom,
 };
 
+const DATASET_TOGGLE_OPTIONS = [
+  { id: 'porto_alegre', label: 'Porto Alegre' },
+  { id: 'uk_commuting_ons', label: 'UK' },
+] as const;
+
 interface MapClickEvent {
   lngLat: { lng: number; lat: number };
   features?: Array<{
@@ -35,6 +44,7 @@ interface MapClickEvent {
 }
 
 export default function App() {
+  const activeDatasetId = getActiveDatasetId();
   const [viewState, setViewState] = React.useState<ViewState>(DEFAULT_VIEW_STATE);
   const [mobilityDataSource] = React.useState<'general' | 'london'>('general');
   const [showBasePoints, setShowBasePoints] = React.useState(false);
@@ -83,6 +93,15 @@ export default function App() {
   const onMove = useCallback(({ viewState: newViewState }: { viewState: ViewState }) => {
     setViewState(newViewState);
   }, []);
+
+  const handleDatasetChange = useCallback((datasetId: keyof typeof DATASET_PROFILES) => {
+    if (datasetId === activeDatasetId) {
+      return;
+    }
+
+    persistActiveDataset(datasetId);
+    window.location.assign(buildDatasetSwitchUrl(datasetId));
+  }, [activeDatasetId]);
 
   const activateAggregateLevel = useCallback(() => {
     setGeographyLevel('aggregate');
@@ -207,13 +226,41 @@ export default function App() {
       {/* Header */}
       {!isFullscreen && (
       <div className="border-b border-purple-200 bg-gradient-to-r from-purple-700 via-purple-700 to-purple-800 shadow-sm">
-        <div className="px-6 py-5">
-          <h1 className="text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-6xl">
+        <div className="flex flex-col gap-4 px-6 py-5 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h1 className="text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-6xl">
             Visualização de Mobilidade Geoespacial
           </h1>
           <p className="mt-1 text-sm text-purple-100">
             {ACTIVE_DATASET_PROFILE.description}
           </p>
+          </div>
+
+          <div className="rounded-2xl border border-purple-300/40 bg-white/10 p-2 backdrop-blur-sm">
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-purple-100">
+              Dataset
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {DATASET_TOGGLE_OPTIONS.map((option) => {
+                const isActive = option.id === activeDatasetId;
+
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => handleDatasetChange(option.id)}
+                    className={`rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
+                      isActive
+                        ? 'bg-white text-purple-800 shadow-lg'
+                        : 'bg-purple-900/20 text-white hover:bg-white/20'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
       )}
@@ -409,6 +456,32 @@ export default function App() {
                 ? `Modo: ${ACTIVE_DATASET_PROFILE.labels.aggregate.modeLabel}`
                 : `Modo: ${ACTIVE_DATASET_PROFILE.labels.base.modeLabel}`}
             </button>
+
+            <div className="rounded-xl border-2 border-white bg-white/90 p-2 shadow-2xl backdrop-blur-sm">
+              <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-purple-700">
+                Dataset
+              </div>
+              <div className="flex gap-2">
+                {DATASET_TOGGLE_OPTIONS.map((option) => {
+                  const isActive = option.id === activeDatasetId;
+
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => handleDatasetChange(option.id)}
+                      className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                        isActive
+                          ? 'bg-purple-700 text-white'
+                          : 'bg-purple-50 text-purple-800 hover:bg-purple-100'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </>
       </div>
