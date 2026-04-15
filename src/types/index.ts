@@ -20,6 +20,16 @@ export type GeographyLevel = 'base' | 'aggregate';
 export type DemographicFilters = Record<string, string>;
 export type DimensionMatchMode = 'equals' | 'contains';
 export type DatasetAnalyticsMode = 'uk-legacy' | 'generic';
+export type DatasetChartId =
+  | 'socialPie'
+  | 'ageBar'
+  | 'topFlows'
+  | 'performance'
+  | 'odHeatmap'
+  | 'socialMultiples'
+  | 'aggregateStacked'
+  | 'aggregationScatter'
+  | 'directionalBalance';
 
 export interface DatasetParquetConfig {
   fileName: string;
@@ -73,10 +83,35 @@ export interface DatasetLabels {
   datasetActiveLabel: string;
 }
 
+export interface DatasetChartConfig {
+  title: string;
+  enabled?: boolean;
+  defaultCollapsed?: boolean;
+}
+
+export interface DatasetDashboardConfig {
+  panelTitle: string;
+  panelSubtitle: string;
+  mainChartsTitle: string;
+  mainChartsSubtitle: string;
+  directionLabel: string;
+  directionValues: {
+    incoming: string;
+    outgoing: string;
+  };
+  includeInternalFlowsLabel: string;
+  includeInternalFlowsHint: string;
+  genericAnalyticsHint: string;
+  advancedChartsShowLabel: string;
+  advancedChartsHideLabel: string;
+  charts: Record<DatasetChartId, DatasetChartConfig>;
+}
+
 export interface DatasetProfile {
   id: string;
   label: string;
   description: string;
+  sortOrder?: number;
   geography: {
     base: string;
     aggregate?: string;
@@ -93,6 +128,7 @@ export interface DatasetProfile {
   storage: DatasetStorageConfig;
   baseFlowDataset: DatasetParquetConfig;
   analyticsMode: DatasetAnalyticsMode;
+  dashboard: DatasetDashboardConfig;
   demographicDimensions: DemographicDimensionConfig[];
 }
 

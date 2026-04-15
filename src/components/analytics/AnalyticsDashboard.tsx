@@ -13,10 +13,18 @@ import { SocialGradeSmallMultiples } from './SocialGradeSmallMultiples';
 import { loadFlowsFiltered } from '../../utils/dataService';
 import {
   getDataSourceUnitLabels,
+  getDashboardChartConfig,
   getLegacyAnalyticsFilters,
   hasActiveDemographicFilters,
 } from '../../constants/datasetProfiles';
-import type { DatasetProfile, DemographicFilters, GeographyLevel, SocialGrade, AgeGroup } from '../../types';
+import type {
+  DatasetChartId,
+  DatasetProfile,
+  DemographicFilters,
+  GeographyLevel,
+  SocialGrade,
+  AgeGroup,
+} from '../../types';
 import { debugLog, getAnalyticsErrorMessage } from './analyticsUtils';
 
 interface AnalyticsDashboardProps {
@@ -32,17 +40,6 @@ interface AnalyticsDashboardProps {
   onDirectionChange?: (direction: 'incoming' | 'outgoing') => void;
   onIncludeInternalFlowsChange?: (value: boolean) => void;
 }
-
-type ChartKey =
-  | 'socialPie'
-  | 'ageBar'
-  | 'topFlows'
-  | 'performance'
-  | 'odHeatmap'
-  | 'socialMultiples'
-  | 'aggregateStacked'
-  | 'aggregationScatter'
-  | 'directionalBalance';
 
 function ChartCard({
   title,
@@ -89,17 +86,17 @@ export function AnalyticsDashboard({
 }: AnalyticsDashboardProps) {
   const [flowCountError, setFlowCountError] = useState<string | null>(null);
   const [showResearchCharts, setShowResearchCharts] = useState(false);
-  const [collapsedCharts, setCollapsedCharts] = useState<Record<ChartKey, boolean>>({
-    socialPie: false,
-    ageBar: false,
-    topFlows: false,
-    performance: true,
-    odHeatmap: true,
-    socialMultiples: true,
-    aggregateStacked: true,
-    aggregationScatter: true,
-    directionalBalance: true,
-  });
+  const [collapsedCharts, setCollapsedCharts] = useState<Record<DatasetChartId, boolean>>(() => ({
+    socialPie: getDashboardChartConfig(datasetProfile, 'socialPie').defaultCollapsed ?? false,
+    ageBar: getDashboardChartConfig(datasetProfile, 'ageBar').defaultCollapsed ?? false,
+    topFlows: getDashboardChartConfig(datasetProfile, 'topFlows').defaultCollapsed ?? false,
+    performance: getDashboardChartConfig(datasetProfile, 'performance').defaultCollapsed ?? true,
+    odHeatmap: getDashboardChartConfig(datasetProfile, 'odHeatmap').defaultCollapsed ?? true,
+    socialMultiples: getDashboardChartConfig(datasetProfile, 'socialMultiples').defaultCollapsed ?? true,
+    aggregateStacked: getDashboardChartConfig(datasetProfile, 'aggregateStacked').defaultCollapsed ?? true,
+    aggregationScatter: getDashboardChartConfig(datasetProfile, 'aggregationScatter').defaultCollapsed ?? true,
+    directionalBalance: getDashboardChartConfig(datasetProfile, 'directionalBalance').defaultCollapsed ?? true,
+  }));
   const legacyFilters = getLegacyAnalyticsFilters(datasetProfile, demographicFilters);
   const socialGrade = legacyFilters.socialGrade as SocialGrade;
   const ageGroup = legacyFilters.ageGroup as AgeGroup;
@@ -108,10 +105,12 @@ export function AnalyticsDashboard({
     datasetProfile.demographicDimensions
   );
   const supportsLegacyAnalytics = datasetProfile.analyticsMode === 'uk-legacy';
+  const showSocialPie = supportsLegacyAnalytics && getDashboardChartConfig(datasetProfile, 'socialPie').enabled !== false;
+  const showAgeBar = supportsLegacyAnalytics && getDashboardChartConfig(datasetProfile, 'ageBar').enabled !== false;
   const activeLevelLabels = getDataSourceUnitLabels(geographyLevel, datasetProfile);
   const aggregateUnitLabel = datasetProfile.labels.aggregate.singular;
 
-  const toggleChart = (key: ChartKey) => {
+  const toggleChart = (key: DatasetChartId) => {
     setCollapsedCharts((prev) => ({
       ...prev,
       [key]: !prev[key],
@@ -172,7 +171,8 @@ export function AnalyticsDashboard({
         <div className="xl:sticky xl:top-0 xl:z-30">
           <div className="space-y-3 rounded-2xl border border-purple-100 bg-white/95 p-3 shadow-sm backdrop-blur-sm">
             <div className="flex flex-col gap-2 rounded-xl border border-purple-100 bg-gradient-to-r from-purple-50 to-white p-3">
-              <h2 className="text-base font-semibold text-purple-900">Painel Analítico</h2>
+              <h2 className="text-base font-semibold text-purple-900">{datasetProfile.dashboard.panelTitle}</h2>
+              <p className="text-xs text-purple-700">{datasetProfile.dashboard.panelSubtitle}</p>
               <div className="flex flex-wrap gap-2 text-xs">
                 <span className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-1 font-medium text-purple-800">
                   {datasetProfile.labels.areaChipLabel}: {areaName || selectedArea}
@@ -181,7 +181,9 @@ export function AnalyticsDashboard({
                   {datasetProfile.labels.levelChipLabel}: {activeLevelLabels.singular}
                 </span>
                 <span className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-1 font-medium text-purple-800">
-                  Direção: {direction === 'incoming' ? 'Incoming' : 'Outgoing'}
+                  {datasetProfile.dashboard.directionLabel}: {direction === 'incoming'
+                    ? datasetProfile.dashboard.directionValues.incoming
+                    : datasetProfile.dashboard.directionValues.outgoing}
                 </span>
               </div>
             </div>
@@ -203,8 +205,8 @@ export function AnalyticsDashboard({
                   className="mt-1 h-4 w-4 accent-purple-600"
                 />
                 <div>
-                  <p className="text-sm font-medium text-gray-800">Incluir fluxo interno (origem = destino)</p>
-                  <p className="text-xs text-gray-600">Quando desativado, os gráficos ignoram fluxos dentro da mesma área.</p>
+                  <p className="text-sm font-medium text-gray-800">{datasetProfile.dashboard.includeInternalFlowsLabel}</p>
+                  <p className="text-xs text-gray-600">{datasetProfile.dashboard.includeInternalFlowsHint}</p>
                 </div>
               </label>
             </div>
@@ -221,8 +223,8 @@ export function AnalyticsDashboard({
       <div className="rounded-xl border border-purple-100 bg-purple-50/70 p-3.5">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-base font-semibold text-purple-900">Visualização principal</p>
-            <p className="text-xs text-purple-700">Gráficos principais para leitura rápida do fluxo</p>
+            <p className="text-base font-semibold text-purple-900">{datasetProfile.dashboard.mainChartsTitle}</p>
+            <p className="text-xs text-purple-700">{datasetProfile.dashboard.mainChartsSubtitle}</p>
           </div>
           <div className="flex flex-wrap gap-1.5 text-[11px]">
             <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 font-medium text-purple-800">
@@ -232,78 +234,85 @@ export function AnalyticsDashboard({
               {datasetProfile.labels.levelChipLabel}: {activeLevelLabels.singular}
             </span>
             <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 font-medium text-purple-800">
-              Direção: {direction === 'incoming' ? 'Incoming' : 'Outgoing'}
+              {datasetProfile.dashboard.directionLabel}: {direction === 'incoming'
+                ? datasetProfile.dashboard.directionValues.incoming
+                : datasetProfile.dashboard.directionValues.outgoing}
             </span>
           </div>
         </div>
       </div>
 
-      {supportsLegacyAnalytics ? (
+      {showSocialPie || showAgeBar ? (
         <div className="grid grid-cols-1 gap-6 2xl:grid-cols-2">
-          <ChartCard
-            title="Distribuição por classe social"
-            isCollapsed={collapsedCharts.socialPie}
-            onToggle={() => toggleChart('socialPie')}
-            className="rounded-2xl border border-purple-100 bg-white p-4 shadow-sm"
-          >
-            <SocialGradePieChart
-              key={`social-${selectedArea}`}
-              areaCode={selectedArea}
-              direction={direction}
-              includeInternalFlows={includeInternalFlows}
-              selectedGrade={socialGrade}
-              onSelectGrade={(grade) =>
-                onDemographicFiltersChange?.({
-                  ...demographicFilters,
-                  socialGrade: grade,
-                })
-              }
-            />
-          </ChartCard>
+          {showSocialPie && (
+            <ChartCard
+              title={getDashboardChartConfig(datasetProfile, 'socialPie').title}
+              isCollapsed={collapsedCharts.socialPie}
+              onToggle={() => toggleChart('socialPie')}
+              className="rounded-2xl border border-purple-100 bg-white p-4 shadow-sm"
+            >
+              <SocialGradePieChart
+                key={`social-${selectedArea}`}
+                areaCode={selectedArea}
+                direction={direction}
+                includeInternalFlows={includeInternalFlows}
+                selectedGrade={socialGrade}
+                onSelectGrade={(grade) =>
+                  onDemographicFiltersChange?.({
+                    ...demographicFilters,
+                    socialGrade: grade,
+                  })
+                }
+              />
+            </ChartCard>
+          )}
 
-          <ChartCard
-            title="Distribuição por faixa etária"
-            isCollapsed={collapsedCharts.ageBar}
-            onToggle={() => toggleChart('ageBar')}
-            className="rounded-2xl border border-purple-100 bg-white p-4 shadow-sm"
-          >
-            <AgeBarChart
-              key={`age-${selectedArea}`}
-              areaCode={selectedArea}
-              direction={direction}
-              includeInternalFlows={includeInternalFlows}
-              selectedAgeGroup={ageGroup}
-              onSelectAgeGroup={(age) =>
-                onDemographicFiltersChange?.({
-                  ...demographicFilters,
-                  age,
-                })
-              }
-            />
-          </ChartCard>
+          {showAgeBar && (
+            <ChartCard
+              title={getDashboardChartConfig(datasetProfile, 'ageBar').title}
+              isCollapsed={collapsedCharts.ageBar}
+              onToggle={() => toggleChart('ageBar')}
+              className="rounded-2xl border border-purple-100 bg-white p-4 shadow-sm"
+            >
+              <AgeBarChart
+                key={`age-${selectedArea}`}
+                areaCode={selectedArea}
+                direction={direction}
+                includeInternalFlows={includeInternalFlows}
+                selectedAgeGroup={ageGroup}
+                onSelectAgeGroup={(age) =>
+                  onDemographicFiltersChange?.({
+                    ...demographicFilters,
+                    age,
+                  })
+                }
+              />
+            </ChartCard>
+          )}
         </div>
       ) : (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          Este dataset já usa filtros demográficos configuráveis no mapa e no ranking.
-          Os gráficos analíticos específicos ainda dependem de componentes próprios para cada nova base.
+          {datasetProfile.dashboard.genericAnalyticsHint}
         </div>
       )}
 
-      <ChartCard
-        title="Ranking dos principais fluxos"
-        isCollapsed={collapsedCharts.topFlows}
-        onToggle={() => toggleChart('topFlows')}
-        className="rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50 to-white p-4 shadow-sm"
-      >
-        <TopFlowsRankingChart
-          areaCode={selectedArea}
-          geographyLevel={geographyLevel}
-          direction={direction}
-          demographicFilters={demographicFilters}
-          includeInternalFlows={includeInternalFlows}
-          topN={10}
-        />
-      </ChartCard>
+      {getDashboardChartConfig(datasetProfile, 'topFlows').enabled !== false && (
+        <ChartCard
+          title={getDashboardChartConfig(datasetProfile, 'topFlows').title}
+          isCollapsed={collapsedCharts.topFlows}
+          onToggle={() => toggleChart('topFlows')}
+          className="rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50 to-white p-4 shadow-sm"
+        >
+          <TopFlowsRankingChart
+            areaCode={selectedArea}
+            geographyLevel={geographyLevel}
+            direction={direction}
+            demographicFilters={demographicFilters}
+            includeInternalFlows={includeInternalFlows}
+            topN={10}
+          />
+        </ChartCard>
+      )}
 
       {supportsLegacyAnalytics && (
         <div className="rounded-xl border border-purple-100 bg-white p-3">
@@ -312,24 +321,28 @@ export function AnalyticsDashboard({
             onClick={() => setShowResearchCharts((prev) => !prev)}
             className="w-full rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-left text-sm font-semibold text-purple-900 hover:bg-purple-100"
           >
-            {showResearchCharts ? 'Ocultar gráficos avançados (TCC)' : 'Mostrar gráficos avançados (TCC)'}
+            {showResearchCharts
+              ? datasetProfile.dashboard.advancedChartsHideLabel
+              : datasetProfile.dashboard.advancedChartsShowLabel}
           </button>
         </div>
       )}
 
       {supportsLegacyAnalytics && showResearchCharts && (
         <div className="space-y-6">
-          <ChartCard
-            title="Performance e latência"
-            isCollapsed={collapsedCharts.performance}
-            onToggle={() => toggleChart('performance')}
-          >
-            <PerformanceLatencyPanel />
-          </ChartCard>
-
-          {geographyLevel === 'aggregate' && (
+          {getDashboardChartConfig(datasetProfile, 'performance').enabled !== false && (
             <ChartCard
-              title="Heatmap OD Top N"
+              title={getDashboardChartConfig(datasetProfile, 'performance').title}
+              isCollapsed={collapsedCharts.performance}
+              onToggle={() => toggleChart('performance')}
+            >
+              <PerformanceLatencyPanel />
+            </ChartCard>
+          )}
+
+          {geographyLevel === 'aggregate' && getDashboardChartConfig(datasetProfile, 'odHeatmap').enabled !== false && (
+            <ChartCard
+              title={getDashboardChartConfig(datasetProfile, 'odHeatmap').title}
               isCollapsed={collapsedCharts.odHeatmap}
               onToggle={() => toggleChart('odHeatmap')}
             >
@@ -342,9 +355,9 @@ export function AnalyticsDashboard({
             </ChartCard>
           )}
 
-          {geographyLevel === 'aggregate' && (
+          {geographyLevel === 'aggregate' && getDashboardChartConfig(datasetProfile, 'socialMultiples').enabled !== false && (
             <ChartCard
-              title="Small multiples por classe"
+              title={getDashboardChartConfig(datasetProfile, 'socialMultiples').title}
               isCollapsed={collapsedCharts.socialMultiples}
               onToggle={() => toggleChart('socialMultiples')}
             >
@@ -356,9 +369,9 @@ export function AnalyticsDashboard({
             </ChartCard>
           )}
 
-          {geographyLevel === 'aggregate' && (
+          {geographyLevel === 'aggregate' && getDashboardChartConfig(datasetProfile, 'aggregateStacked').enabled !== false && (
             <ChartCard
-              title="Composição social empilhada 100%"
+              title={getDashboardChartConfig(datasetProfile, 'aggregateStacked').title}
               isCollapsed={collapsedCharts.aggregateStacked}
               onToggle={() => toggleChart('aggregateStacked')}
             >
@@ -370,9 +383,9 @@ export function AnalyticsDashboard({
             </ChartCard>
           )}
 
-          {geographyLevel === 'aggregate' && (
+          {geographyLevel === 'aggregate' && getDashboardChartConfig(datasetProfile, 'aggregationScatter').enabled !== false && (
             <ChartCard
-              title="Validação da agregação"
+              title={getDashboardChartConfig(datasetProfile, 'aggregationScatter').title}
               isCollapsed={collapsedCharts.aggregationScatter}
               onToggle={() => toggleChart('aggregationScatter')}
             >
@@ -380,9 +393,9 @@ export function AnalyticsDashboard({
             </ChartCard>
           )}
 
-          {geographyLevel === 'aggregate' && (
+          {geographyLevel === 'aggregate' && getDashboardChartConfig(datasetProfile, 'directionalBalance').enabled !== false && (
             <ChartCard
-              title={`Saldo direcional por ${aggregateUnitLabel}`}
+              title={getDashboardChartConfig(datasetProfile, 'directionalBalance').title || `Saldo direcional por ${aggregateUnitLabel}`}
               isCollapsed={collapsedCharts.directionalBalance}
               onToggle={() => toggleChart('directionalBalance')}
             >

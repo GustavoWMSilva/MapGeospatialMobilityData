@@ -1,27 +1,28 @@
-# Dataset Pipeline
+# Pipeline de Datasets
 
-This project now includes a config-driven pipeline to generate the artifacts the app expects for a new dataset:
+Este projeto inclui um pipeline para gerar os artefatos que a aplicacao espera ao integrar um novo dataset.
 
-- `processed/*.parquet`
-- `lookup/*.csv`
-- `lookup/*.geojson`
+O objetivo e transformar o processo de "adicionar uma nova cidade" em algo previsivel:
 
-The goal is to turn "add a new city" into:
+1. copiar um arquivo de configuracao YAML
+2. apontar para as fontes brutas
+3. rodar um comando
+4. copiar o template do perfil JSON do app
+5. preencher labels, paths e configuracao do dashboard
+6. salvar o JSON em `src/dataset-configs/`
 
-1. copy a config file
-2. point it to the raw sources
-3. run one command
-4. register the dataset in `src/constants/datasetProfiles.ts`
+Nao e mais necessario registrar datasets manualmente em `src/constants/datasetProfiles.ts`.
 
-## Files
+## Arquivos importantes
 
-- Pipeline CLI: [scripts/build_dataset.py](./scripts/build_dataset.py)
-- Example config: [dataset_pipeline_configs/porto_alegre.yaml](./dataset_pipeline_configs/porto_alegre.yaml)
-- Template config: [dataset_pipeline_configs/template.yaml](./dataset_pipeline_configs/template.yaml)
+- CLI do pipeline: [scripts/build_dataset.py](./scripts/build_dataset.py)
+- Exemplo de configuracao do pipeline: [dataset_pipeline_configs/porto_alegre.yaml](./dataset_pipeline_configs/porto_alegre.yaml)
+- Template do pipeline: [dataset_pipeline_configs/template.yaml](./dataset_pipeline_configs/template.yaml)
+- Template do perfil do app: [dataset_pipeline_configs/app_dataset_profile.template.json](./dataset_pipeline_configs/app_dataset_profile.template.json)
 
-## What the pipeline writes
+## O que o pipeline gera
 
-For a dataset with `output_subdir: porto_alegre`, the pipeline writes:
+Para um dataset com `output_subdir: porto_alegre`, o pipeline gera:
 
 - `public/data/porto_alegre/processed/*.parquet`
 - `public/data/porto_alegre/lookup/areas_centroids.csv`
@@ -30,47 +31,47 @@ For a dataset with `output_subdir: porto_alegre`, the pipeline writes:
 - `public/data/porto_alegre/lookup/boundaries.geojson`
 - `public/data/porto_alegre/lookup/aggregate_boundaries.geojson`
 
-## Supported inputs
+## Entradas suportadas
 
-Tabular sources:
+Fontes tabulares:
 
 - `csv`
 - `xlsx`
 - `parquet`
 
-Geographic sources:
+Fontes geograficas:
 
 - shapefile
 - GeoJSON
 - GeoPackage
 
-## Command
+## Comando
 
-Windows with the project venv:
+No Windows com a venv do projeto:
 
 ```powershell
 .\venv\Scripts\python scripts\build_dataset.py --config dataset_pipeline_configs\porto_alegre.yaml
 ```
 
-Or with npm:
+Ou com npm:
 
 ```powershell
 npm run dataset:build:poa
 ```
 
-Generic npm entrypoint:
+Entrada generica com npm:
 
 ```powershell
 npm run dataset:build -- --config dataset_pipeline_configs/template.yaml
 ```
 
-## Config shape
+## Estrutura da configuracao YAML
 
-The config has three main blocks:
+O YAML do pipeline tem tres blocos principais:
 
 ### `dataset`
 
-Controls where the generated artifacts are written.
+Controla onde os artefatos gerados serao gravados.
 
 ```yaml
 dataset:
@@ -81,82 +82,69 @@ dataset:
 
 ### `flows`
 
-Defines:
+Define:
 
-- the raw tabular source
-- how to build the base OD parquet
-- optional dimension parquets from wide columns
-
-Example:
-
-```yaml
-flows:
-  source:
-    path: "~/Downloads/od_matrix_enumeration_area.csv"
-    format: csv
-    read_options:
-      sep: ";"
-
-  base:
-    output_file: od_matrix_enumeration_area.parquet
-    columns:
-      origin_code: Origin
-      origin_name: Origin
-      dest_code: Destination
-      dest_name: Destination
-      count: Total
-```
-
-Dimension datasets are created by melting wide columns into the long format the app already uses:
-
-```yaml
-dimensions:
-  - key: age
-    output_file: od_matrix_enumeration_area_age.parquet
-    code_column: age_code
-    category_column: age_group
-    categories:
-      - code: 1
-        value: children
-        source_column: "age: [children]"
-```
+- a fonte tabular bruta
+- como gerar o dataset principal de fluxos OD
+- datasets demograficos opcionais a partir de colunas abertas
 
 ### `geography`
 
-Defines:
+Define:
 
-- the base geography source
-- how to build base centroids and boundaries
-- how to build the base -> aggregate lookup
-- how to build aggregate centroids and boundaries
+- a fonte da geografia base
+- como gerar centroides e boundaries da geografia base
+- como gerar o lookup entre geografia base e geografia agregada
+- como gerar centroides e boundaries da geografia agregada
 
-The pipeline currently writes lookup columns compatible with the existing app:
+## Depois do pipeline: perfil JSON do app
 
-- `msoa21cd`
-- `msoa21nm`
-- `ltla22cd`
-- `ltla22nm`
+Depois de gerar os artefatos de dados, o proximo passo e criar o perfil JSON do dataset.
 
-and aggregate boundary properties compatible with the current map code:
+Copie:
 
-- `ltla_code`
-- `ltla_name`
+- `dataset_pipeline_configs/app_dataset_profile.template.json`
 
-That means the pipeline is generic on the source side, while still producing files the current frontend can consume immediately.
+Salve como:
 
-## Porto Alegre notes
+- `src/dataset-configs/<dataset-id>.json`
 
-The Porto Alegre example config uses:
+Esse perfil controla:
+
+- nome do dataset no toggle
+- descricao mostrada na interface
+- labels da geografia base e da geografia agregada
+- placeholders dos campos de busca
+- paths de lookup e storage
+- datasets demograficos opcionais
+- textos do dashboard
+- titulos dos graficos
+- quais graficos existentes ficam habilitados
+
+## Fluxo recomendado para um novo dataset
+
+1. Copie [dataset_pipeline_configs/template.yaml](./dataset_pipeline_configs/template.yaml)
+2. Ajuste os caminhos das fontes e o mapeamento das colunas
+3. Rode o pipeline
+4. Verifique os artefatos gerados em `public/data/<dataset-id>/`
+5. Copie [dataset_pipeline_configs/app_dataset_profile.template.json](./dataset_pipeline_configs/app_dataset_profile.template.json)
+6. Ajuste labels, paths e configuracao do dashboard
+7. Salve o JSON em `src/dataset-configs/<dataset-id>.json`
+8. Rode o app e teste o dataset pelo toggle no topo
+
+## Observacoes sobre Porto Alegre
+
+O exemplo de Porto Alegre usa:
 
 - `~/Downloads/od_matrix_enumeration_area.csv`
 - `~/Downloads/**/setores_2022_poa.shp`
 - `~/Downloads/**/Bairros_LC12112_16.shp`
 
-So if the files are in another location, you only need to edit the paths in the YAML.
+Se os arquivos estiverem em outro local, basta ajustar os paths no YAML.
 
-## Dependencies
+## Dependencias
 
-The data pipeline relies on the Python packages listed in [requirements.txt](./requirements.txt), including:
+O pipeline depende dos pacotes Python listados em [requirements.txt](./requirements.txt), incluindo:
 
 - `pandas`
 - `pyarrow`
@@ -164,14 +152,3 @@ The data pipeline relies on the Python packages listed in [requirements.txt](./r
 - `pyogrio`
 - `pyyaml`
 - `openpyxl`
-
-If you want Excel input support, `openpyxl` needs to be installed.
-
-## Suggested workflow for a new city
-
-1. Copy [dataset_pipeline_configs/template.yaml](./dataset_pipeline_configs/template.yaml)
-2. Change source paths and column mappings
-3. Run the pipeline
-4. Check the generated files under `public/data/<dataset-id>/`
-5. Add a new entry in [src/constants/datasetProfiles.ts](./src/constants/datasetProfiles.ts)
-6. Switch `VITE_ACTIVE_DATASET` in [.env](./.env) to test it

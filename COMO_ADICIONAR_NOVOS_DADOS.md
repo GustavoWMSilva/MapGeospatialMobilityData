@@ -1,277 +1,138 @@
-# Como Adicionar Novos Dados ao Modelo
+# Como adicionar novos dados ao projeto
 
 ## Objetivo
 
-Este guia documenta como outra pessoa da area, com conhecimento basico de programacao, pode:
+Este guia documenta o fluxo mais simples para integrar um novo dataset sem editar manualmente o frontend.
 
-- atualizar os dados atuais;
-- adicionar novos arquivos com o mesmo formato;
-- incluir uma nova dimensao analitica, como sexo, renda ou setor economico.
+O principio agora e:
 
-A ideia central do projeto e simples: o frontend nao le CSV bruto direto. Ele trabalha sobre um pequeno conjunto de contratos de dados bem definidos.
+- os artefatos de dados entram como arquivos em `public/data/...`
+- a interface e controlada por um perfil JSON em `src/dataset-configs/...`
 
-Se a necessidade for passar uma especificacao fechada para quem vai produzir uma nova base, consulte tambem [ESPECIFICACAO_DE_DADOS_PARA_NOVA_GEOGRAFIA.md](./ESPECIFICACAO_DE_DADOS_PARA_NOVA_GEOGRAFIA.md).
+## O que voce precisa receber
 
-## Visao Geral da Arquitetura
+Para integrar um dataset novo, peca este pacote:
 
-Hoje o projeto consome tres camadas de dados:
+1. `flows.parquet`
+2. `areas_centroids.csv`
+3. `boundaries.geojson`
+4. `aggregate_lookup.csv`, se houver geografia agregada
+5. `aggregate_centroids.csv`, se houver geografia agregada
+6. `aggregate_boundaries.geojson`, se houver geografia agregada
+7. Um JSON de perfil baseado em `dataset_pipeline_configs/app_dataset_profile.template.json`
 
-1. **Fluxo base OD**
-   Arquivo principal com origem, destino e quantidade de pessoas.
+## Contrato minimo dos dados
 
-2. **Arquivos de lookup geografico**
-   Arquivos auxiliares com centroides e relacao MSOA -> LTLA.
+### Dataset principal
 
-3. **Datasets opcionais por categoria**
-   Arquivos com o mesmo par origem-destino, mas quebrados por algum atributo demografico.
-
-Na pratica, isso significa que a forma mais facil de adicionar novos dados e manter o mesmo padrao de chaves:
+Colunas minimas:
 
 - `origin_code`
 - `dest_code`
 - `count`
 
-Se os novos dados mantiverem essas chaves, a extensao do sistema fica simples.
+Colunas recomendadas:
 
-## O Contrato Minimo dos Dados
-
-### 1. Dataset principal de fluxos
-
-O caminho mais seguro e seguir o mesmo schema usado hoje no projeto:
-
-| Coluna | Tipo esperado | Funcao |
-| --- | --- | --- |
-| `origin_code` | texto | codigo da area de origem |
-| `origin_name` | texto | nome da area de origem |
-| `dest_code` | texto | codigo da area de destino |
-| `dest_name` | texto | nome da area de destino |
-| `count` | inteiro | quantidade de pessoas |
-
-Observacao:
-
-- Para o frontend em producao, o essencial e `origin_code`, `dest_code` e `count`.
-- Para scripts e API local, manter tambem `origin_name` e `dest_name` evita retrabalho.
-
-### 2. Arquivo de centroides MSOA
-
-Arquivo usado pelo mapa para desenhar linhas:
-
-`public/data/lookup/areas_centroids.csv`
-
-Schema esperado:
-
-| Coluna | Tipo esperado |
-| --- | --- |
-| `code` | texto |
-| `name` | texto |
-| `lat` | numero |
-| `lon` | numero |
-
-### 3. Arquivo de lookup MSOA -> LTLA
-
-Arquivo usado para agregacao automatica no nivel LTLA:
-
-`public/data/lookup/ltla_lookup.csv`
-
-Schema seguro:
-
-| Coluna | Tipo esperado |
-| --- | --- |
-| `msoa21cd` | texto |
-| `msoa21nm` | texto |
-| `ltla22cd` | texto |
-| `ltla22nm` | texto |
-
-### 4. Arquivo de centroides LTLA
-
-`public/data/lookup/ltla_centroids.csv`
-
-Schema esperado:
-
-| Coluna | Tipo esperado |
-| --- | --- |
-| `code` | texto |
-| `name` | texto |
-| `lat` | numero |
-| `lon` | numero |
-
-## Onde o Projeto Le Esses Dados
-
-Os pontos centrais de extensao sao estes:
-
-- [src/utils/dataService.ts](./src/utils/dataService.ts): escolhe a fonte de dados e transforma resultados em GeoJSON.
-- [src/utils/duckdb.ts](./src/utils/duckdb.ts): registra os arquivos Parquet e executa as consultas.
-- [src/types/index.ts](./src/types/index.ts): define os tipos de dados usados na aplicacao.
-- [src/components/FlowsVisualization.tsx](./src/components/FlowsVisualization.tsx): renderiza os fluxos no mapa.
-
-Essa separacao ajuda a manter a logica de negocio concentrada em poucos pontos.
-
-## Caso 1: Atualizar os Dados Atuais Sem Mudar o Codigo
-
-Este e o caso mais simples.
-
-Se a nova base continuar usando as mesmas colunas:
-
-- `origin_code`
 - `origin_name`
-- `dest_code`
 - `dest_name`
-- `count`
 
-entao basta substituir o arquivo fonte e regenerar os artefatos.
+### Centroides da geografia base
 
-### Passo a passo
+Colunas:
 
-1. Colocar o CSV bruto em `data/raw/`.
-2. Ajustar o caminho em [config.yaml](./config.yaml), se necessario.
-3. Executar o script [scripts/01_csv_to_parquet.py](./scripts/01_csv_to_parquet.py).
-4. Se a geografia mudou, regenerar centroides e lookups.
-5. Publicar o novo Parquet em `public/data/processed/` ou no repositorio/CDN usado em producao.
+- `code`
+- `name`
+- `lat`
+- `lon`
 
-### Quando isso funciona sem alterar o app
+### Lookup entre geografia base e geografia agregada
 
-Funciona diretamente quando:
+Se existir geografia agregada, o arquivo deve mapear a geografia base para a geografia agregada.
 
-- os codigos continuam no mesmo padrao geografico;
-- existe correspondencia entre os codigos dos fluxos e os arquivos de centroides;
-- a medida principal continua sendo `count`.
+### Centroides da geografia agregada
 
-## Caso 2: Adicionar Um Novo Dataset Categorizado
+Colunas:
 
-Este e o caso ideal para extensao do projeto por terceiros.
+- `code`
+- `name`
+- `lat`
+- `lon`
 
-Hoje o sistema ja faz isso com:
+## Novo fluxo de integracao
 
-- `ODWP09EW_MSOA.parquet` para social grade;
-- `ODWP04EW_MSOA.parquet` para age.
+### Caso 1: atualizar um dataset existente
 
-O mesmo padrao pode ser repetido para qualquer outra categoria.
+Se a geografia e os nomes de arquivos continuarem compativeis:
 
-### Exemplo de novo dataset
+1. Substitua os arquivos em `public/data/<dataset-id>/...`
+2. Mantenha o mesmo perfil JSON
+3. Rode o app e valide
 
-Suponha um arquivo de sexo:
+### Caso 2: adicionar um dataset novo
 
-| Coluna | Tipo esperado |
-| --- | --- |
-| `origin_code` | texto |
-| `dest_code` | texto |
-| `sex_code` | inteiro ou texto |
-| `sex_label` | texto |
-| `count` | inteiro |
+1. Gere os artefatos de dados com o pipeline.
+2. Copie `dataset_pipeline_configs/app_dataset_profile.template.json`
+3. Preencha o perfil do dataset.
+4. Salve em `src/dataset-configs/<dataset-id>.json`
+5. Teste no app pelo toggle do topo
 
-### O que precisa ser feito
+Nao e mais necessario registrar manualmente o dataset em `src/constants/datasetProfiles.ts`.
 
-1. **Criar o novo Parquet**
+## O que o perfil JSON controla
 
-   O arquivo deve manter `origin_code`, `dest_code` e `count`.
+O JSON controla:
 
-2. **Registrar o arquivo em DuckDB**
+- nome no toggle
+- descricao do dataset
+- labels da geografia base e da geografia agregada
+- placeholders e textos de ajuda
+- paths dos artefatos em `processed` e `lookup`
+- datasets demograficos opcionais
+- textos do dashboard
+- titulos dos graficos
+- quais graficos existentes ficam habilitados
+- se cada grafico abre expandido ou minimizado
 
-   Em [src/utils/duckdb.ts](./src/utils/duckdb.ts), incluir o novo nome em `DATASETS` e carregar a tabela como dataset opcional, do mesmo jeito que hoje acontece com social grade e age.
+## Estrutura esperada do JSON
 
-3. **Criar um tipo novo**
+Campos principais:
 
-   Em [src/types/index.ts](./src/types/index.ts), adicionar a interface correspondente.
+- `id`
+- `label`
+- `description`
+- `sortOrder`
+- `geography`
+- `labels`
+- `mapView`
+- `lookup`
+- `storage`
+- `baseFlowDataset`
+- `analyticsMode`
+- `dashboard`
+- `demographicDimensions`
 
-4. **Criar a funcao de consulta**
+## Exemplo de pedido para quem vai produzir a base
 
-   Ainda em [src/utils/duckdb.ts](./src/utils/duckdb.ts), criar uma funcao no padrao:
+Voce pode pedir assim:
 
-   - `getMSOAFlowsBySex(...)`
+1. Entregue os artefatos `flows.parquet`, centroides, boundaries e lookup.
+2. Preencha tambem o JSON de perfil com base no template.
+3. Informe quais filtros demograficos existem.
+4. Informe quais graficos existentes devem aparecer no dashboard e quais titulos devem ser usados.
 
-5. **Conectar ao servico de dados**
+## Quando ainda sera preciso mexer em codigo
 
-   Em [src/utils/dataService.ts](./src/utils/dataService.ts), adicionar o caminho que transforma o resultado em GeoJSON.
+O novo fluxo reduz muito a necessidade de alterar o app, mas ainda existem dois casos em que codigo pode ser necessario:
 
-6. **Expor no frontend**
+1. Quando a nova base usa uma hierarquia geografica que foge do fluxo atual entre geografia base e geografia agregada.
+2. Quando voce quer um grafico totalmente novo, e nao apenas renomear ou habilitar um grafico existente.
 
-   Se a ideia for permitir filtro pelo usuario, criar o controle na interface.
-   Se a ideia for apenas usar o dataset em um grafico novo, basta chamar a funcao diretamente no componente analitico.
+## Arquivos mais importantes
 
-### Regra pratica
-
-Se o novo dado respeita a estrutura:
-
-- origem;
-- destino;
-- categoria;
-- quantidade;
-
-entao a extensao e pequena e localizada.
-
-## Caso 3: Adicionar Dados em Outra Geografia
-
-Este e o caso que exige mais cuidado.
-
-O sistema atual foi desenhado para trabalhar principalmente com:
-
-- MSOA;
-- LTLA.
-
-Se alguem quiser adicionar outra geografia, como LSOA ou regioes administrativas diferentes, sera preciso revisar:
-
-- arquivos de centroides;
-- lookup entre niveis geograficos;
-- deteccao de tipo de codigo;
-- agregacoes em [src/utils/dataService.ts](./src/utils/dataService.ts) e [src/utils/duckdb.ts](./src/utils/duckdb.ts).
-
-A mensagem central e:
-
-- **adicionar novos dados na mesma geografia e facil**;
-- **adicionar uma geografia nova e possivel, mas demanda mais adaptacao estrutural**.
-
-## Fluxo Recomendado Para Outra Pessoa Reutilizar o Projeto
-
-Se o objetivo for facilitar manutencao por terceiros, o fluxo recomendado e este:
-
-1. Preparar o CSV com colunas padronizadas.
-2. Converter para Parquet.
-3. Garantir que os codigos existam nos arquivos de centroides e lookup.
-4. Publicar o novo arquivo de dados.
-5. Se houver nova categoria analitica, adicionar uma funcao nova em `duckdb.ts` e ligar ao frontend.
-
-## Por Que Isso E Facil de Manter
-
-Do ponto de vista de engenharia, o projeto ja tem algumas caracteristicas que facilitam extensao:
-
-- o formato principal dos fluxos e pequeno e previsivel;
-- a transformacao para GeoJSON esta centralizada;
-- os datasets opcionais seguem o mesmo desenho do dataset principal;
-- a agregacao LTLA depende de lookup separado, sem misturar regra geografica com visualizacao;
-- a visualizacao do mapa trabalha sobre um formato unico de feature.
-
-Em outras palavras: quem quiser adicionar dados novos nao precisa reescrever o mapa. Normalmente precisa apenas preparar o arquivo e, em casos analiticos novos, adicionar uma consulta nova.
-
-## Limites Atuais
-
-Para a documentacao ficar honesta, vale registrar estes limites:
-
-- o projeto assume chaves geograficas compativeis com MSOA/LTLA;
-- a agregacao automatica depende da qualidade do `ltla_lookup.csv`;
-- novos datasets categoricos sao faceis de adicionar, mas precisam manter o par origem-destino;
-- a interface atual ja esta pronta para `social grade` e `age`; outras categorias exigem um controle novo no frontend.
-
-## Checklist Rapido
-
-Se a pessoa quiser adicionar um novo dado com o menor esforco possivel, ela deve verificar:
-
-- O arquivo tem `origin_code`, `dest_code` e `count`?
-- Os codigos existem em `areas_centroids.csv`?
-- Se houver LTLA, os codigos estao cobertos em `ltla_lookup.csv` e `ltla_centroids.csv`?
-- O novo dado segue a mesma geografia dos dados atuais?
-- Se houver uma nova categoria, existe uma funcao de consulta correspondente em `duckdb.ts`?
-
-## Resumo Pronto
-
-Voce pode descrever assim:
-
-> O modelo foi estruturado para facilitar extensoes por outros desenvolvedores. A aplicacao depende de um contrato de dados simples, baseado em pares origem-destino e uma medida agregada de fluxo. Quando um novo dataset preserva essas chaves, sua incorporacao exige apenas a conversao para Parquet e o registro do arquivo no modulo central de acesso a dados. Categorias analiticas adicionais, como idade ou perfil socioeconomico, seguem o mesmo padrao e demandam alteracoes localizadas, sem necessidade de reestruturar a visualizacao do mapa.
-
-## Arquivos Mais Importantes Para Quem Vai Estender
-
-- [config.yaml](./config.yaml)
-- [scripts/01_csv_to_parquet.py](./scripts/01_csv_to_parquet.py)
-- [scripts/02_build_centroids.py](./scripts/02_build_centroids.py)
-- [src/utils/dataService.ts](./src/utils/dataService.ts)
-- [src/utils/duckdb.ts](./src/utils/duckdb.ts)
-- [src/types/index.ts](./src/types/index.ts)
+- `dataset_pipeline_configs/app_dataset_profile.template.json`
+- `src/dataset-configs/uk_commuting_ons.json`
+- `src/dataset-configs/porto_alegre.json`
+- `src/constants/datasetProfiles.ts`
+- `src/components/analytics/AnalyticsDashboard.tsx`
+- `DATASET_PIPELINE.md`
+- `ESPECIFICACAO_DE_DADOS_PARA_NOVA_GEOGRAFIA.md`

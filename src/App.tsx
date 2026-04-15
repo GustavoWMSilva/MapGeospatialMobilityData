@@ -14,10 +14,10 @@ import { AnalyticsFilters } from './components/analytics/AnalyticsFilters';
 import { useSelectedArea } from './hooks/useSelectedArea';
 import {
   ACTIVE_DATASET_PROFILE,
-  DATASET_PROFILES,
   buildDatasetSwitchUrl,
   createInitialDemographicFilters,
   getActiveDatasetId,
+  getDatasetToggleOptions,
   persistActiveDataset,
 } from './constants/datasetProfiles';
 
@@ -30,10 +30,7 @@ const DEFAULT_VIEW_STATE: ViewState = {
   zoom: ACTIVE_DATASET_PROFILE.mapView.zoom,
 };
 
-const DATASET_TOGGLE_OPTIONS = [
-  { id: 'porto_alegre', label: 'Porto Alegre' },
-  { id: 'uk_commuting_ons', label: 'UK' },
-] as const;
+const DATASET_TOGGLE_OPTIONS = getDatasetToggleOptions();
 
 interface MapClickEvent {
   lngLat: { lng: number; lat: number };
@@ -94,7 +91,7 @@ export default function App() {
     setViewState(newViewState);
   }, []);
 
-  const handleDatasetChange = useCallback((datasetId: keyof typeof DATASET_PROFILES) => {
+  const handleDatasetChange = useCallback((datasetId: string) => {
     if (datasetId === activeDatasetId) {
       return;
     }

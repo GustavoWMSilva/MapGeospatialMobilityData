@@ -1,284 +1,162 @@
-# Especificacao de Dados Para Nova Geografia
+# Especificacao de dados para nova geografia
 
 ## Objetivo
 
-Este documento e a especificacao que pode ser enviada para quem vai gerar novos dados para o projeto.
+Este documento pode ser enviado diretamente para quem vai preparar uma nova base para o projeto.
 
-O objetivo e deixar claro:
+O pacote esperado agora tem duas partes:
 
-- quais arquivos precisam ser gerados;
-- quais nomes de colunas devem ser usados;
-- quais tipos cada coluna deve ter;
-- quais validacoes devem ser feitas antes da entrega.
+1. artefatos de dados
+2. um perfil JSON com labels e configuracao do dashboard
 
-## Resumo Rapido
+## Entrega minima obrigatoria
 
-Para o sistema conseguir consumir uma nova base, o produtor dos dados deve entregar pelo menos:
+1. `flows.parquet`
+2. `areas_centroids.csv`
+3. `boundaries.geojson`
 
-1. um arquivo principal de fluxos origem-destino;
-2. um arquivo de centroides da geografia base.
+Se houver geografia agregada, entregar tambem:
 
-Se tambem existir agregacao entre dois niveis geograficos, deve entregar:
+4. `aggregate_lookup.csv`
+5. `aggregate_centroids.csv`
+6. `aggregate_boundaries.geojson`
 
-3. um arquivo de lookup entre geografia detalhada e geografia agregada;
-4. um arquivo de centroides da geografia agregada.
+E junto com isso:
 
-## Arquivo 1: Fluxo Principal
+7. um perfil JSON baseado em `dataset_pipeline_configs/app_dataset_profile.template.json`
 
-Este e o arquivo obrigatorio.
+## Arquivo 1: fluxo principal
 
 Formato recomendado:
 
 - `Parquet`
 
-Nome sugerido:
+Schema minimo:
 
-- `NOME_DO_DATASET.parquet`
+| Coluna | Tipo | Obrigatoria | Descricao |
+| --- | --- | --- | --- |
+| `origin_code` | string | sim | identificador da area de origem |
+| `dest_code` | string | sim | identificador da area de destino |
+| `count` | integer | sim | quantidade de pessoas |
 
-Schema obrigatorio:
+Schema recomendado:
 
-| Coluna        | Tipo    | Obrigatoria | Descricao                        |
-| ------------- | ------- | ----------- | -------------------------------- |
-| `origin_code` | string  | sim         | identificador da area de origem  |
-| `origin_name` | string  | sim         | nome legivel da area de origem   |
-| `dest_code`   | string  | sim         | identificador da area de destino |
-| `dest_name`   | string  | sim         | nome legivel da area de destino  |
-| `count`       | integer | sim         | quantidade de pessoas no fluxo   |
+| Coluna | Tipo |
+| --- | --- |
+| `origin_name` | string |
+| `dest_name` | string |
 
-### Regras
+## Arquivo 2: centroides da geografia base
 
-- `origin_code` e `dest_code` devem usar o mesmo sistema de identificacao da geografia base.
-- `count` deve ser inteiro nao negativo.
-- Cada linha representa um fluxo agregado entre uma origem e um destino.
-- `origin_name` e `dest_name` devem ser consistentes com os codigos.
-
-### Exemplo real do projeto atual
-
-```csv
-origin_code,origin_name,dest_code,dest_name,count
-E02000001,City of London 001,-8,Does not apply,2653
-E02000001,City of London 001,999999999,Workplace is outside the UK,35
-E02000001,City of London 001,E02000001,City of London 001,3871
-E02000001,City of London 001,E02000016,Barking and Dagenham 015,2
-```
-
-### Tipos observados no projeto atual
-
-```text
-origin_code=string
-origin_name=string
-dest_code=string
-dest_name=string
-count=int32
-```
-
-## Arquivo 2: Centroides da Geografia Base
-
-Este arquivo e obrigatorio para o mapa desenhar pontos e linhas.
-
-Formato recomendado:
+Formato:
 
 - `CSV`
 
-Caminho usado hoje no projeto:
+Schema:
 
-- `public/data/lookup/areas_centroids.csv`
+| Coluna | Tipo | Obrigatoria |
+| --- | --- | --- |
+| `code` | string | sim |
+| `name` | string | sim |
+| `lat` | number | sim |
+| `lon` | number | sim |
 
-Schema obrigatorio:
+## Arquivo 3: boundaries da geografia base
 
-| Coluna | Tipo   | Obrigatoria | Descricao              |
-| ------ | ------ | ----------- | ---------------------- |
-| `code` | string | sim         | identificador da area  |
-| `name` | string | sim         | nome legivel da area   |
-| `lat`  | number | sim         | latitude do centroide  |
-| `lon`  | number | sim         | longitude do centroide |
+Formato:
 
-### Regras
+- `GeoJSON`
 
-- `code` deve corresponder aos valores usados em `origin_code` e `dest_code`.
-- `lat` e `lon` devem estar em WGS84, em graus decimais.
-- Cada codigo deve aparecer uma unica vez.
+Requisitos:
 
-### Exemplo real do projeto atual
+- deve haver uma feature para cada unidade geografica mapeavel
+- os codigos precisam ser compativeis com o fluxo e os centroides
 
-```csv
-code,name,lat,lon
-E02000001,City of London 001,51.5191496645381,-0.0947193383413515
-E02000002,Barking and Dagenham 001,51.584148214959,0.134590789218884
-E02000003,Barking and Dagenham 002,51.5721474476484,0.139425953910365
-E02000004,Barking and Dagenham 003,51.5604546947569,0.177227525339084
-```
+## Arquivos 4 a 6: nivel agregado
 
-## Arquivo 3: Lookup Entre Geografia Base e Geografia Agregada
+Se a base tiver um nivel agregado, entregar:
 
-Este arquivo so e necessario se o projeto for trabalhar com dois niveis geograficos.
+- `aggregate_lookup.csv`
+- `aggregate_centroids.csv`
+- `aggregate_boundaries.geojson`
 
-Exemplo do projeto atual:
+O lookup deve mapear cada unidade da geografia base para sua unidade da geografia agregada.
 
-- geografia base: `MSOA`
-- geografia agregada: `LTLA`
+## Datasets categoricos opcionais
 
-Formato recomendado:
+Se existirem recortes como idade, ocupacao, sexo ou renda, cada dataset adicional deve manter:
 
-- `CSV`
+- `origin_code`
+- `dest_code`
+- `count`
+- uma coluna de categoria
+- opcionalmente uma coluna de codigo da categoria
 
-Caminho usado hoje no projeto:
+## Perfil JSON obrigatorio para integracao
 
-- `public/data/lookup/ltla_lookup.csv`
+O perfil JSON deve informar:
 
-Schema usado atualmente:
+- `id`
+- `label`
+- `description`
+- `sortOrder`
+- nomes da geografia base e da geografia agregada
+- labels dos seletores
+- placeholders de busca
+- paths de `lookup`
+- paths de `storage`
+- dataset principal
+- datasets demograficos opcionais
+- configuracao do dashboard
 
-| Coluna     | Tipo   | Obrigatoria | Descricao                   |
-| ---------- | ------ | ----------- | --------------------------- |
-| `msoa21cd` | string | sim         | codigo da unidade detalhada |
-| `msoa21nm` | string | nao         | nome da unidade detalhada   |
-| `ltla22cd` | string | sim         | codigo da unidade agregada  |
-| `ltla22nm` | string | nao         | nome da unidade agregada    |
+## Configuracao do dashboard no JSON
 
-### Regra importante para nova geografia
+O campo `dashboard` deve dizer:
 
-Se a nova base usar outra hierarquia geografica, o projeto pode continuar usando a mesma ideia, mas o codigo atual ainda esta nomeado para `MSOA -> LTLA`.
+- titulo do painel
+- subtitulo do painel
+- label da direcao
+- textos do checkbox de fluxo interno
+- mensagem para datasets genericos
+- titulos dos graficos
+- quais graficos existentes ficam habilitados
+- quais comecam minimizados
 
-Entao, para quem for gerar dados, a orientacao e:
+## Lista objetiva do que preencher no JSON
 
-- entregar um lookup com uma coluna de codigo da geografia base;
-- entregar uma coluna de codigo da geografia agregada;
-- manter tambem os nomes, se possivel.
+Campos mais importantes:
 
-Se a nova geografia substituir completamente a estrutura atual, depois o codigo do projeto pode ser adaptado para refletir os nomes reais dessa hierarquia.
+1. `label`: nome que aparece no toggle
+2. `labels.base.singular`
+3. `labels.base.plural`
+4. `labels.aggregate.singular`
+5. `labels.aggregate.plural`
+6. `labels.base.inputPlaceholder`
+7. `labels.aggregate.searchPlaceholder`
+8. `dashboard.charts.<chartId>.title`
+9. `dashboard.charts.<chartId>.enabled`
+10. `dashboard.charts.<chartId>.defaultCollapsed`
 
-### Exemplo real do projeto atual
+## Validacoes antes da entrega
 
-```csv
-msoa21cd,msoa21nm,ltla22cd,ltla22nm
-S02001237,,S12000033,Aberdeen City
-S02001296,,S12000034,Aberdeenshire
-S02001236,,S12000033,Aberdeen City
-S02001250,,S12000033,Aberdeen City
-```
+Quem gerar a base deve validar:
 
-## Arquivo 4: Centroides da Geografia Agregada
+1. `origin_code` e `dest_code` existem em todas as linhas
+2. `count` e inteiro e nao negativo
+3. todos os codigos do fluxo existem nos centroides, exceto codigos especiais documentados
+4. `lat` e `lon` estao preenchidos
+5. se houver geografia agregada, o lookup cobre as unidades da geografia base
+6. o JSON aponta para arquivos que realmente existem
+7. os nomes das categorias no JSON batem com os arquivos Parquet opcionais
 
-Este arquivo so e necessario se houver visualizacao agregada.
+## Observacao importante
 
-Formato recomendado:
+O JSON nao cria graficos novos sozinho. Ele apenas configura os componentes que o app ja possui.
 
-- `CSV`
+Se for necessario um grafico totalmente novo, entregue tambem a especificacao funcional do grafico:
 
-Caminho usado hoje no projeto:
-
-- `public/data/lookup/ltla_centroids.csv`
-
-Schema obrigatorio:
-
-| Coluna | Tipo   | Obrigatoria | Descricao                      |
-| ------ | ------ | ----------- | ------------------------------ |
-| `code` | string | sim         | identificador da area agregada |
-| `name` | string | sim         | nome legivel da area agregada  |
-| `lat`  | number | sim         | latitude do centroide          |
-| `lon`  | number | sim         | longitude do centroide         |
-
-## Datasets Categoricos Opcionais
-
-Se a nova base incluir recortes analiticos, como sexo, faixa etaria, renda ou setor economico, o recomendado e manter o mesmo padrao:
-
-| Coluna            | Tipo              | Obrigatoria |
-| ----------------- | ----------------- | ----------- |
-| `origin_code`     | string            | sim         |
-| `dest_code`       | string            | sim         |
-| `count`           | integer           | sim         |
-| `categoria_code`  | string ou integer | sim         |
-| `categoria_label` | string            | sim         |
-
-### Exemplo generico
-
-```csv
-origin_code,dest_code,sex_code,sex_label,count
-X0001,X0002,1,Male,120
-X0001,X0002,2,Female,98
-X0003,X0004,1,Male,55
-```
-
-## Validacoes Que Devem Ser Feitas Antes da Entrega
-
-Quem gerar a base deve validar pelo menos estes pontos:
-
-1. Nao existem colunas com nomes diferentes do especificado para os campos obrigatorios.
-2. `origin_code` e `dest_code` estao preenchidos em todas as linhas.
-3. `count` e numerico inteiro e maior ou igual a zero.
-4. Todos os codigos usados no fluxo existem no arquivo de centroides da geografia base, exceto codigos especiais que forem deliberadamente mantidos.
-5. Nao existem coordenadas nulas em `areas_centroids.csv`.
-6. Se houver agregacao, todos os codigos da geografia base possuem correspondencia no lookup.
-7. Nao existem duplicidades indevidas no arquivo de centroides.
-
-## Tratamento de Codigos Especiais
-
-O dataset atual possui exemplos como:
-
-- `-8`
-- `999999999`
-
-Eles representam casos especiais e nem sempre possuem coordenadas validas para mapa.
-
-Recomendacao para nova base:
-
-- se esses registros forem importantes analiticamente, podem ser mantidos no arquivo bruto;
-- se o objetivo principal for visualizacao geografica, e melhor separar ou documentar esses casos;
-- qualquer codigo especial precisa ser claramente documentado.
-
-## Convencoes Recomendadas
-
-Para reduzir retrabalho na integracao:
-
-- usar `snake_case` nos nomes das colunas;
-- usar `string` para todos os codigos geograficos;
-- usar `UTF-8`;
-- usar ponto como separador decimal;
-- evitar nomes de coluna dependentes do ano da geografia, exceto no lookup oficial, quando isso ajudar na rastreabilidade.
-
-## O Que Ja Funciona Sem Mudanca de Codigo
-
-O projeto atual consome diretamente bases que respeitem:
-
-- colunas `origin_code`, `origin_name`, `dest_code`, `dest_name`, `count`;
-- centroides com `code`, `name`, `lat`, `lon`.
-
-Ou seja, se a nova base mantiver esse contrato e continuar no mesmo modelo de geografia que o projeto espera, a entrada de dados fica simples.
-
-## O Que Provavelmente Vai Exigir Adaptacao no Codigo
-
-Se a nova base usar outra geografia, estes pontos provavelmente vao precisar de ajuste:
-
-- [src/utils/duckdb.ts](./src/utils/duckdb.ts)
-- [src/utils/dataService.ts](./src/utils/dataService.ts)
-- [src/types/index.ts](./src/types/index.ts)
-
-Motivo:
-
-- hoje o projeto tem regras explicitas para `MSOA` e `LTLA`;
-- a deteccao de codigos e os lookups foram implementados com essa hierarquia em mente.
-
-## Entrega Minima
-
-Se for enviar esta especificacao para quem vai produzir a base, o pacote minimo ideal e:
-
-1. `fluxos.parquet`
-2. `areas_centroids.csv`
-3. `lookup_agregacao.csv` se houver dois niveis
-4. `areas_agregadas_centroids.csv` se houver visualizacao agregada
-5. um arquivo curto de metadados explicando:
-   - o nome da geografia;
-   - o significado dos codigos;
-   - a unidade de medida de `count`;
-   - a existencia de codigos especiais;
-   - a cobertura temporal da base.
-
-## Checklist Final Para Producao dos Dados
-
-- O arquivo principal usa exatamente `origin_code`, `origin_name`, `dest_code`, `dest_name`, `count`.
-- Os codigos estao como `string`.
-- `count` esta como inteiro.
-- Existe um centroide para cada unidade geografica mapeavel.
-- O sistema de coordenadas esta em latitude e longitude.
-- Se houver agregacao, o lookup cobre todas as unidades de origem.
-- Casos especiais estao documentados.
+- objetivo analitico
+- dataset usado
+- colunas necessarias
+- titulo desejado
+- regra de agregacao
