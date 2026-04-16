@@ -82,10 +82,262 @@ const DEFAULT_DASHBOARD_CONFIG: Omit<DatasetDashboardConfig, 'charts'> = {
   advancedChartsHideLabel: 'Ocultar graficos avancados (TCC)',
 };
 
+const BUILTIN_DATASET_PROFILES: Record<string, DatasetProfileSource> = {
+  uk_commuting_ons: {
+    id: 'uk_commuting_ons',
+    label: 'UK',
+    description: 'Dataset legado do Reino Unido com fluxos MSOA/LTLA e cortes por classe social e idade.',
+    sortOrder: 20,
+    geography: {
+      base: 'MSOA',
+      aggregate: 'LTLA',
+    },
+    labels: {
+      base: {
+        singular: 'MSOA',
+        plural: 'MSOAs',
+        selectorTitle: 'Selecao por Area (MSOA)',
+        selectedTitle: 'Area MSOA selecionada',
+        helperText: 'Digite o codigo da area e pressione Enter para ver as conexoes de mobilidade.',
+        inputPlaceholder: 'Digite o codigo da area (ex: E02000001)',
+        modeLabel: 'Areas (MSOA)',
+      },
+      aggregate: {
+        singular: 'LTLA',
+        plural: 'LTLAs',
+        selectorTitle: 'Selecao por Distrito',
+        selectedTitle: 'Distrito selecionado',
+        helperText: 'Digite o nome da cidade para visualizar os fluxos de mobilidade agregados por distrito.',
+        searchPlaceholder: 'Buscar cidade... (ex: London, Manchester, Birmingham)',
+        emptySearchTitle: 'Nenhum distrito encontrado',
+        emptySearchHint: 'Tente buscar por London, Manchester ou Cardiff',
+        modeLabel: 'Cidades (LTLA)',
+      },
+      analyticsEmptyTitle: 'Selecione uma area para ver os graficos',
+      analyticsEmptyHint: 'Clique no mapa ou use a busca para selecionar uma localizacao',
+      areaChipLabel: 'Area',
+      levelChipLabel: 'Nivel',
+      datasetActiveLabel: 'Conjunto de dados ativo',
+    },
+    mapView: {
+      longitude: -1.5,
+      latitude: 52.5,
+      zoom: 6,
+    },
+    lookup: {
+      baseCentroidsPath: '/data/lookup/areas_centroids.csv',
+      aggregateCentroidsPath: '/data/lookup/ltla_centroids.csv',
+      aggregateLookupPath: '/data/lookup/ltla_lookup.csv',
+      baseBoundariesPath: '/data/lookup/boundaries.geojson',
+      aggregateBoundariesPath: '/data/lookup/ltla_boundaries.geojson',
+    },
+    storage: {
+      remoteBaseUrl: 'https://cdn.jsdelivr.net/gh/GustavoWMSilva/MapGeospatialMobilityData@main/',
+      localProcessedBasePath: '/data/processed/',
+    },
+    baseFlowDataset: {
+      fileName: 'ODWP01EW_MSOA.parquet',
+      tableName: 'flows',
+      required: true,
+    },
+    analyticsMode: 'uk-legacy',
+    dashboard: {
+      charts: {
+        directionalBalance: {
+          title: 'Saldo direcional por LTLA',
+        },
+      },
+    },
+    demographicDimensions: [
+      {
+        key: 'socialGrade',
+        label: 'Classe social',
+        categoryColumn: 'social_grade',
+        codeColumn: 'social_grade_code',
+        matchMode: 'contains',
+        analyticsRole: 'socialGrade',
+        allLabel: 'Todas as classes',
+        dataset: {
+          fileName: 'ODWP09EW_MSOA.parquet',
+          tableName: 'flows_social_grade',
+        },
+        options: [
+          { value: 'AB', label: 'AB - Profissionais de nivel superior e intermediario' },
+          { value: 'C1', label: 'C1 - Supervisao e servicos administrativos' },
+          { value: 'C2', label: 'C2 - Trabalho manual qualificado' },
+          { value: 'DE', label: 'DE - Trabalho semiqualificado e nao qualificado' },
+        ],
+      },
+      {
+        key: 'age',
+        label: 'Faixa etaria',
+        categoryColumn: 'age_group',
+        codeColumn: 'age_code',
+        analyticsRole: 'age',
+        allLabel: 'Todas as idades',
+        dataset: {
+          fileName: 'ODWP04EW_MSOA.parquet',
+          tableName: 'flows_age',
+        },
+        options: [
+          { value: 'Aged 16 to 24 years', label: '16-24 anos (jovens adultos)' },
+          { value: 'Aged 25 to 34 years', label: '25-34 anos (jovens profissionais)' },
+          { value: 'Aged 35 to 44 years', label: '35-44 anos (meio de carreira)' },
+          { value: 'Aged 45 to 54 years', label: '45-54 anos (experientes)' },
+          { value: 'Aged 55 to 64 years', label: '55-64 anos (pre-aposentadoria)' },
+          { value: 'Aged 65 years and over', label: '65+ anos' },
+        ],
+      },
+    ],
+  },
+  porto_alegre: {
+    id: 'porto_alegre',
+    label: 'Porto Alegre',
+    description: 'Fluxos origem-destino por setor censitario e bairro, com cortes por idade e ocupacao.',
+    sortOrder: 10,
+    geography: {
+      base: 'Setor Censitario',
+      aggregate: 'Bairro',
+    },
+    labels: {
+      base: {
+        singular: 'Setor Censitario',
+        plural: 'Setores Censitarios',
+        selectorTitle: 'Selecao por Setor Censitario',
+        selectedTitle: 'Setor Censitario selecionado',
+        helperText: 'Digite o codigo do setor e pressione Enter para ver as conexoes de mobilidade.',
+        inputPlaceholder: 'Digite o codigo do setor censitario',
+        modeLabel: 'Setores Censitarios',
+      },
+      aggregate: {
+        singular: 'Bairro',
+        plural: 'Bairros',
+        selectorTitle: 'Selecao por Bairro',
+        selectedTitle: 'Bairro selecionado',
+        helperText: 'Digite o nome do bairro para visualizar os fluxos de mobilidade no nivel agregado.',
+        searchPlaceholder: 'Buscar bairro...',
+        emptySearchTitle: 'Nenhum bairro encontrado',
+        emptySearchHint: 'Tente buscar por nome ou codigo',
+        modeLabel: 'Bairros',
+      },
+      analyticsEmptyTitle: 'Selecione uma area para ver os graficos',
+      analyticsEmptyHint: 'Clique no mapa ou use a busca para selecionar uma unidade geografica',
+      areaChipLabel: 'Area',
+      levelChipLabel: 'Nivel',
+      datasetActiveLabel: 'Conjunto de dados ativo',
+    },
+    mapView: {
+      longitude: -51.23,
+      latitude: -30.03,
+      zoom: 10,
+    },
+    lookup: {
+      baseCentroidsPath: '/data/porto_alegre/lookup/areas_centroids.csv',
+      aggregateCentroidsPath: '/data/porto_alegre/lookup/aggregate_centroids.csv',
+      aggregateLookupPath: '/data/porto_alegre/lookup/aggregate_lookup.csv',
+      baseBoundariesPath: '/data/porto_alegre/lookup/boundaries.geojson',
+      aggregateBoundariesPath: '/data/porto_alegre/lookup/aggregate_boundaries.geojson',
+    },
+    storage: {
+      remoteBaseUrl: 'https://cdn.jsdelivr.net/gh/GustavoWMSilva/MapGeospatialMobilityData@main/public/data/porto_alegre/processed/',
+      localProcessedBasePath: '/data/porto_alegre/processed/',
+    },
+    baseFlowDataset: {
+      fileName: 'od_matrix_enumeration_area.parquet',
+      tableName: 'flows',
+      required: true,
+    },
+    analyticsMode: 'generic',
+    dashboard: {
+      genericAnalyticsHint:
+        'Este dataset ja usa filtros configuraveis no mapa e no ranking. Para novos graficos, basta informar no JSON quais componentes existentes devem aparecer e quais titulos usar.',
+      charts: {
+        topFlows: {
+          enabled: true,
+          defaultCollapsed: false,
+        },
+        socialPie: {
+          enabled: false,
+        },
+        ageBar: {
+          enabled: false,
+        },
+        performance: {
+          enabled: false,
+        },
+        odHeatmap: {
+          enabled: false,
+        },
+        socialMultiples: {
+          enabled: false,
+        },
+        aggregateStacked: {
+          enabled: false,
+        },
+        aggregationScatter: {
+          enabled: false,
+        },
+        directionalBalance: {
+          enabled: false,
+          title: 'Saldo direcional por Bairro',
+        },
+      },
+    },
+    demographicDimensions: [
+      {
+        key: 'age',
+        label: 'Faixa etaria',
+        categoryColumn: 'age_group',
+        analyticsRole: 'age',
+        allLabel: 'Todas as idades',
+        dataset: {
+          fileName: 'od_matrix_enumeration_area_age.parquet',
+          tableName: 'flows_age',
+        },
+        options: [
+          { value: 'children', label: 'Criancas' },
+          { value: 'youngs', label: 'Jovens' },
+          { value: 'adults', label: 'Adultos' },
+          { value: 'elders', label: 'Idosos' },
+        ],
+      },
+      {
+        key: 'occupation',
+        label: 'Ocupacao',
+        categoryColumn: 'occupation',
+        allLabel: 'Todas as ocupacoes',
+        dataset: {
+          fileName: 'od_matrix_enumeration_area_occupation.parquet',
+          tableName: 'flows_occupation',
+        },
+        options: [
+          { value: 'student', label: 'Estudante' },
+          { value: 'worker', label: 'Trabalhador' },
+          { value: 'other', label: 'Outros' },
+        ],
+      },
+    ],
+  },
+};
+
 const datasetProfileModules = import.meta.glob('../dataset-configs/*.json', {
   eager: true,
   import: 'default',
 }) as Record<string, DatasetProfileSource>;
+
+const importedDatasetProfilesById = Object.values(datasetProfileModules).reduce(
+  (accumulator, profile) => {
+    accumulator[profile.id] = profile;
+    return accumulator;
+  },
+  {} as Record<string, DatasetProfileSource>
+);
+
+if (Object.keys(importedDatasetProfilesById).length === 0 && typeof console !== 'undefined') {
+  console.warn(
+    '[datasetProfiles] Nenhum perfil JSON foi carregado em src/dataset-configs. Usando perfis embutidos; verifique se os arquivos foram commitados antes do deploy.'
+  );
+}
 
 function normalizeDatasetProfile(profile: DatasetProfileSource): DatasetProfile {
   const normalizedCharts = Object.fromEntries(
@@ -112,7 +364,10 @@ function normalizeDatasetProfile(profile: DatasetProfileSource): DatasetProfile 
   };
 }
 
-export const DATASET_PROFILES: Record<string, DatasetProfile> = Object.values(datasetProfileModules).reduce(
+export const DATASET_PROFILES: Record<string, DatasetProfile> = Object.values({
+  ...BUILTIN_DATASET_PROFILES,
+  ...importedDatasetProfilesById,
+}).reduce(
   (accumulator, profile) => {
     const normalizedProfile = normalizeDatasetProfile(profile);
     accumulator[normalizedProfile.id] = normalizedProfile;
