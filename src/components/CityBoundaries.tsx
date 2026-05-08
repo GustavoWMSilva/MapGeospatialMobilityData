@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Source, Layer } from '@vis.gl/react-maplibre';
 import { fetchWithCache } from '../utils/cacheService';
 import { MAP_COLORS } from '../constants/mapColors';
@@ -137,6 +137,34 @@ const augmentMissingLTLABoundaries = async (
   };
 };
 
+const keepOnlyOuterRings = (geometry: GeoJSON.Geometry): GeoJSON.Geometry => {
+  if (geometry.type === 'Polygon') {
+    const outerRing = geometry.coordinates[0];
+    return outerRing
+      ? {
+          type: 'Polygon',
+          coordinates: [outerRing],
+        }
+      : geometry;
+  }
+
+  if (geometry.type === 'MultiPolygon') {
+    const polygons = geometry.coordinates
+      .map((polygon) => polygon[0])
+      .filter((outerRing): outerRing is GeoJSON.Position[] => Boolean(outerRing))
+      .map((outerRing) => [outerRing]);
+
+    return polygons.length > 0
+      ? {
+          type: 'MultiPolygon',
+          coordinates: polygons,
+        }
+      : geometry;
+  }
+
+  return geometry;
+};
+
 export const CityBoundaries: React.FC<CityBoundariesProps> = ({
   isVisible = true,
   borderColor = MAP_COLORS.boundaries.line,
@@ -183,7 +211,21 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
     void loadBoundaries();
   }, [geographyLevel]);
 
-  if (loading || !boundariesData || !isVisible) {
+  const outerRingBoundariesData = useMemo<GeoJSON.FeatureCollection | null>(() => {
+    if (!boundariesData) {
+      return null;
+    }
+
+    return {
+      ...boundariesData,
+      features: (boundariesData.features || []).map((feature) => ({
+        ...feature,
+        geometry: keepOnlyOuterRings(feature.geometry),
+      })),
+    };
+  }, [boundariesData]);
+
+  if (loading || !boundariesData || !outerRingBoundariesData || !isVisible) {
     return null;
   }
 
@@ -242,16 +284,12 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
           paint={{
             'line-color': [
               'case',
-              isSelectedExpression,
-              MAP_COLORS.boundaries.selectedLine,
               isConnectedExpression,
               MAP_COLORS.boundaries.connectedLine,
               borderColor
             ],
             'line-width': [
               'case',
-              isSelectedExpression,
-              MAP_COLORS.boundaries.selectedLineWidth,
               isConnectedExpression,
               MAP_COLORS.boundaries.connectedLineWidth,
               borderWidth
@@ -265,6 +303,43 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
               isFallbackMsoaExpression,
               0,
               MAP_COLORS.boundaries.baseLineOpacity
+            ]
+          }}
+        />
+      </Source>
+
+      <Source
+        id={`${geographyLevel}-selected-boundaries-outer-rings`}
+        type="geojson"
+        data={outerRingBoundariesData}
+      >
+        <Layer
+          id={`${geographyLevel}-selected-boundaries-outer-line`}
+          type="line"
+          paint={{
+            'line-color': [
+              'case',
+              isSelectedExpression,
+              MAP_COLORS.boundaries.selectedLine,
+              isConnectedExpression,
+              MAP_COLORS.boundaries.connectedLine,
+              'transparent'
+            ],
+            'line-width': [
+              'case',
+              isSelectedExpression,
+              MAP_COLORS.boundaries.selectedLineWidth,
+              isConnectedExpression,
+              MAP_COLORS.boundaries.connectedLineWidth,
+              0
+            ],
+            'line-opacity': [
+              'case',
+              isSelectedExpression,
+              MAP_COLORS.boundaries.selectedLineOpacity,
+              isConnectedExpression,
+              MAP_COLORS.boundaries.connectedLineOpacity,
+              0
             ]
           }}
         />

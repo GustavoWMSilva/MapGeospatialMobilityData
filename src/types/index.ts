@@ -87,6 +87,14 @@ export interface DatasetChartConfig {
   title: string;
   enabled?: boolean;
   defaultCollapsed?: boolean;
+  section?: 'main' | 'advanced';
+  params?: {
+    dimensionKey?: string;
+    referencePath?: string;
+    aggregateCodePattern?: string;
+    topN?: number;
+    initialTopN?: number;
+  };
 }
 
 export interface DatasetDashboardConfig {
@@ -104,6 +112,7 @@ export interface DatasetDashboardConfig {
   genericAnalyticsHint: string;
   advancedChartsShowLabel: string;
   advancedChartsHideLabel: string;
+  chartOrder: DatasetChartId[];
   charts: Record<DatasetChartId, DatasetChartConfig>;
 }
 

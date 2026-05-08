@@ -118,9 +118,11 @@ O campo `dashboard` deve dizer:
 - label da direcao
 - textos do checkbox de fluxo interno
 - mensagem para datasets genericos
+- `chartOrder`, com a ordem exata dos graficos que devem aparecer
 - titulos dos graficos
 - quais graficos existentes ficam habilitados
 - quais comecam minimizados
+- parametros por grafico em `dashboard.charts.<chartId>.params`, como `topN` e `initialTopN`
 
 ## Lista objetiva do que preencher no JSON
 
@@ -133,9 +135,12 @@ Campos mais importantes:
 5. `labels.aggregate.plural`
 6. `labels.base.inputPlaceholder`
 7. `labels.aggregate.searchPlaceholder`
-8. `dashboard.charts.<chartId>.title`
-9. `dashboard.charts.<chartId>.enabled`
-10. `dashboard.charts.<chartId>.defaultCollapsed`
+8. `dashboard.chartOrder`
+9. `dashboard.charts.<chartId>.title`
+10. `dashboard.charts.<chartId>.enabled`
+11. `dashboard.charts.<chartId>.defaultCollapsed`
+12. `dashboard.charts.<chartId>.section`
+13. `dashboard.charts.<chartId>.params`
 
 ## Validacoes antes da entrega
 

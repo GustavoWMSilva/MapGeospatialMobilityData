@@ -14,7 +14,6 @@ import { loadFlowsFiltered } from '../../utils/dataService';
 import {
   getDataSourceUnitLabels,
   getDashboardChartConfig,
-  getLegacyAnalyticsFilters,
   hasActiveDemographicFilters,
 } from '../../constants/datasetProfiles';
 import type {
@@ -22,8 +21,6 @@ import type {
   DatasetProfile,
   DemographicFilters,
   GeographyLevel,
-  SocialGrade,
-  AgeGroup,
 } from '../../types';
 import { debugLog, getAnalyticsErrorMessage } from './analyticsUtils';
 
@@ -86,29 +83,253 @@ export function AnalyticsDashboard({
 }: AnalyticsDashboardProps) {
   const [flowCountError, setFlowCountError] = useState<string | null>(null);
   const [showResearchCharts, setShowResearchCharts] = useState(false);
-  const [collapsedCharts, setCollapsedCharts] = useState<Record<DatasetChartId, boolean>>(() => ({
-    socialPie: getDashboardChartConfig(datasetProfile, 'socialPie').defaultCollapsed ?? false,
-    ageBar: getDashboardChartConfig(datasetProfile, 'ageBar').defaultCollapsed ?? false,
-    topFlows: getDashboardChartConfig(datasetProfile, 'topFlows').defaultCollapsed ?? false,
-    performance: getDashboardChartConfig(datasetProfile, 'performance').defaultCollapsed ?? true,
-    odHeatmap: getDashboardChartConfig(datasetProfile, 'odHeatmap').defaultCollapsed ?? true,
-    socialMultiples: getDashboardChartConfig(datasetProfile, 'socialMultiples').defaultCollapsed ?? true,
-    aggregateStacked: getDashboardChartConfig(datasetProfile, 'aggregateStacked').defaultCollapsed ?? true,
-    aggregationScatter: getDashboardChartConfig(datasetProfile, 'aggregationScatter').defaultCollapsed ?? true,
-    directionalBalance: getDashboardChartConfig(datasetProfile, 'directionalBalance').defaultCollapsed ?? true,
-  }));
-  const legacyFilters = getLegacyAnalyticsFilters(datasetProfile, demographicFilters);
-  const socialGrade = legacyFilters.socialGrade as SocialGrade;
-  const ageGroup = legacyFilters.ageGroup as AgeGroup;
+  const [collapsedCharts, setCollapsedCharts] = useState<Record<DatasetChartId, boolean>>(() =>
+    Object.fromEntries(
+      datasetProfile.dashboard.chartOrder.map((chartId) => [
+        chartId,
+        getDashboardChartConfig(datasetProfile, chartId).defaultCollapsed ?? false,
+      ])
+    ) as Record<DatasetChartId, boolean>
+  );
+  const getChartDimension = (chartId: DatasetChartId) => {
+    const dimensionKey = getDashboardChartConfig(datasetProfile, chartId).params?.dimensionKey;
+    return (
+      datasetProfile.demographicDimensions.find((dimension) => dimension.key === dimensionKey) ||
+      datasetProfile.demographicDimensions.find((dimension) => dimension.analyticsRole === 'socialGrade') ||
+      datasetProfile.demographicDimensions.find((dimension) => dimension.analyticsRole !== 'age') ||
+      datasetProfile.demographicDimensions[0]
+    );
+  };
+  const getBarDimension = (chartId: DatasetChartId) => {
+    const dimensionKey = getDashboardChartConfig(datasetProfile, chartId).params?.dimensionKey;
+    return (
+      datasetProfile.demographicDimensions.find((dimension) => dimension.key === dimensionKey) ||
+      datasetProfile.demographicDimensions.find((dimension) => dimension.analyticsRole === 'age') ||
+      datasetProfile.demographicDimensions[0]
+    );
+  };
   const hasGenericFilters = hasActiveDemographicFilters(
     demographicFilters,
     datasetProfile.demographicDimensions
   );
   const supportsLegacyAnalytics = datasetProfile.analyticsMode === 'uk-legacy';
-  const showSocialPie = supportsLegacyAnalytics && getDashboardChartConfig(datasetProfile, 'socialPie').enabled !== false;
-  const showAgeBar = supportsLegacyAnalytics && getDashboardChartConfig(datasetProfile, 'ageBar').enabled !== false;
   const activeLevelLabels = getDataSourceUnitLabels(geographyLevel, datasetProfile);
   const aggregateUnitLabel = datasetProfile.labels.aggregate.singular;
+
+  const canRenderChart = (chartId: DatasetChartId) => {
+    const chartConfig = getDashboardChartConfig(datasetProfile, chartId);
+
+    if (chartConfig.enabled === false) {
+      return false;
+    }
+
+    if (chartId === 'topFlows') {
+      return true;
+    }
+
+    if (chartId === 'socialPie') {
+      return Boolean(getChartDimension(chartId));
+    }
+
+    if (chartId === 'ageBar') {
+      return Boolean(getBarDimension(chartId));
+    }
+
+    if (chartId === 'performance') {
+      return true;
+    }
+
+    if (chartId === 'odHeatmap' || chartId === 'directionalBalance') {
+      return geographyLevel === 'aggregate';
+    }
+
+    if (chartId === 'socialMultiples' || chartId === 'aggregateStacked') {
+      return geographyLevel === 'aggregate' && Boolean(getChartDimension(chartId));
+    }
+
+    if (chartId === 'aggregationScatter') {
+      return geographyLevel === 'aggregate' && (supportsLegacyAnalytics || Boolean(chartConfig.params?.referencePath));
+    }
+
+    return supportsLegacyAnalytics && geographyLevel === 'aggregate';
+  };
+
+  const mainChartIds = datasetProfile.dashboard.chartOrder.filter((chartId) => {
+    const section = getDashboardChartConfig(datasetProfile, chartId).section ?? 'main';
+    return section === 'main' && canRenderChart(chartId);
+  });
+
+  const advancedChartIds = datasetProfile.dashboard.chartOrder.filter((chartId) => {
+    const section = getDashboardChartConfig(datasetProfile, chartId).section ?? 'main';
+    return section === 'advanced' && canRenderChart(chartId);
+  });
+
+  const renderChart = (chartId: DatasetChartId) => {
+    const chartConfig = getDashboardChartConfig(datasetProfile, chartId);
+    const params = chartConfig.params ?? {};
+    const areaCode = selectedArea ?? '';
+    const stackedTopN = params.initialTopN === 20 || params.topN === 20 ? 20 : 12;
+    const isCollapsed = collapsedCharts[chartId] ?? chartConfig.defaultCollapsed ?? false;
+    const defaultClassName =
+      chartId === 'topFlows'
+        ? 'rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50 to-white p-4 shadow-sm'
+        : 'rounded-2xl border border-purple-100 bg-white p-4 shadow-sm';
+
+    switch (chartId) {
+      case 'socialPie': {
+        const pieDimension = getChartDimension(chartId);
+        if (!pieDimension) return null;
+
+        return (
+          <ChartCard
+            key={chartId}
+            title={chartConfig.title}
+            isCollapsed={isCollapsed}
+            onToggle={() => toggleChart(chartId)}
+            className={defaultClassName}
+          >
+            <SocialGradePieChart
+              key={`social-${selectedArea}`}
+              areaCode={areaCode}
+              dimension={pieDimension}
+              direction={direction}
+              includeInternalFlows={includeInternalFlows}
+              selectedValue={demographicFilters[pieDimension.key] ?? 'all'}
+              onSelectValue={(value) =>
+                onDemographicFiltersChange?.({
+                  ...demographicFilters,
+                  [pieDimension.key]: value,
+                })
+              }
+            />
+          </ChartCard>
+        );
+      }
+      case 'ageBar': {
+        const barDimension = getBarDimension(chartId);
+        if (!barDimension) return null;
+
+        return (
+          <ChartCard
+            key={chartId}
+            title={chartConfig.title}
+            isCollapsed={isCollapsed}
+            onToggle={() => toggleChart(chartId)}
+            className={defaultClassName}
+          >
+            <AgeBarChart
+              key={`age-${selectedArea}`}
+              areaCode={areaCode}
+              dimension={barDimension}
+              direction={direction}
+              includeInternalFlows={includeInternalFlows}
+              selectedValue={demographicFilters[barDimension.key] ?? 'all'}
+              onSelectValue={(value) =>
+                onDemographicFiltersChange?.({
+                  ...demographicFilters,
+                  [barDimension.key]: value,
+                })
+              }
+            />
+          </ChartCard>
+        );
+      }
+      case 'topFlows':
+        return (
+          <ChartCard
+            key={chartId}
+            title={chartConfig.title}
+            isCollapsed={isCollapsed}
+            onToggle={() => toggleChart(chartId)}
+            className={defaultClassName}
+          >
+            <TopFlowsRankingChart
+              areaCode={areaCode}
+              geographyLevel={geographyLevel}
+              direction={direction}
+              demographicFilters={demographicFilters}
+              includeInternalFlows={includeInternalFlows}
+              topN={params.topN ?? 10}
+            />
+          </ChartCard>
+        );
+      case 'performance':
+        return (
+          <ChartCard key={chartId} title={chartConfig.title} isCollapsed={isCollapsed} onToggle={() => toggleChart(chartId)}>
+            <PerformanceLatencyPanel />
+          </ChartCard>
+        );
+      case 'odHeatmap':
+        return (
+          <ChartCard key={chartId} title={chartConfig.title} isCollapsed={isCollapsed} onToggle={() => toggleChart(chartId)}>
+            <AggregateODHeatmap
+              demographicFilters={demographicFilters}
+              includeInternalFlows={includeInternalFlows}
+              initialTopN={params.initialTopN ?? params.topN ?? 10}
+            />
+          </ChartCard>
+        );
+      case 'socialMultiples': {
+        const multiplesDimension = getChartDimension(chartId);
+        if (!multiplesDimension) return null;
+
+        return (
+          <ChartCard key={chartId} title={chartConfig.title} isCollapsed={isCollapsed} onToggle={() => toggleChart(chartId)}>
+            <SocialGradeSmallMultiples
+              dimension={multiplesDimension}
+              demographicFilters={demographicFilters}
+              includeInternalFlows={includeInternalFlows}
+              topN={params.topN ?? 6}
+            />
+          </ChartCard>
+        );
+      }
+      case 'aggregateStacked': {
+        const stackedDimension = getChartDimension(chartId);
+        if (!stackedDimension) return null;
+
+        return (
+          <ChartCard key={chartId} title={chartConfig.title} isCollapsed={isCollapsed} onToggle={() => toggleChart(chartId)}>
+            <AggregateSocialGradeStacked100
+              dimension={stackedDimension}
+              demographicFilters={demographicFilters}
+              direction={direction}
+              includeInternalFlows={includeInternalFlows}
+              initialTopN={stackedTopN}
+            />
+          </ChartCard>
+        );
+      }
+      case 'aggregationScatter':
+        return (
+          <ChartCard key={chartId} title={chartConfig.title} isCollapsed={isCollapsed} onToggle={() => toggleChart(chartId)}>
+            <AggregationValidationScatter
+              direction={direction}
+              includeInternalFlows={includeInternalFlows}
+              referencePath={params.referencePath}
+              aggregateCodePattern={params.aggregateCodePattern}
+            />
+          </ChartCard>
+        );
+      case 'directionalBalance':
+        return (
+          <ChartCard
+            key={chartId}
+            title={chartConfig.title || `Saldo direcional por ${aggregateUnitLabel}`}
+            isCollapsed={isCollapsed}
+            onToggle={() => toggleChart(chartId)}
+          >
+            <AggregateDirectionalBalanceChart
+              demographicFilters={demographicFilters}
+              includeInternalFlows={includeInternalFlows}
+              topN={params.topN ?? 15}
+            />
+          </ChartCard>
+        );
+      default:
+        return null;
+    }
+  };
 
   const toggleChart = (key: DatasetChartId) => {
     setCollapsedCharts((prev) => ({
@@ -242,79 +463,15 @@ export function AnalyticsDashboard({
         </div>
       </div>
 
-      {showSocialPie || showAgeBar ? (
-        <div className="grid grid-cols-1 gap-6 2xl:grid-cols-2">
-          {showSocialPie && (
-            <ChartCard
-              title={getDashboardChartConfig(datasetProfile, 'socialPie').title}
-              isCollapsed={collapsedCharts.socialPie}
-              onToggle={() => toggleChart('socialPie')}
-              className="rounded-2xl border border-purple-100 bg-white p-4 shadow-sm"
-            >
-              <SocialGradePieChart
-                key={`social-${selectedArea}`}
-                areaCode={selectedArea}
-                direction={direction}
-                includeInternalFlows={includeInternalFlows}
-                selectedGrade={socialGrade}
-                onSelectGrade={(grade) =>
-                  onDemographicFiltersChange?.({
-                    ...demographicFilters,
-                    socialGrade: grade,
-                  })
-                }
-              />
-            </ChartCard>
-          )}
-
-          {showAgeBar && (
-            <ChartCard
-              title={getDashboardChartConfig(datasetProfile, 'ageBar').title}
-              isCollapsed={collapsedCharts.ageBar}
-              onToggle={() => toggleChart('ageBar')}
-              className="rounded-2xl border border-purple-100 bg-white p-4 shadow-sm"
-            >
-              <AgeBarChart
-                key={`age-${selectedArea}`}
-                areaCode={selectedArea}
-                direction={direction}
-                includeInternalFlows={includeInternalFlows}
-                selectedAgeGroup={ageGroup}
-                onSelectAgeGroup={(age) =>
-                  onDemographicFiltersChange?.({
-                    ...demographicFilters,
-                    age,
-                  })
-                }
-              />
-            </ChartCard>
-          )}
-        </div>
+      {mainChartIds.length > 0 ? (
+        <div className="space-y-6">{mainChartIds.map(renderChart)}</div>
       ) : (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           {datasetProfile.dashboard.genericAnalyticsHint}
         </div>
       )}
 
-      {getDashboardChartConfig(datasetProfile, 'topFlows').enabled !== false && (
-        <ChartCard
-          title={getDashboardChartConfig(datasetProfile, 'topFlows').title}
-          isCollapsed={collapsedCharts.topFlows}
-          onToggle={() => toggleChart('topFlows')}
-          className="rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50 to-white p-4 shadow-sm"
-        >
-          <TopFlowsRankingChart
-            areaCode={selectedArea}
-            geographyLevel={geographyLevel}
-            direction={direction}
-            demographicFilters={demographicFilters}
-            includeInternalFlows={includeInternalFlows}
-            topN={10}
-          />
-        </ChartCard>
-      )}
-
-      {supportsLegacyAnalytics && (
+      {advancedChartIds.length > 0 && (
         <div className="rounded-xl border border-purple-100 bg-white p-3">
           <button
             type="button"
@@ -328,87 +485,7 @@ export function AnalyticsDashboard({
         </div>
       )}
 
-      {supportsLegacyAnalytics && showResearchCharts && (
-        <div className="space-y-6">
-          {getDashboardChartConfig(datasetProfile, 'performance').enabled !== false && (
-            <ChartCard
-              title={getDashboardChartConfig(datasetProfile, 'performance').title}
-              isCollapsed={collapsedCharts.performance}
-              onToggle={() => toggleChart('performance')}
-            >
-              <PerformanceLatencyPanel />
-            </ChartCard>
-          )}
-
-          {geographyLevel === 'aggregate' && getDashboardChartConfig(datasetProfile, 'odHeatmap').enabled !== false && (
-            <ChartCard
-              title={getDashboardChartConfig(datasetProfile, 'odHeatmap').title}
-              isCollapsed={collapsedCharts.odHeatmap}
-              onToggle={() => toggleChart('odHeatmap')}
-            >
-              <AggregateODHeatmap
-                socialGrade={socialGrade}
-                ageGroup={ageGroup}
-                includeInternalFlows={includeInternalFlows}
-                initialTopN={10}
-              />
-            </ChartCard>
-          )}
-
-          {geographyLevel === 'aggregate' && getDashboardChartConfig(datasetProfile, 'socialMultiples').enabled !== false && (
-            <ChartCard
-              title={getDashboardChartConfig(datasetProfile, 'socialMultiples').title}
-              isCollapsed={collapsedCharts.socialMultiples}
-              onToggle={() => toggleChart('socialMultiples')}
-            >
-              <SocialGradeSmallMultiples
-                ageGroup={ageGroup}
-                includeInternalFlows={includeInternalFlows}
-                topN={6}
-              />
-            </ChartCard>
-          )}
-
-          {geographyLevel === 'aggregate' && getDashboardChartConfig(datasetProfile, 'aggregateStacked').enabled !== false && (
-            <ChartCard
-              title={getDashboardChartConfig(datasetProfile, 'aggregateStacked').title}
-              isCollapsed={collapsedCharts.aggregateStacked}
-              onToggle={() => toggleChart('aggregateStacked')}
-            >
-              <AggregateSocialGradeStacked100
-                direction={direction}
-                includeInternalFlows={includeInternalFlows}
-                initialTopN={12}
-              />
-            </ChartCard>
-          )}
-
-          {geographyLevel === 'aggregate' && getDashboardChartConfig(datasetProfile, 'aggregationScatter').enabled !== false && (
-            <ChartCard
-              title={getDashboardChartConfig(datasetProfile, 'aggregationScatter').title}
-              isCollapsed={collapsedCharts.aggregationScatter}
-              onToggle={() => toggleChart('aggregationScatter')}
-            >
-              <AggregationValidationScatter direction={direction} includeInternalFlows={includeInternalFlows} />
-            </ChartCard>
-          )}
-
-          {geographyLevel === 'aggregate' && getDashboardChartConfig(datasetProfile, 'directionalBalance').enabled !== false && (
-            <ChartCard
-              title={getDashboardChartConfig(datasetProfile, 'directionalBalance').title || `Saldo direcional por ${aggregateUnitLabel}`}
-              isCollapsed={collapsedCharts.directionalBalance}
-              onToggle={() => toggleChart('directionalBalance')}
-            >
-              <AggregateDirectionalBalanceChart
-                socialGrade={socialGrade}
-                ageGroup={ageGroup}
-                includeInternalFlows={includeInternalFlows}
-                topN={15}
-              />
-            </ChartCard>
-          )}
-        </div>
-      )}
+      {showResearchCharts && <div className="space-y-6">{advancedChartIds.map(renderChart)}</div>}
     </div>
   );
 }

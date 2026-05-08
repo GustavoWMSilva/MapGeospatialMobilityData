@@ -19,6 +19,8 @@ import { MAP_COLORS } from '../../constants/mapColors';
 interface AggregationValidationScatterProps {
   direction?: 'incoming' | 'outgoing';
   includeInternalFlows?: boolean;
+  referencePath?: string;
+  aggregateCodePattern?: string;
 }
 
 interface ReferenceFlowFeature {
@@ -48,13 +50,15 @@ function isReferenceFlowFeature(value: unknown): value is ReferenceFlowFeature {
   return true;
 }
 
-function isValidAggregateAreaCode(code: string): boolean {
-  return /^(E0[6-9]|W06)[0-9]{6}$/.test(code);
+function isValidAggregateAreaCode(code: string, pattern: RegExp): boolean {
+  return pattern.test(code);
 }
 
 export function AggregationValidationScatter({
   direction = 'incoming',
   includeInternalFlows = false,
+  referencePath = '/ltla_flows_complete.geojson',
+  aggregateCodePattern = '^(E0[6-9]|W06)[0-9]{6}$',
 }: AggregationValidationScatterProps) {
   const aggregateUnitLabel = ACTIVE_DATASET_PROFILE.labels.aggregate.singular;
   const aggregateUnitPluralLabel = ACTIVE_DATASET_PROFILE.labels.aggregate.plural;
@@ -89,8 +93,9 @@ export function AggregationValidationScatter({
       try {
         const [diagnostics, referenceResponse] = await Promise.all([
           getAggregateAreaAggregationDiagnostics(direction, includeInternalFlows),
-          fetch('/ltla_flows_complete.geojson'),
+          fetch(referencePath),
         ]);
+        const validAggregatePattern = new RegExp(aggregateCodePattern);
 
         if (!referenceResponse.ok) {
           throw new Error(`Falha ao carregar referencia agregada (${referenceResponse.status})`);
@@ -110,7 +115,7 @@ export function AggregationValidationScatter({
 
           if (!targetCode || !targetName || count <= 0) return;
           if (!includeInternalFlows && props.origin_code === props.dest_code) return;
-          if (!isValidAggregateAreaCode(targetCode)) return;
+          if (!isValidAggregateAreaCode(targetCode, validAggregatePattern)) return;
 
           const current = referenceTotals.get(targetCode) || { total: 0, name: targetName };
           referenceTotals.set(targetCode, {
@@ -129,7 +134,9 @@ export function AggregationValidationScatter({
           diagnostics.aggregate_areas.map((row) => [row.aggregate_area_code, row.aggregate_area_name])
         );
         const allCodes = new Set<string>(
-          [...Array.from(referenceTotals.keys()), ...Array.from(dynamicMap.keys())].filter(isValidAggregateAreaCode)
+          [...Array.from(referenceTotals.keys()), ...Array.from(dynamicMap.keys())].filter((code) =>
+            isValidAggregateAreaCode(code, validAggregatePattern)
+          )
         );
 
         const merged: ValidationPoint[] = Array.from(allCodes).map((code) => {
@@ -212,7 +219,7 @@ export function AggregationValidationScatter({
     return () => {
       cancelled = true;
     };
-  }, [direction, comparisonMode, includeInternalFlows]);
+  }, [direction, comparisonMode, includeInternalFlows, referencePath, aggregateCodePattern]);
 
   const maxValue = useMemo(
     () => Math.max(1, ...points.map((p) => Math.max(p.reference, p.dynamic))),

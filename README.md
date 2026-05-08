@@ -64,9 +64,61 @@ O perfil JSON controla:
 - textos do dashboard
 - titulo de cada grafico existente
 - visibilidade de cada grafico
+- ordem de exibicao em `dashboard.chartOrder`
 - estado inicial expandido/minimizado
+- parametros por grafico em `dashboard.charts.<chartId>.params`
 
 Importante: o JSON ativa ou desativa componentes que ja existem. Se voce quiser um grafico totalmente novo, ainda sera preciso implementar o componente uma vez.
+
+## Opcoes de graficos no JSON
+
+Use estes valores em `dashboard.chartOrder` e em `dashboard.charts`:
+
+| `chartId` | Grafico | Modo | Secao sugerida | Parametros |
+| --- | --- | --- | --- | --- |
+| `topFlows` | Ranking dos principais fluxos | generico e UK legado | `main` | `params.topN` |
+| `socialPie` | Distribuicao por uma dimensao categorica | generico e UK legado | `main` | `params.dimensionKey` |
+| `ageBar` | Barras por uma dimensao categorica | generico e UK legado | `main` | `params.dimensionKey` |
+| `performance` | Performance e latencia | UK legado | `advanced` | nenhum |
+| `odHeatmap` | Mapa de calor origem-destino agregado | generico em geografia agregada | `advanced` | `params.initialTopN` |
+| `socialMultiples` | Multiplos paineis por categoria | generico em geografia agregada | `advanced` | `params.dimensionKey`, `params.topN` |
+| `aggregateStacked` | Composicao categorica empilhada 100% | generico em geografia agregada | `advanced` | `params.dimensionKey`, `params.initialTopN` (`12` ou `20`) |
+| `aggregationScatter` | Validacao da agregacao | UK legado em geografia agregada | `advanced` | nenhum |
+| `directionalBalance` | Saldo direcional por area agregada | generico em geografia agregada | `advanced` | `params.topN` |
+
+Exemplo:
+
+```json
+"dashboard": {
+  "chartOrder": ["socialPie", "ageBar", "topFlows", "directionalBalance"],
+  "charts": {
+    "socialPie": {
+      "title": "Distribuicao por ocupacao",
+      "enabled": true,
+      "section": "main",
+      "params": { "dimensionKey": "occupation" }
+    },
+    "ageBar": {
+      "title": "Distribuicao por faixa etaria",
+      "enabled": true,
+      "section": "main",
+      "params": { "dimensionKey": "age" }
+    },
+    "topFlows": {
+      "title": "Ranking dos principais fluxos",
+      "enabled": true,
+      "section": "main",
+      "params": { "topN": 10 }
+    },
+    "directionalBalance": {
+      "title": "Saldo direcional por bairro",
+      "enabled": true,
+      "section": "advanced",
+      "params": { "topN": 15 }
+    }
+  }
+}
+```
 
 ## Estrutura minima esperada dos dados
 
@@ -125,4 +177,4 @@ Se alguem for te entregar uma nova base, voce pode pedir exatamente isto:
 2. Um JSON de perfil preenchido a partir do template
 3. Confirmacao dos nomes da geografia base e da geografia agregada
 4. Lista de filtros demograficos opcionais
-5. Lista de graficos existentes que devem aparecer e seus titulos
+5. Lista de graficos existentes que devem aparecer, ordem, titulos e parametros

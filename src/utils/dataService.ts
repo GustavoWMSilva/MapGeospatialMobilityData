@@ -74,16 +74,8 @@ async function loadCoordinates(): Promise<Coordinates> {
   }
 
   try {
-    // Tentar buscar do cache IndexedDB primeiro
-    const cacheKey = `areas_centroids:${ACTIVE_DATASET_PROFILE.id}`;
-    const cached = await cacheService.get(cacheKey) as Coordinates | null;
-    if (cached) {
-      coordinatesCache = cached;
-      console.log(`Coordenadas carregadas do cache (${Object.keys(cached).length} áreas)`);
-      return cached;
-    }
-
-    // Se não tiver no cache, fazer fetch
+    // Centroides são pequenos e precisam ficar sincronizados com os pontos visíveis no mapa.
+    // Evita usar IndexedDB aqui para não desenhar linhas com coordenadas antigas após regenerar datasets.
     const response = await fetch(getBaseCentroidsPath());
     const text = await response.text();
     const lines = text.split('\n');
@@ -106,10 +98,8 @@ async function loadCoordinates(): Promise<Coordinates> {
       }
     }
     
-    // Salvar no cache
-    await cacheService.set(cacheKey, coords);
     coordinatesCache = coords;
-    console.log(`Carregadas ${Object.keys(coords).length} coordenadas`);
+    console.log(`Carregadas ${Object.keys(coords).length} coordenadas do CSV atual`);
     return coords;
   } catch (error) {
     console.error('Erro ao carregar coordenadas:', error);
@@ -461,16 +451,7 @@ async function loadLTLACoordinates(): Promise<Coordinates> {
   }
 
   try {
-    // Tentar buscar do cache IndexedDB primeiro
-    const cacheKey = `aggregate_centroids:${ACTIVE_DATASET_PROFILE.id}`;
-    const cached = await cacheService.get(cacheKey) as Coordinates | null;
-    if (cached) {
-      ltlaCoordsCache = cached;
-      console.log(`Coordenadas LTLA carregadas do cache (${Object.keys(cached).length} áreas)`);
-      return cached;
-    }
-
-    // Se não tiver no cache, fazer fetch
+    // Centroides agregados também são pequenos; buscar do CSV mantém linhas e pontos alinhados.
     const response = await fetch(getAggregateCentroidsPath());
     const text = await response.text();
     const lines = text.split('\n');
@@ -515,11 +496,8 @@ async function loadLTLACoordinates(): Promise<Coordinates> {
       }
     }
     
-    // Salvar no cache
-    await cacheService.set(cacheKey, coords);
-    
     ltlaCoordsCache = coords;
-    console.log(`Carregadas ${Object.keys(coords).length} coordenadas LTLA`);
+    console.log(`Carregadas ${Object.keys(coords).length} coordenadas LTLA do CSV atual`);
     return coords;
   } catch (error) {
     console.error('Erro ao carregar coordenadas LTLA:', error);
@@ -536,26 +514,6 @@ async function loadLTLAFlowsAggregated(
   limit: number
 ): Promise<{ type: string; features: unknown[] }> {
   const requestStartMs = nowMs();
-
-  // Verificar cache IndexedDB primeiro
-  const cacheKey = `ltla_flows:${ltlaCode}|${direction}|${limit}`;
-  const cached = await cacheService.get(cacheKey) as { type: string; features: unknown[] } | null;
-  if (cached) {
-    console.log(`Flows LTLA carregados do cache para ${ltlaCode}`);
-
-    recordLatency({
-      startMs: requestStartMs,
-      scenario: 'duckdb_cache',
-      cacheState: 'warm',
-      areaCode: ltlaCode,
-      geographyLevel: 'aggregate',
-      direction,
-      filtersActive: false,
-      resultCount: Array.isArray(cached.features) ? cached.features.length : 0,
-    });
-
-    return cached;
-  }
 
   try {
     console.log(`Agregando MSOA->LTLA para ${ltlaCode}...`);
@@ -644,13 +602,10 @@ async function loadLTLAFlowsAggregated(
       features: limitedFeatures,
     };
 
-    // Salvar no cache IndexedDB
-    await cacheService.set(cacheKey, result);
-
     recordLatency({
       startMs: requestStartMs,
-      scenario: 'duckdb_cache',
-      cacheState: 'cold',
+      scenario: 'duckdb',
+      cacheState: 'n/a',
       areaCode: ltlaCode,
       geographyLevel: 'aggregate',
       direction,

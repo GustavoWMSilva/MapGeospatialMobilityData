@@ -161,11 +161,6 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
 
     console.log(`Após filtrar por ${flowDirection} em ${selectedCode}: ${filteredFlows.length} fluxos encontrados`);
     
-    // Calcular o máximo real de pessoas nos flows filtrados
-    const maxCountInFiltered = filteredFlows.length > 0 
-      ? Math.max(...filteredFlows.map(f => f.properties.count))
-      : 0;
-    
     // Aplicar filtros adicionais
     // 1. Filtro de fluxos internos
     if (!showInternal) {
@@ -174,10 +169,8 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       );
     }
     
-    // 2. Filtro de mínimo de pessoas (ignorar se estiver no valor máximo)
-    // Considera "no máximo" se for >= 95% do valor máximo real
-    const isAtMaximum = minCount >= (maxCountInFiltered * 0.95);
-    if (minCount > 0 && !isAtMaximum) {
+    // 2. Filtro de mínimo de pessoas
+    if (minCount > 0) {
       filteredFlows = filteredFlows.filter(f => f.properties.count >= minCount);
     }
     
@@ -186,7 +179,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       .sort((a, b) => b.properties.count - a.properties.count)
       .slice(0, maxFlows);
     
-    console.log(`Após aplicar filtros (min: ${minCount}${isAtMaximum ? ' [no máximo, ignorado]' : ''}, max: ${maxFlows}, internal: ${showInternal}): ${filteredFlows.length} fluxos`);
+    console.log(`Após aplicar filtros (min: ${minCount}, max: ${maxFlows}, internal: ${showInternal}): ${filteredFlows.length} fluxos`);
 
     if (filteredFlows.length === 0) {
       console.warn(`Nenhum fluxo encontrado ${flowDirection === 'incoming' ? 'chegando em' : 'saindo de'}:`, selectedCode);

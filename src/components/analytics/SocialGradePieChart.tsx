@@ -1,49 +1,51 @@
 import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import { getSocialGradeStats } from '../../utils/duckdb';
+import { getDemographicDimensionStats } from '../../utils/duckdb';
 import { debugLog, debugWarn, getAnalyticsErrorMessage } from './analyticsUtils';
-import type { SocialGrade } from '../../types';
+import type { DemographicDimensionConfig } from '../../types';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
 import { MAP_COLORS } from '../../constants/mapColors';
 
 interface SocialGradePieChartProps {
   areaCode: string;
+  dimension: DemographicDimensionConfig;
   direction?: 'incoming' | 'outgoing';
   includeInternalFlows?: boolean;
-  selectedGrade?: SocialGrade;
-  onSelectGrade?: (grade: SocialGrade) => void;
+  selectedValue?: string;
+  onSelectValue?: (value: string) => void;
 }
 
-interface SocialGradeChartDatum {
-  code: SocialGrade;
+interface CategoryChartDatum {
+  code: string;
   name: string;
   value: number;
   percentage: number;
   color: string;
 }
 
-const COLORS = MAP_COLORS.analytics.socialGrade;
-
-const GRADE_LABELS: Record<string, string> = {
-  AB: 'AB - Profissionais',
-  C1: 'C1 - Classe media',
-  C2: 'C2 - Trabalhadores qualificados',
-  DE: 'DE - Classe trabalhadora',
-};
+const CATEGORY_COLORS = [
+  MAP_COLORS.analytics.palette.blue,
+  MAP_COLORS.analytics.palette.teal,
+  MAP_COLORS.analytics.palette.orange,
+  MAP_COLORS.analytics.palette.rose,
+  MAP_COLORS.analytics.palette.purple,
+  '#64748B',
+];
 
 export function SocialGradePieChart({
   areaCode,
+  dimension,
   direction = 'incoming',
   includeInternalFlows = false,
-  selectedGrade = 'all',
-  onSelectGrade,
+  selectedValue = 'all',
+  onSelectValue,
 }: SocialGradePieChartProps) {
-  const [data, setData] = useState<SocialGradeChartDatum[]>([]);
+  const [data, setData] = useState<CategoryChartDatum[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    debugLog(`[SocialGradePieChart] useEffect areaCode=${areaCode} direction=${direction}`);
+    debugLog(`[SocialGradePieChart] useEffect areaCode=${areaCode} dimension=${dimension.key} direction=${direction}`);
 
     setData([]);
     setError(null);
@@ -56,13 +58,13 @@ export function SocialGradePieChart({
         return;
       }
 
-      debugLog(`[SocialGradePieChart] carregando stats para ${areaCode} (${direction})`);
+      debugLog(`[SocialGradePieChart] carregando stats ${dimension.key} para ${areaCode} (${direction})`);
 
       try {
         setLoading(true);
         setError(null);
 
-        const stats = await getSocialGradeStats(areaCode, direction, includeInternalFlows);
+        const stats = await getDemographicDimensionStats(areaCode, dimension, direction, includeInternalFlows);
         debugLog('[SocialGradePieChart] stats recebidas', stats);
 
         if (stats.length === 0) {
@@ -72,15 +74,13 @@ export function SocialGradePieChart({
           return;
         }
 
-        const chartData = stats.map((stat) => {
-          const gradeCode = stat.grade.split(' ')[0] as keyof typeof COLORS;
+        const chartData = stats.map((stat, index) => {
           return {
-            code: (gradeCode as SocialGrade) || 'all',
-            name: GRADE_LABELS[gradeCode] || gradeCode,
-            fullName: stat.grade,
+            code: stat.value,
+            name: stat.label,
             value: stat.total,
             percentage: stat.percentage,
-            color: COLORS[gradeCode] || '#666',
+            color: CATEGORY_COLORS[index % CATEGORY_COLORS.length],
           };
         });
 
@@ -100,7 +100,7 @@ export function SocialGradePieChart({
       debugLog(`[SocialGradePieChart] limpando dados de ${areaCode}`);
       setData([]);
     };
-  }, [areaCode, direction, includeInternalFlows]);
+  }, [areaCode, dimension, direction, includeInternalFlows]);
 
   if (loading) {
     return (
@@ -122,7 +122,7 @@ export function SocialGradePieChart({
     return (
       <div className="flex flex-col items-center justify-center h-64 text-gray-500 p-4 text-center">
         <p className="font-semibold">Dados de classe social nao disponiveis</p>
-        <p className="text-sm mt-2">Arquivo ODWP09EW_MSOA nao carregado</p>
+        <p className="text-sm mt-2">Verifique a configuracao de {dimension.label.toLowerCase()}</p>
       </div>
     );
   }
@@ -139,7 +139,7 @@ export function SocialGradePieChart({
       <text
         x={x}
         y={y}
-        fill="white"
+        fill="black"
         textAnchor={x > cx ? 'start' : 'end'}
         dominantBaseline="central"
         className="font-semibold text-sm"
@@ -154,12 +154,12 @@ export function SocialGradePieChart({
       <div className="mb-4">
         <div className="flex items-center gap-2">
           <h3 className="text-base font-semibold text-gray-800">
-            Distribuicao por classe social
+            Distribuicao por {dimension.label.toLowerCase()}
           </h3>
-          <ChartObjectiveHelp objective="Mostrar a composicao social dos fluxos da area selecionada para identificar diferencas estruturais entre classes." />
+          <ChartObjectiveHelp objective={`Mostrar a composicao dos fluxos por ${dimension.label.toLowerCase()} na area selecionada.`} />
         </div>
         <p className="text-sm text-gray-600">
-          {direction === 'incoming' ? 'Entrada' : 'Saida'} de trabalhadores por classe social
+          {direction === 'incoming' ? 'Entrada' : 'Saida'} por {dimension.label.toLowerCase()}
         </p>
       </div>
 
@@ -178,8 +178,8 @@ export function SocialGradePieChart({
             onClick={(_, index) => {
               if (index === undefined) return;
               const clicked = data[index];
-              if (!clicked || !onSelectGrade) return;
-              onSelectGrade(selectedGrade === clicked.code ? 'all' : clicked.code);
+              if (!clicked || !onSelectValue) return;
+              onSelectValue(selectedValue === clicked.code ? 'all' : clicked.code);
             }}
             cursor="pointer"
           >
@@ -187,9 +187,9 @@ export function SocialGradePieChart({
               <Cell
                 key={`cell-${index}`}
                 fill={entry.color}
-                fillOpacity={selectedGrade === 'all' || selectedGrade === entry.code ? 1 : 0.25}
-                stroke={selectedGrade === entry.code ? '#111827' : '#ffffff'}
-                strokeWidth={selectedGrade === entry.code ? 3 : 1}
+                fillOpacity={selectedValue === 'all' || selectedValue === entry.code ? 1 : 0.25}
+                stroke={selectedValue === entry.code ? '#111827' : '#ffffff'}
+                strokeWidth={selectedValue === entry.code ? 3 : 1}
               />
             ))}
           </Pie>
@@ -207,9 +207,9 @@ export function SocialGradePieChart({
           <button
             key={item.name}
             type="button"
-            onClick={() => onSelectGrade?.(selectedGrade === item.code ? 'all' : item.code)}
+            onClick={() => onSelectValue?.(selectedValue === item.code ? 'all' : item.code)}
             className={`flex items-center gap-2 rounded px-2 py-1 text-left transition ${
-              selectedGrade === item.code ? 'bg-gray-100 ring-1 ring-gray-300' : 'hover:bg-gray-50'
+              selectedValue === item.code ? 'bg-gray-100 ring-1 ring-gray-300' : 'hover:bg-gray-50'
             }`}
           >
             <div

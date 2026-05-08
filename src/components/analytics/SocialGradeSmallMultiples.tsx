@@ -1,18 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { getAggregateDirectionalBalances } from '../../utils/duckdb';
-import type { AgeGroup } from '../../types';
+import { getAggregateDirectionalBalancesForFilters } from '../../utils/duckdb';
+import type { DemographicDimensionConfig, DemographicFilters } from '../../types';
 import { getAnalyticsErrorMessage } from './analyticsUtils';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
 import { MAP_COLORS } from '../../constants/mapColors';
 
 interface SocialGradeSmallMultiplesProps {
-  ageGroup?: AgeGroup;
+  dimension: DemographicDimensionConfig;
+  demographicFilters?: DemographicFilters;
   includeInternalFlows?: boolean;
   topN?: number;
 }
-
-type GradeFilter = 'all' | 'AB' | 'C1' | 'DE';
 
 interface MultipleRow {
   aggregateAreaCode: string;
@@ -21,19 +20,18 @@ interface MultipleRow {
 }
 
 interface MultipleChart {
-  grade: GradeFilter;
+  value: string;
   title: string;
   rows: MultipleRow[];
 }
 
-const GRADE_CONFIG: Array<{ grade: GradeFilter; title: string }> = [
-  { grade: 'all', title: 'Todos' },
-  { grade: 'AB', title: 'AB' },
-  { grade: 'C1', title: 'C1' },
-  { grade: 'DE', title: 'DE' },
+const COLORS = [
+  MAP_COLORS.analytics.palette.purple,
+  MAP_COLORS.analytics.palette.blue,
+  MAP_COLORS.analytics.palette.teal,
+  MAP_COLORS.analytics.palette.orange,
+  MAP_COLORS.analytics.palette.rose,
 ];
-
-const COLORS: Record<GradeFilter, string> = MAP_COLORS.analytics.socialMultiples;
 
 function shortName(value: string): string {
   if (value.length <= 18) return value;
@@ -41,7 +39,8 @@ function shortName(value: string): string {
 }
 
 export function SocialGradeSmallMultiples({
-  ageGroup = 'all',
+  dimension,
+  demographicFilters = {},
   includeInternalFlows = false,
   topN = 6,
 }: SocialGradeSmallMultiplesProps) {
@@ -58,8 +57,15 @@ export function SocialGradeSmallMultiples({
 
       try {
         const results = await Promise.all(
-          GRADE_CONFIG.map(async (config) => {
-            const balances = await getAggregateDirectionalBalances(config.grade, ageGroup, topN, includeInternalFlows);
+          [
+            { value: 'all', label: 'Todos' },
+            ...dimension.options.filter((option) => option.value !== 'all'),
+          ].slice(0, 4).map(async (config) => {
+            const nextFilters =
+              config.value === 'all'
+                ? demographicFilters
+                : { ...demographicFilters, [dimension.key]: config.value };
+            const balances = await getAggregateDirectionalBalancesForFilters(nextFilters, topN, includeInternalFlows);
             const rows = balances.map((row) => ({
               aggregateAreaCode: row.aggregate_area_code,
               aggregateAreaName: row.aggregate_area_name || row.aggregate_area_code,
@@ -67,8 +73,8 @@ export function SocialGradeSmallMultiples({
             }));
 
             return {
-              grade: config.grade,
-              title: config.title,
+              value: config.value,
+              title: config.label,
               rows,
             };
           })
@@ -94,7 +100,7 @@ export function SocialGradeSmallMultiples({
     return () => {
       cancelled = true;
     };
-  }, [ageGroup, topN, includeInternalFlows]);
+  }, [dimension, demographicFilters, topN, includeInternalFlows]);
 
   if (loading) {
     return (
@@ -121,15 +127,15 @@ export function SocialGradeSmallMultiples({
     <div className="w-full">
       <div className="mb-3">
         <div className="flex items-center gap-2">
-          <h3 className="text-base font-semibold text-gray-800">Multiplos paineis por classe social</h3>
-          <ChartObjectiveHelp objective="Comparar rapidamente o mesmo indicador entre segmentos sociais (Todos, AB, C1, DE) usando paineis padronizados." />
+          <h3 className="text-base font-semibold text-gray-800">Multiplos paineis por {dimension.label.toLowerCase()}</h3>
+          <ChartObjectiveHelp objective={`Comparar rapidamente o mesmo indicador entre categorias de ${dimension.label.toLowerCase()} usando paineis padronizados.`} />
         </div>
-        <p className="text-xs text-gray-600">Comparacao lado a lado (Todos, AB, C1, DE) com o mesmo eixo visual</p>
+        <p className="text-xs text-gray-600">Comparacao lado a lado com o mesmo eixo visual</p>
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {charts.map((chart) => (
-          <div key={chart.grade} className="rounded-lg border border-purple-100 bg-white p-3">
+        {charts.map((chart, index) => (
+          <div key={chart.value} className="rounded-lg border border-purple-100 bg-white p-3">
             <div className="mb-2 text-sm font-semibold text-gray-800">{chart.title}</div>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={chart.rows} layout="vertical" margin={{ top: 4, right: 4, left: 4, bottom: 4 }}>
@@ -153,7 +159,7 @@ export function SocialGradeSmallMultiples({
                     return `${row.aggregateAreaName} (${row.aggregateAreaCode})`;
                   }}
                 />
-                <Bar dataKey="balance" fill={COLORS[chart.grade]} />
+                <Bar dataKey="balance" fill={COLORS[index % COLORS.length]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

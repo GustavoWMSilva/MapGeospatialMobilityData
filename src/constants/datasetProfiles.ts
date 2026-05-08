@@ -16,51 +16,87 @@ type DatasetProfileSource = Omit<DatasetProfile, 'dashboard'> & {
   };
 };
 
+const DEFAULT_DASHBOARD_CHART_ORDER: DatasetChartId[] = [
+  'socialPie',
+  'ageBar',
+  'topFlows',
+  'performance',
+  'odHeatmap',
+  'socialMultiples',
+  'aggregateStacked',
+  'aggregationScatter',
+  'directionalBalance',
+];
+
 const DEFAULT_DASHBOARD_CHARTS: Record<DatasetChartId, DatasetChartConfig> = {
   socialPie: {
     title: 'Distribuicao por classe social',
     enabled: true,
     defaultCollapsed: false,
+    section: 'main',
   },
   ageBar: {
     title: 'Distribuicao por faixa etaria',
     enabled: true,
     defaultCollapsed: false,
+    section: 'main',
   },
   topFlows: {
     title: 'Ranking dos principais fluxos',
     enabled: true,
     defaultCollapsed: false,
+    section: 'main',
+    params: {
+      topN: 10,
+    },
   },
   performance: {
     title: 'Performance e latencia',
     enabled: true,
     defaultCollapsed: true,
+    section: 'advanced',
   },
   odHeatmap: {
     title: 'Mapa de calor OD (Top N)',
     enabled: true,
     defaultCollapsed: true,
+    section: 'advanced',
+    params: {
+      initialTopN: 10,
+    },
   },
   socialMultiples: {
     title: 'Multiplos paineis por classe',
     enabled: true,
     defaultCollapsed: true,
+    section: 'advanced',
+    params: {
+      topN: 6,
+    },
   },
   aggregateStacked: {
     title: 'Composicao social empilhada 100%',
     enabled: true,
     defaultCollapsed: true,
+    section: 'advanced',
+    params: {
+      initialTopN: 12,
+    },
   },
   aggregationScatter: {
     title: 'Validacao da agregacao',
     enabled: true,
     defaultCollapsed: true,
+    section: 'advanced',
   },
   directionalBalance: {
     title: 'Saldo direcional por area agregada',
     enabled: true,
     defaultCollapsed: true,
+    section: 'advanced',
+    params: {
+      topN: 15,
+    },
   },
 };
 
@@ -80,6 +116,7 @@ const DEFAULT_DASHBOARD_CONFIG: Omit<DatasetDashboardConfig, 'charts'> = {
     'Este dataset usa filtros configuraveis no mapa e no ranking. Graficos analiticos especificos podem ser habilitados via configuracao e componentes existentes.',
   advancedChartsShowLabel: 'Mostrar graficos avancados (TCC)',
   advancedChartsHideLabel: 'Ocultar graficos avancados (TCC)',
+  chartOrder: DEFAULT_DASHBOARD_CHART_ORDER,
 };
 
 const BUILTIN_DATASET_PROFILES: Record<string, DatasetProfileSource> = {
@@ -251,35 +288,69 @@ const BUILTIN_DATASET_PROFILES: Record<string, DatasetProfileSource> = {
     dashboard: {
       genericAnalyticsHint:
         'Este dataset ja usa filtros configuraveis no mapa e no ranking. Para novos graficos, basta informar no JSON quais componentes existentes devem aparecer e quais titulos usar.',
+      chartOrder: [
+        'socialPie',
+        'ageBar',
+        'topFlows',
+        'odHeatmap',
+        'socialMultiples',
+        'aggregateStacked',
+        'directionalBalance',
+      ],
       charts: {
         topFlows: {
           enabled: true,
           defaultCollapsed: false,
         },
         socialPie: {
-          enabled: false,
+          enabled: true,
+          title: 'Distribuicao por ocupacao',
+          defaultCollapsed: false,
+          params: {
+            dimensionKey: 'occupation',
+          },
         },
         ageBar: {
-          enabled: false,
+          enabled: true,
+          title: 'Distribuicao por faixa etaria',
+          defaultCollapsed: false,
+          params: {
+            dimensionKey: 'age',
+          },
         },
         performance: {
           enabled: false,
         },
         odHeatmap: {
-          enabled: false,
+          enabled: true,
+          title: 'Mapa de calor OD por Bairro',
+          defaultCollapsed: true,
         },
         socialMultiples: {
-          enabled: false,
+          enabled: true,
+          title: 'Multiplos paineis por ocupacao',
+          defaultCollapsed: true,
+          params: {
+            dimensionKey: 'occupation',
+            topN: 6,
+          },
         },
         aggregateStacked: {
-          enabled: false,
+          enabled: true,
+          title: 'Composicao por ocupacao empilhada 100%',
+          defaultCollapsed: true,
+          params: {
+            dimensionKey: 'occupation',
+            initialTopN: 12,
+          },
         },
         aggregationScatter: {
           enabled: false,
         },
         directionalBalance: {
-          enabled: false,
+          enabled: true,
           title: 'Saldo direcional por Bairro',
+          defaultCollapsed: true,
         },
       },
     },
@@ -350,6 +421,15 @@ function normalizeDatasetProfile(profile: DatasetProfileSource): DatasetProfile 
     ])
   ) as Record<DatasetChartId, DatasetChartConfig>;
 
+  const requestedChartOrder = profile.dashboard?.chartOrder;
+  const normalizedChartOrder =
+    requestedChartOrder && requestedChartOrder.length > 0
+      ? requestedChartOrder.filter(
+          (chartId, index, chartIds): chartId is DatasetChartId =>
+            chartId in DEFAULT_DASHBOARD_CHARTS && chartIds.indexOf(chartId) === index
+        )
+      : DEFAULT_DASHBOARD_CHART_ORDER;
+
   return {
     ...profile,
     dashboard: {
@@ -359,6 +439,7 @@ function normalizeDatasetProfile(profile: DatasetProfileSource): DatasetProfile 
         ...DEFAULT_DASHBOARD_CONFIG.directionValues,
         ...(profile.dashboard?.directionValues ?? {}),
       },
+      chartOrder: normalizedChartOrder.length > 0 ? normalizedChartOrder : DEFAULT_DASHBOARD_CHART_ORDER,
       charts: normalizedCharts,
     },
   };

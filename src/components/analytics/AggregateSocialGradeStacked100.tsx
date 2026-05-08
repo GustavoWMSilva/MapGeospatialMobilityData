@@ -10,12 +10,15 @@ import {
   YAxis,
 } from 'recharts';
 import { ACTIVE_DATASET_PROFILE } from '../../constants/datasetProfiles';
-import { getAggregateSocialGradeShares } from '../../utils/duckdb';
+import { getAggregateDimensionShares } from '../../utils/duckdb';
+import type { DemographicDimensionConfig, DemographicFilters } from '../../types';
 import { getAnalyticsErrorMessage } from './analyticsUtils';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
 import { MAP_COLORS } from '../../constants/mapColors';
 
 interface AggregateSocialGradeStacked100Props {
+  dimension: DemographicDimensionConfig;
+  demographicFilters?: DemographicFilters;
   direction?: 'incoming' | 'outgoing';
   includeInternalFlows?: boolean;
   initialTopN?: 12 | 20;
@@ -26,13 +29,17 @@ interface AggregateStackedDatum {
   aggregateAreaName: string;
   aggregateAreaLabel: string;
   aggregateAreaTotal: number;
-  AB: number;
-  C1: number;
-  C2: number;
-  DE: number;
+  [categoryValue: string]: string | number;
 }
 
-const GRADE_COLORS = MAP_COLORS.analytics.socialGrade;
+const CATEGORY_COLORS = [
+  MAP_COLORS.analytics.palette.blue,
+  MAP_COLORS.analytics.palette.teal,
+  MAP_COLORS.analytics.palette.orange,
+  MAP_COLORS.analytics.palette.rose,
+  MAP_COLORS.analytics.palette.purple,
+  '#64748B',
+];
 
 function truncateLabel(value: string, maxLength = 24): string {
   if (value.length <= maxLength) return value;
@@ -40,12 +47,14 @@ function truncateLabel(value: string, maxLength = 24): string {
 }
 
 export function AggregateSocialGradeStacked100({
+  dimension,
+  demographicFilters = {},
   direction = 'incoming',
   includeInternalFlows = false,
   initialTopN = 12,
 }: AggregateSocialGradeStacked100Props) {
   const [selectedTopN, setSelectedTopN] = useState<12 | 20>(initialTopN);
-  const [orderBy, setOrderBy] = useState<'total' | 'AB' | 'DE'>('total');
+  const [orderBy, setOrderBy] = useState<string>('total');
   const [rows, setRows] = useState<AggregateStackedDatum[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +69,13 @@ export function AggregateSocialGradeStacked100({
       setError(null);
 
       try {
-        const result = await getAggregateSocialGradeShares(direction, 30, includeInternalFlows);
+        const result = await getAggregateDimensionShares(
+          dimension,
+          demographicFilters,
+          direction,
+          30,
+          includeInternalFlows
+        );
         const byAggregateArea = new Map<string, AggregateStackedDatum>();
 
         result.forEach((row) => {
@@ -70,17 +85,13 @@ export function AggregateSocialGradeStacked100({
               aggregateAreaName: row.aggregate_area_name || row.aggregate_area_code,
               aggregateAreaLabel: truncateLabel(row.aggregate_area_name || row.aggregate_area_code),
               aggregateAreaTotal: row.aggregate_area_total,
-              AB: 0,
-              C1: 0,
-              C2: 0,
-              DE: 0,
             });
           }
 
           const target = byAggregateArea.get(row.aggregate_area_code);
           if (!target) return;
 
-          target[row.social_grade_group] = row.percentage;
+          target[row.category_value] = row.percentage;
         });
 
         if (!cancelled) {
@@ -103,14 +114,13 @@ export function AggregateSocialGradeStacked100({
     return () => {
       cancelled = true;
     };
-  }, [direction, includeInternalFlows]);
+  }, [dimension, demographicFilters, direction, includeInternalFlows]);
 
   const visibleRows = useMemo(() => {
     const sorted = [...rows];
 
     sorted.sort((a, b) => {
-      if (orderBy === 'AB') return b.AB - a.AB;
-      if (orderBy === 'DE') return b.DE - a.DE;
+      if (orderBy !== 'total') return Number(b[orderBy] || 0) - Number(a[orderBy] || 0);
       return b.aggregateAreaTotal - a.aggregateAreaTotal;
     });
 
@@ -118,6 +128,10 @@ export function AggregateSocialGradeStacked100({
   }, [rows, orderBy, selectedTopN]);
 
   const chartHeight = useMemo(() => Math.max(380, visibleRows.length * 34 + 110), [visibleRows.length]);
+  const categories = useMemo(
+    () => dimension.options.filter((option) => option.value !== 'all'),
+    [dimension.options]
+  );
 
   if (loading) {
     return (
@@ -134,7 +148,7 @@ export function AggregateSocialGradeStacked100({
   if (visibleRows.length === 0) {
     return (
       <div className="flex h-80 flex-col items-center justify-center p-4 text-center text-gray-500">
-        <p className="font-semibold">Sem dados de classe social para {aggregateUnitLabel}</p>
+        <p className="font-semibold">Sem dados de {dimension.label.toLowerCase()} para {aggregateUnitLabel}</p>
         <p className="mt-2 text-sm">Verifique a disponibilidade do dataset demografico</p>
       </div>
     );
@@ -145,10 +159,10 @@ export function AggregateSocialGradeStacked100({
       <div className="mb-3">
         <div className="flex items-center gap-2">
           <h3 className="text-base font-semibold text-gray-800">
-            Classe social por {aggregateUnitLabel} (100%)
+            {dimension.label} por {aggregateUnitLabel} (100%)
           </h3>
           <ChartObjectiveHelp
-            objective={`Comparar proporcionalmente o perfil social (AB/C1/C2/DE) entre ${aggregateUnitPluralLabel.toLowerCase()}, independentemente do volume absoluto.`}
+            objective={`Comparar proporcionalmente ${dimension.label.toLowerCase()} entre ${aggregateUnitPluralLabel.toLowerCase()}, independentemente do volume absoluto.`}
           />
         </div>
         <p className="text-xs text-gray-600">
@@ -190,28 +204,20 @@ export function AggregateSocialGradeStacked100({
         >
           Ordem: Total
         </button>
-        <button
-          type="button"
-          onClick={() => setOrderBy('AB')}
-          className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
-            orderBy === 'AB'
-              ? 'border-purple-600 bg-purple-600 text-white'
-              : 'border-purple-200 bg-white text-purple-700 hover:bg-purple-50'
-          }`}
-        >
-          Ordem: AB%
-        </button>
-        <button
-          type="button"
-          onClick={() => setOrderBy('DE')}
-          className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
-            orderBy === 'DE'
-              ? 'border-purple-600 bg-purple-600 text-white'
-              : 'border-purple-200 bg-white text-purple-700 hover:bg-purple-50'
-          }`}
-        >
-          Ordem: DE%
-        </button>
+        {categories.slice(0, 3).map((category) => (
+          <button
+            key={category.value}
+            type="button"
+            onClick={() => setOrderBy(category.value)}
+            className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+              orderBy === category.value
+                ? 'border-purple-600 bg-purple-600 text-white'
+                : 'border-purple-200 bg-white text-purple-700 hover:bg-purple-50'
+            }`}
+          >
+            Ordem: {category.label}%
+          </button>
+        ))}
       </div>
 
       <ResponsiveContainer width="100%" height={chartHeight}>
@@ -240,10 +246,15 @@ export function AggregateSocialGradeStacked100({
             }}
           />
           <Legend />
-          <Bar dataKey="AB" stackId="grade" fill={GRADE_COLORS.AB} />
-          <Bar dataKey="C1" stackId="grade" fill={GRADE_COLORS.C1} />
-          <Bar dataKey="C2" stackId="grade" fill={GRADE_COLORS.C2} />
-          <Bar dataKey="DE" stackId="grade" fill={GRADE_COLORS.DE} />
+          {categories.map((category, index) => (
+            <Bar
+              key={category.value}
+              dataKey={category.value}
+              name={category.label}
+              stackId="category"
+              fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]}
+            />
+          ))}
         </BarChart>
       </ResponsiveContainer>
     </div>

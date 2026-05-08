@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ACTIVE_DATASET_PROFILE } from '../../constants/datasetProfiles';
-import { getTopAggregateODFlows } from '../../utils/duckdb';
-import type { AgeGroup, SocialGrade } from '../../types';
+import { getTopAggregateODFlowsForFilters } from '../../utils/duckdb';
+import type { DemographicFilters } from '../../types';
 import { getAnalyticsErrorMessage } from './analyticsUtils';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
 import { MAP_COLORS } from '../../constants/mapColors';
 
 interface AggregateODHeatmapProps {
-  socialGrade?: SocialGrade;
-  ageGroup?: AgeGroup;
+  demographicFilters?: DemographicFilters;
   includeInternalFlows?: boolean;
   initialTopN?: number;
 }
@@ -34,8 +33,7 @@ function getHeatColor(value: number, max: number): string {
 }
 
 export function AggregateODHeatmap({
-  socialGrade = 'all',
-  ageGroup = 'all',
+  demographicFilters = {},
   includeInternalFlows = false,
   initialTopN = 10,
 }: AggregateODHeatmapProps) {
@@ -55,9 +53,8 @@ export function AggregateODHeatmap({
       setError(null);
 
       try {
-        const flows = await getTopAggregateODFlows(
-          socialGrade,
-          ageGroup,
+        const flows = await getTopAggregateODFlowsForFilters(
+          demographicFilters,
           topN,
           includeInternalFlows
         );
@@ -113,7 +110,7 @@ export function AggregateODHeatmap({
     return () => {
       cancelled = true;
     };
-  }, [socialGrade, ageGroup, topN, includeInternalFlows]);
+  }, [demographicFilters, topN, includeInternalFlows]);
 
   const maxValue = useMemo(() => {
     let currentMax = 0;

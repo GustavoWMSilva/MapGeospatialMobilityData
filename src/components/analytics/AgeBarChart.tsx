@@ -1,62 +1,51 @@
 import { useEffect, useState } from 'react';
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { getAgeStats } from '../../utils/duckdb';
+import { getDemographicDimensionStats } from '../../utils/duckdb';
 import { debugLog, debugWarn, getAnalyticsErrorMessage } from './analyticsUtils';
-import type { AgeGroup } from '../../types';
+import type { DemographicDimensionConfig } from '../../types';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
 import { MAP_COLORS } from '../../constants/mapColors';
 
 interface AgeBarChartProps {
   areaCode: string;
+  dimension: DemographicDimensionConfig;
   direction?: 'incoming' | 'outgoing';
   includeInternalFlows?: boolean;
-  selectedAgeGroup?: AgeGroup;
-  onSelectAgeGroup?: (age: AgeGroup) => void;
+  selectedValue?: string;
+  onSelectValue?: (value: string) => void;
 }
 
-interface AgeChartDatum {
+interface CategoryBarDatum {
+  value: string;
   name: string;
-  fullName: AgeGroup;
   total: number;
   percentage: number;
   color: string;
 }
 
-const AGE_COLORS: Record<string, string> = MAP_COLORS.analytics.age;
-
-function getAgeColor(ageGroup: string): string {
-  if (ageGroup.includes('16 to 24')) return AGE_COLORS['16-24'];
-  if (ageGroup.includes('25 to 34')) return AGE_COLORS['25-34'];
-  if (ageGroup.includes('35 to 44')) return AGE_COLORS['35-44'];
-  if (ageGroup.includes('45 to 54')) return AGE_COLORS['45-54'];
-  if (ageGroup.includes('55 to 64')) return AGE_COLORS['55-64'];
-  if (ageGroup.includes('65')) return AGE_COLORS['65+'];
-  return '#666';
-}
-
-function simplifyAgeLabel(ageGroup: string): string {
-  if (ageGroup.includes('16 to 24')) return '16-24';
-  if (ageGroup.includes('25 to 34')) return '25-34';
-  if (ageGroup.includes('35 to 44')) return '35-44';
-  if (ageGroup.includes('45 to 54')) return '45-54';
-  if (ageGroup.includes('55 to 64')) return '55-64';
-  if (ageGroup.includes('65')) return '65+';
-  return ageGroup;
-}
+const CATEGORY_COLORS = [
+  MAP_COLORS.analytics.palette.blue,
+  MAP_COLORS.analytics.palette.teal,
+  MAP_COLORS.analytics.palette.orange,
+  MAP_COLORS.analytics.palette.rose,
+  MAP_COLORS.analytics.palette.purple,
+  '#64748B',
+];
 
 export function AgeBarChart({
   areaCode,
+  dimension,
   direction = 'incoming',
   includeInternalFlows = false,
-  selectedAgeGroup = 'all',
-  onSelectAgeGroup,
+  selectedValue = 'all',
+  onSelectValue,
 }: AgeBarChartProps) {
-  const [data, setData] = useState<AgeChartDatum[]>([]);
+  const [data, setData] = useState<CategoryBarDatum[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    debugLog(`[AgeBarChart] useEffect areaCode=${areaCode} direction=${direction}`);
+    debugLog(`[AgeBarChart] useEffect areaCode=${areaCode} dimension=${dimension.key} direction=${direction}`);
 
     setData([]);
     setError(null);
@@ -69,13 +58,13 @@ export function AgeBarChart({
         return;
       }
 
-      debugLog(`[AgeBarChart] carregando stats para ${areaCode} (${direction})`);
+      debugLog(`[AgeBarChart] carregando stats ${dimension.key} para ${areaCode} (${direction})`);
 
       try {
         setLoading(true);
         setError(null);
 
-        const stats = await getAgeStats(areaCode, direction, includeInternalFlows);
+        const stats = await getDemographicDimensionStats(areaCode, dimension, direction, includeInternalFlows);
         debugLog('[AgeBarChart] stats recebidas', stats);
 
         if (stats.length === 0) {
@@ -85,16 +74,16 @@ export function AgeBarChart({
           return;
         }
 
-        const chartData = stats.map((stat) => ({
-          name: simplifyAgeLabel(stat.ageGroup),
-          fullName: stat.ageGroup as AgeGroup,
+        const optionOrder = new Map(dimension.options.map((option, index) => [option.value, index]));
+        const chartData = stats.map((stat, index) => ({
+          value: stat.value,
+          name: stat.label,
           total: stat.total,
           percentage: stat.percentage,
-          color: getAgeColor(stat.ageGroup),
+          color: CATEGORY_COLORS[index % CATEGORY_COLORS.length],
         }));
 
-        const ageOrder = ['16-24', '25-34', '35-44', '45-54', '55-64', '65+'];
-        chartData.sort((left, right) => ageOrder.indexOf(left.name) - ageOrder.indexOf(right.name));
+        chartData.sort((left, right) => (optionOrder.get(left.value) ?? 999) - (optionOrder.get(right.value) ?? 999));
 
         debugLog(`[AgeBarChart] dados processados (${chartData.length} grupos)`);
         setData(chartData);
@@ -112,7 +101,7 @@ export function AgeBarChart({
       debugLog(`[AgeBarChart] limpando dados de ${areaCode}`);
       setData([]);
     };
-  }, [areaCode, direction, includeInternalFlows]);
+  }, [areaCode, dimension, direction, includeInternalFlows]);
 
   if (loading) {
     return (
@@ -133,8 +122,8 @@ export function AgeBarChart({
   if (data.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-gray-500 p-4 text-center">
-        <p className="font-semibold">Dados de faixa etaria nao disponiveis</p>
-        <p className="text-sm mt-2">Arquivo ODWP04EW_MSOA nao carregado</p>
+        <p className="font-semibold">Dados de {dimension.label.toLowerCase()} nao disponiveis</p>
+        <p className="text-sm mt-2">Verifique o dataset configurado para esta dimensao</p>
       </div>
     );
   }
@@ -144,12 +133,12 @@ export function AgeBarChart({
       <div className="mb-4">
         <div className="flex items-center gap-2">
           <h3 className="text-base font-semibold text-gray-800">
-            Distribuicao por faixa etaria
+            Distribuicao por {dimension.label.toLowerCase()}
           </h3>
-          <ChartObjectiveHelp objective="Evidenciar a distribuicao etaria dos fluxos para comparar perfis demograficos de mobilidade." />
+          <ChartObjectiveHelp objective={`Evidenciar a distribuicao dos fluxos por ${dimension.label.toLowerCase()}.`} />
         </div>
         <p className="text-sm text-gray-600">
-          {direction === 'incoming' ? 'Entrada' : 'Saida'} de trabalhadores por faixa etaria
+          {direction === 'incoming' ? 'Entrada' : 'Saida'} por {dimension.label.toLowerCase()}
         </p>
       </div>
 
@@ -169,9 +158,9 @@ export function AgeBarChart({
             fill="#8884d8"
             radius={[6, 6, 0, 0]}
             onClick={(entry: any) => {
-              const clickedAge = entry?.fullName as AgeGroup | undefined;
-              if (!clickedAge || !onSelectAgeGroup) return;
-              onSelectAgeGroup(selectedAgeGroup === clickedAge ? 'all' : clickedAge);
+              const clickedValue = entry?.value as string | undefined;
+              if (!clickedValue || !onSelectValue) return;
+              onSelectValue(selectedValue === clickedValue ? 'all' : clickedValue);
             }}
             cursor="pointer"
           >
@@ -179,9 +168,9 @@ export function AgeBarChart({
               <Cell
                 key={`cell-${index}`}
                 fill={entry.color}
-                fillOpacity={selectedAgeGroup === 'all' || selectedAgeGroup === entry.fullName ? 1 : 0.25}
-                stroke={selectedAgeGroup === entry.fullName ? '#111827' : 'transparent'}
-                strokeWidth={selectedAgeGroup === entry.fullName ? 2 : 0}
+                fillOpacity={selectedValue === 'all' || selectedValue === entry.value ? 1 : 0.25}
+                stroke={selectedValue === entry.value ? '#111827' : 'transparent'}
+                strokeWidth={selectedValue === entry.value ? 2 : 0}
               />
             ))}
           </Bar>
@@ -193,9 +182,9 @@ export function AgeBarChart({
           <button
             key={item.name}
             type="button"
-            onClick={() => onSelectAgeGroup?.(selectedAgeGroup === item.fullName ? 'all' : item.fullName)}
+            onClick={() => onSelectValue?.(selectedValue === item.value ? 'all' : item.value)}
             className={`flex items-center gap-2 rounded px-2 py-1 text-left transition ${
-              selectedAgeGroup === item.fullName ? 'bg-gray-100 ring-1 ring-gray-300' : 'hover:bg-gray-50'
+              selectedValue === item.value ? 'bg-gray-100 ring-1 ring-gray-300' : 'hover:bg-gray-50'
             }`}
           >
             <div

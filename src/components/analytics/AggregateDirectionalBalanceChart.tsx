@@ -11,15 +11,14 @@ import {
   YAxis,
 } from 'recharts';
 import { ACTIVE_DATASET_PROFILE } from '../../constants/datasetProfiles';
-import { getAggregateDirectionalBalances } from '../../utils/duckdb';
-import type { AgeGroup, SocialGrade } from '../../types';
+import { getAggregateDirectionalBalancesForFilters } from '../../utils/duckdb';
+import type { DemographicFilters } from '../../types';
 import { getAnalyticsErrorMessage } from './analyticsUtils';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
 import { MAP_COLORS } from '../../constants/mapColors';
 
 interface AggregateDirectionalBalanceChartProps {
-  socialGrade?: SocialGrade;
-  ageGroup?: AgeGroup;
+  demographicFilters?: DemographicFilters;
   includeInternalFlows?: boolean;
   topN?: number;
 }
@@ -36,8 +35,7 @@ const POSITIVE_COLOR = MAP_COLORS.analytics.directional.positive;
 const NEGATIVE_COLOR = MAP_COLORS.analytics.directional.negative;
 
 export function AggregateDirectionalBalanceChart({
-  socialGrade = 'all',
-  ageGroup = 'all',
+  demographicFilters = {},
   includeInternalFlows = false,
   topN = 15,
 }: AggregateDirectionalBalanceChartProps) {
@@ -54,9 +52,8 @@ export function AggregateDirectionalBalanceChart({
       setError(null);
 
       try {
-        const balances = await getAggregateDirectionalBalances(
-          socialGrade,
-          ageGroup,
+        const balances = await getAggregateDirectionalBalancesForFilters(
+          demographicFilters,
           topN,
           includeInternalFlows
         );
@@ -89,7 +86,7 @@ export function AggregateDirectionalBalanceChart({
     return () => {
       cancelled = true;
     };
-  }, [socialGrade, ageGroup, topN, includeInternalFlows]);
+  }, [demographicFilters, topN, includeInternalFlows]);
 
   const chartHeight = useMemo(() => Math.max(360, rows.length * 34 + 110), [rows.length]);
   const maxAbsBalance = useMemo(

@@ -318,6 +318,16 @@ export interface AggregateSocialGradeShareResult {
   aggregate_area_total: number;
 }
 
+export interface AggregateDimensionShareResult {
+  aggregate_area_code: string;
+  aggregate_area_name: string;
+  category_value: string;
+  category_label: string;
+  total: number;
+  percentage: number;
+  aggregate_area_total: number;
+}
+
 export interface AggregateAreaAggregatedTotalResult {
   aggregate_area_code: string;
   total: number;
@@ -847,6 +857,169 @@ export async function getSocialGradeStats(
     return stats;
   } catch (error) {
     console.error('Erro ao calcular estatisticas de social grade:', error);
+    throw error;
+  }
+}
+
+async function buildFilteredBaseFlowsCte(
+  filters: DemographicFilters = {},
+  includeInternalFlows: boolean = false,
+  excludedDimensionKey?: string
+): Promise<string> {
+  const internalFlowCondition = getInternalFlowCondition(includeInternalFlows);
+  const activeDimensions = ACTIVE_DATASET_PROFILE.demographicDimensions.filter(
+    (dimension) =>
+      dimension.key !== excludedDimensionKey &&
+      getDemographicFilterValue(filters, dimension.key) !== 'all'
+  );
+
+  if (activeDimensions.length === 0) {
+    return `
+      base_flows AS (
+        SELECT
+          origin_code,
+          dest_code,
+          SUM(count) AS count
+        FROM flows
+        WHERE ${internalFlowCondition}
+        GROUP BY origin_code, dest_code
+      )
+    `;
+  }
+
+  for (const dimension of activeDimensions) {
+    if (!(await tableExists(dimension.dataset.tableName))) {
+      debugWarn(`Tabela ${dimension.dataset.tableName} não disponível para filtro ${dimension.key}`);
+      return `
+        base_flows AS (
+          SELECT origin_code, dest_code, 0 AS count
+          FROM flows
+          WHERE 1=0
+        )
+      `;
+    }
+  }
+
+  const dimensionCtes = activeDimensions.map((dimension, index) => {
+    const selectedValue = getDemographicFilterValue(filters, dimension.key);
+    const filterCondition = getDimensionFilterCondition(dimension, selectedValue);
+
+    return `
+      dim_${index} AS (
+        SELECT
+          origin_code,
+          dest_code,
+          SUM(count) AS dim_count_${index}
+        FROM ${dimension.dataset.tableName}
+        WHERE ${filterCondition}
+          AND ${internalFlowCondition}
+        GROUP BY origin_code, dest_code
+      )
+    `;
+  });
+
+  const joins = activeDimensions
+    .slice(1)
+    .map(
+      (_dimension, index) => `
+      INNER JOIN dim_${index + 1}
+        ON dim_0.origin_code = dim_${index + 1}.origin_code
+       AND dim_0.dest_code = dim_${index + 1}.dest_code
+    `
+    )
+    .join('\n');
+
+  const countExpression =
+    activeDimensions.length === 1
+      ? 'dim_0.dim_count_0'
+      : `LEAST(${activeDimensions.map((_dimension, index) => `dim_${index}.dim_count_${index}`).join(', ')})`;
+
+  return `
+    ${dimensionCtes.join(',\n')},
+    base_flows AS (
+      SELECT
+        dim_0.origin_code,
+        dim_0.dest_code,
+        ${countExpression} AS count
+      FROM dim_0
+      ${joins}
+    )
+  `;
+}
+
+/**
+ * Obter estatisticas agregadas para qualquer dimensao demografica configurada.
+ */
+export async function getDemographicDimensionStats(
+  areaCode: string,
+  dimension: DemographicDimensionConfig,
+  direction: 'incoming' | 'outgoing' = 'incoming',
+  includeInternalFlows: boolean = false
+): Promise<Array<{ value: string; label: string; total: number; percentage: number }>> {
+  debugLog(`getDemographicDimensionStats ${dimension.key} para: ${areaCode} (${direction})`);
+
+  await initDuckDB();
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  if (!(await tableExists(dimension.dataset.tableName))) {
+    debugWarn(`Tabela ${dimension.dataset.tableName} não disponível para ${dimension.key}`);
+    return [];
+  }
+
+  const { whereClause } = await resolveAreaWhereClause(areaCode, direction);
+  if (whereClause === '1=0') {
+    return [];
+  }
+
+  const internalFlowCondition = getInternalFlowCondition(includeInternalFlows);
+  const validOptions = dimension.options.filter((option) => option.value !== 'all');
+  const optionConditions =
+    validOptions.length > 0
+      ? validOptions
+          .map((option) => `(${getDimensionFilterCondition(dimension, option.value)})`)
+          .join(' OR ')
+      : `${dimension.categoryColumn} IS NOT NULL`;
+
+  try {
+    const query = `
+      WITH totals AS (
+        SELECT
+          ${dimension.categoryColumn} AS category_value,
+          SUM(count) AS total
+        FROM ${dimension.dataset.tableName}
+        WHERE ${whereClause}
+          AND ${internalFlowCondition}
+          AND (${optionConditions})
+        GROUP BY ${dimension.categoryColumn}
+      ),
+      grand_total AS (
+        SELECT SUM(total) AS gt FROM totals
+      )
+      SELECT
+        category_value,
+        total,
+        ROUND((total * 100.0) / gt, 2) AS percentage
+      FROM totals, grand_total
+      ORDER BY total DESC
+    `;
+
+    const optionLabelByValue = new Map(validOptions.map((option) => [option.value, option.label]));
+    const result = await conn.query(query);
+
+    return result.toArray().map((row: any) => {
+      const value = String(row.category_value);
+      return {
+        value,
+        label: optionLabelByValue.get(value) || value,
+        total: Number(row.total),
+        percentage: Number(row.percentage),
+      };
+    });
+  } catch (error) {
+    console.error(`Erro ao calcular estatisticas de ${dimension.key}:`, error);
     throw error;
   }
 }
@@ -1692,6 +1865,267 @@ export async function getTopAggregateODFlows(
     dest_aggregate_area_name: row.dest_ltla_name,
     count: row.count,
   }));
+}
+
+export async function getAggregateDirectionalBalancesForFilters(
+  filters: DemographicFilters = {},
+  topN: number = 15,
+  includeInternalFlows: boolean = false
+): Promise<AggregateDirectionalBalanceResult[]> {
+  await initDuckDB();
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  await ensureLTLALookupTable();
+
+  const safeTopN = Math.max(1, Math.min(topN, 40));
+  const baseFlowsCte = await buildFilteredBaseFlowsCte(filters, includeInternalFlows);
+
+  const query = `
+    WITH
+    ${baseFlowsCte},
+    aggregate_flows AS (
+      SELECT
+        origin_lookup.ltla22cd AS origin_aggregate_code,
+        MAX(origin_lookup.ltla22nm) AS origin_aggregate_name,
+        dest_lookup.ltla22cd AS dest_aggregate_code,
+        MAX(dest_lookup.ltla22nm) AS dest_aggregate_name,
+        SUM(base_flows.count) AS flow_count
+      FROM base_flows
+      INNER JOIN ltla_lookup origin_lookup
+        ON base_flows.origin_code = origin_lookup.msoa21cd
+      INNER JOIN ltla_lookup dest_lookup
+        ON base_flows.dest_code = dest_lookup.msoa21cd
+      GROUP BY origin_lookup.ltla22cd, dest_lookup.ltla22cd
+    ),
+    incoming_totals AS (
+      SELECT
+        dest_aggregate_code AS aggregate_code,
+        MAX(dest_aggregate_name) AS aggregate_name,
+        SUM(flow_count) AS incoming_total
+      FROM aggregate_flows
+      GROUP BY dest_aggregate_code
+    ),
+    outgoing_totals AS (
+      SELECT
+        origin_aggregate_code AS aggregate_code,
+        MAX(origin_aggregate_name) AS aggregate_name,
+        SUM(flow_count) AS outgoing_total
+      FROM aggregate_flows
+      GROUP BY origin_aggregate_code
+    ),
+    aggregate_balances AS (
+      SELECT
+        COALESCE(incoming_totals.aggregate_code, outgoing_totals.aggregate_code) AS aggregate_code,
+        COALESCE(incoming_totals.aggregate_name, outgoing_totals.aggregate_name) AS aggregate_name,
+        COALESCE(incoming_totals.incoming_total, 0) AS incoming_total,
+        COALESCE(outgoing_totals.outgoing_total, 0) AS outgoing_total,
+        COALESCE(incoming_totals.incoming_total, 0) - COALESCE(outgoing_totals.outgoing_total, 0) AS balance
+      FROM incoming_totals
+      FULL OUTER JOIN outgoing_totals
+        ON incoming_totals.aggregate_code = outgoing_totals.aggregate_code
+    )
+    SELECT
+      aggregate_code,
+      aggregate_name,
+      incoming_total,
+      outgoing_total,
+      balance
+    FROM aggregate_balances
+    ORDER BY ABS(balance) DESC
+    LIMIT ${safeTopN}
+  `;
+
+  const result = await conn.query(query);
+  return result.toArray().map((row) => ({
+    aggregate_area_code: String(row.aggregate_code),
+    aggregate_area_name: String(row.aggregate_name ?? row.aggregate_code),
+    incoming_total: Number(row.incoming_total),
+    outgoing_total: Number(row.outgoing_total),
+    balance: Number(row.balance),
+  }));
+}
+
+export async function getTopAggregateODFlowsForFilters(
+  filters: DemographicFilters = {},
+  topN: number = 10,
+  includeInternalFlows: boolean = false
+): Promise<AggregateODFlow[]> {
+  await initDuckDB();
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  await ensureLTLALookupTable();
+
+  const safeTopN = Math.max(4, Math.min(topN, 20));
+  const baseFlowsCte = await buildFilteredBaseFlowsCte(filters, includeInternalFlows);
+
+  const query = `
+    WITH
+    ${baseFlowsCte},
+    aggregate_od AS (
+      SELECT
+        origin_lookup.ltla22cd AS origin_aggregate_code,
+        MAX(origin_lookup.ltla22nm) AS origin_aggregate_name,
+        dest_lookup.ltla22cd AS dest_aggregate_code,
+        MAX(dest_lookup.ltla22nm) AS dest_aggregate_name,
+        SUM(base_flows.count) AS total_count
+      FROM base_flows
+      INNER JOIN ltla_lookup origin_lookup
+        ON base_flows.origin_code = origin_lookup.msoa21cd
+      INNER JOIN ltla_lookup dest_lookup
+        ON base_flows.dest_code = dest_lookup.msoa21cd
+      GROUP BY origin_lookup.ltla22cd, dest_lookup.ltla22cd
+    ),
+    area_activity AS (
+      SELECT
+        aggregate_code,
+        SUM(volume) AS total_activity
+      FROM (
+        SELECT origin_aggregate_code AS aggregate_code, total_count AS volume FROM aggregate_od
+        UNION ALL
+        SELECT dest_aggregate_code AS aggregate_code, total_count AS volume FROM aggregate_od
+      ) combined
+      GROUP BY aggregate_code
+    ),
+    top_areas AS (
+      SELECT aggregate_code
+      FROM area_activity
+      ORDER BY total_activity DESC
+      LIMIT ${safeTopN}
+    )
+    SELECT
+      aggregate_od.origin_aggregate_code,
+      aggregate_od.origin_aggregate_name,
+      aggregate_od.dest_aggregate_code,
+      aggregate_od.dest_aggregate_name,
+      aggregate_od.total_count AS count
+    FROM aggregate_od
+    INNER JOIN top_areas top_origin
+      ON aggregate_od.origin_aggregate_code = top_origin.aggregate_code
+    INNER JOIN top_areas top_dest
+      ON aggregate_od.dest_aggregate_code = top_dest.aggregate_code
+    ORDER BY aggregate_od.total_count DESC
+  `;
+
+  const result = await conn.query(query);
+  return result.toArray().map((row) => ({
+    origin_aggregate_area_code: String(row.origin_aggregate_code),
+    origin_aggregate_area_name: String(row.origin_aggregate_name ?? row.origin_aggregate_code),
+    dest_aggregate_area_code: String(row.dest_aggregate_code),
+    dest_aggregate_area_name: String(row.dest_aggregate_name ?? row.dest_aggregate_code),
+    count: Number(row.count),
+  }));
+}
+
+export async function getAggregateDimensionShares(
+  dimension: DemographicDimensionConfig,
+  filters: DemographicFilters = {},
+  direction: 'incoming' | 'outgoing' = 'incoming',
+  topN: number = 30,
+  includeInternalFlows: boolean = false
+): Promise<AggregateDimensionShareResult[]> {
+  await initDuckDB();
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  await ensureLTLALookupTable();
+
+  if (!(await tableExists(dimension.dataset.tableName))) {
+    debugWarn(`Tabela ${dimension.dataset.tableName} não disponível para composição agregada`);
+    return [];
+  }
+
+  const safeTopN = Math.max(1, Math.min(topN, 30));
+  const areaCodeColumn = direction === 'incoming' ? 'dest_code' : 'origin_code';
+  const internalFlowCondition = getInternalFlowCondition(includeInternalFlows);
+  const filteredBaseFlowsCte = await buildFilteredBaseFlowsCte(filters, includeInternalFlows, dimension.key);
+  const validOptions = dimension.options.filter((option) => option.value !== 'all');
+  const optionConditions =
+    validOptions.length > 0
+      ? validOptions
+          .map((option) => `(${getDimensionFilterCondition(dimension, option.value)})`)
+          .join(' OR ')
+      : `${dimension.categoryColumn} IS NOT NULL`;
+
+  const query = `
+    WITH
+    ${filteredBaseFlowsCte},
+    dimension_rows AS (
+      SELECT
+        d.${areaCodeColumn} AS base_area_code,
+        d.${dimension.categoryColumn} AS category_value,
+        SUM(d.count) AS total
+      FROM ${dimension.dataset.tableName} d
+      INNER JOIN base_flows
+        ON d.origin_code = base_flows.origin_code
+       AND d.dest_code = base_flows.dest_code
+      WHERE ${optionConditions}
+        AND ${internalFlowCondition.replace('origin_code', 'd.origin_code').replace('dest_code', 'd.dest_code')}
+      GROUP BY d.${areaCodeColumn}, d.${dimension.categoryColumn}
+    ),
+    aggregate_category_totals AS (
+      SELECT
+        lookup.ltla22cd AS aggregate_code,
+        MAX(lookup.ltla22nm) AS aggregate_name,
+        dimension_rows.category_value,
+        SUM(dimension_rows.total) AS total
+      FROM dimension_rows
+      INNER JOIN ltla_lookup lookup
+        ON dimension_rows.base_area_code = lookup.msoa21cd
+      GROUP BY lookup.ltla22cd, dimension_rows.category_value
+    ),
+    aggregate_totals AS (
+      SELECT
+        aggregate_code,
+        MAX(aggregate_name) AS aggregate_name,
+        SUM(total) AS aggregate_total
+      FROM aggregate_category_totals
+      GROUP BY aggregate_code
+    ),
+    top_areas AS (
+      SELECT
+        aggregate_code,
+        aggregate_name,
+        aggregate_total
+      FROM aggregate_totals
+      ORDER BY aggregate_total DESC
+      LIMIT ${safeTopN}
+    )
+    SELECT
+      top_areas.aggregate_code,
+      top_areas.aggregate_name,
+      aggregate_category_totals.category_value,
+      aggregate_category_totals.total,
+      top_areas.aggregate_total,
+      ROUND((aggregate_category_totals.total * 100.0) / NULLIF(top_areas.aggregate_total, 0), 2) AS percentage
+    FROM top_areas
+    INNER JOIN aggregate_category_totals
+      ON top_areas.aggregate_code = aggregate_category_totals.aggregate_code
+    ORDER BY top_areas.aggregate_total DESC, aggregate_category_totals.category_value
+  `;
+
+  const labelByValue = new Map(validOptions.map((option) => [option.value, option.label]));
+  const result = await conn.query(query);
+
+  return result.toArray().map((row) => {
+    const value = String(row.category_value);
+    return {
+      aggregate_area_code: String(row.aggregate_code),
+      aggregate_area_name: String(row.aggregate_name ?? row.aggregate_code),
+      category_value: value,
+      category_label: labelByValue.get(value) || value,
+      total: Number(row.total),
+      percentage: Number(row.percentage),
+      aggregate_area_total: Number(row.aggregate_total),
+    };
+  });
 }
 
 /**

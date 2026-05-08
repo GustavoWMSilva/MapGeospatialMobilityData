@@ -118,7 +118,7 @@ Voce pode pedir assim:
 1. Entregue os artefatos `flows.parquet`, centroides, boundaries e lookup.
 2. Preencha tambem o JSON de perfil com base no template.
 3. Informe quais filtros demograficos existem.
-4. Informe quais graficos existentes devem aparecer no dashboard e quais titulos devem ser usados.
+4. Informe `dashboard.chartOrder`, quais graficos existentes devem aparecer, seus titulos e os parametros de cada um (`params.topN` ou `params.initialTopN`, quando aplicavel).
 
 ## Quando ainda sera preciso mexer em codigo
 
