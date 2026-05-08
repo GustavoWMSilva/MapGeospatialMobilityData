@@ -17,7 +17,7 @@ interface MatrixArea {
   name: string;
 }
 
-function truncate(value: string, max = 18): string {
+function truncate(value: string, max = 12): string {
   if (value.length <= max) return value;
   return `${value.slice(0, max - 1)}...`;
 }
@@ -42,7 +42,6 @@ export function AggregateODHeatmap({
   const [error, setError] = useState<string | null>(null);
   const [matrixData, setMatrixData] = useState<Map<string, Map<string, number>>>(new Map());
   const [areas, setAreas] = useState<MatrixArea[]>([]);
-  const aggregateUnitLabel = ACTIVE_DATASET_PROFILE.labels.aggregate.singular;
   const aggregateUnitPlural = ACTIVE_DATASET_PROFILE.labels.aggregate.plural;
 
   useEffect(() => {
@@ -145,24 +144,21 @@ export function AggregateODHeatmap({
 
   return (
     <div className="w-full">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="mb-3 flex flex-col gap-2">
         <div>
-          <div className="flex items-center gap-2">
-            <h3 className="text-base font-semibold text-gray-800">
-              Mapa de calor OD (Top N {aggregateUnitLabel})
-            </h3>
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs text-slate-500">Matriz origem x destino para padroes de fluxo</p>
             <ChartObjectiveHelp
               objective={`Evidenciar padroes de fluxo origem-destino que nao ficam claros apenas no mapa, focando nas ${aggregateUnitPlural.toLowerCase()} de maior atividade.`}
             />
           </div>
-          <p className="text-xs text-gray-600">Matriz origem x destino para padroes de fluxo</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => setTopN(8)}
-            className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
-              topN === 8 ? 'border-purple-600 bg-purple-600 text-white' : 'border-purple-200 bg-white text-purple-700 hover:bg-purple-50'
+            className={`rounded-md border px-2 py-1 text-[11px] font-semibold transition ${
+              topN === 8 ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
             }`}
           >
             Top 8
@@ -170,8 +166,8 @@ export function AggregateODHeatmap({
           <button
             type="button"
             onClick={() => setTopN(10)}
-            className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
-              topN === 10 ? 'border-purple-600 bg-purple-600 text-white' : 'border-purple-200 bg-white text-purple-700 hover:bg-purple-50'
+            className={`rounded-md border px-2 py-1 text-[11px] font-semibold transition ${
+              topN === 10 ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
             }`}
           >
             Top 10
@@ -179,8 +175,8 @@ export function AggregateODHeatmap({
           <button
             type="button"
             onClick={() => setTopN(12)}
-            className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
-              topN === 12 ? 'border-purple-600 bg-purple-600 text-white' : 'border-purple-200 bg-white text-purple-700 hover:bg-purple-50'
+            className={`rounded-md border px-2 py-1 text-[11px] font-semibold transition ${
+              topN === 12 ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
             }`}
           >
             Top 12
@@ -188,11 +184,11 @@ export function AggregateODHeatmap({
         </div>
       </div>
 
-      <div className="overflow-auto rounded-lg border border-purple-100">
+      <div className="max-h-[360px] overflow-auto rounded-lg border border-slate-200">
         <table className="min-w-full text-xs">
           <thead>
-            <tr className="bg-purple-50 text-purple-900">
-              <th className="sticky left-0 z-10 bg-purple-50 px-2 py-2 text-left">Origem / Destino</th>
+            <tr className="bg-slate-50 text-slate-700">
+              <th className="sticky left-0 z-10 bg-slate-50 px-2 py-2 text-left">Origem / Destino</th>
               {areas.map((area) => (
                 <th key={area.code} className="min-w-[92px] px-2 py-2 text-center" title={area.name}>
                   {truncate(area.name)}
@@ -202,8 +198,8 @@ export function AggregateODHeatmap({
           </thead>
           <tbody>
             {areas.map((origin) => (
-              <tr key={origin.code} className="border-t border-purple-50">
-                <td className="sticky left-0 z-10 bg-white px-2 py-2 font-medium text-gray-800" title={origin.name}>
+              <tr key={origin.code} className="border-t border-slate-100">
+                <td className="sticky left-0 z-10 bg-white px-2 py-2 font-medium text-slate-700" title={origin.name}>
                   {truncate(origin.name)}
                 </td>
                 {areas.map((dest) => {
@@ -228,7 +224,7 @@ export function AggregateODHeatmap({
         </table>
       </div>
 
-      <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-600">
+      <div className="mt-2 flex items-center gap-2 text-[11px] text-slate-500">
         <span>Escala:</span>
         <div className="h-3 w-16 rounded" style={{ backgroundColor: MAP_COLORS.analytics.heatmap.min }}></div>
         <span>baixo</span>

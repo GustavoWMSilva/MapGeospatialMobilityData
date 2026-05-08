@@ -43,7 +43,7 @@ function ChartCard({
   isCollapsed,
   onToggle,
   children,
-  className = 'rounded-2xl border border-purple-100 bg-white p-4 shadow-sm',
+  className = 'rounded-xl border border-slate-200 bg-white p-3 shadow-none',
 }: {
   title: string;
   isCollapsed: boolean;
@@ -53,14 +53,14 @@ function ChartCard({
 }) {
   return (
     <section className={className}>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h3 className="text-base font-semibold text-purple-950">{title}</h3>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <h3 className="text-sm font-bold leading-5 text-slate-950">{title}</h3>
         <button
           type="button"
           onClick={onToggle}
-          className="rounded-md border border-purple-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-purple-700 hover:bg-purple-50"
+          className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 hover:bg-slate-100"
         >
-          {isCollapsed ? 'Expandir' : 'Minimizar'}
+          {isCollapsed ? 'Abrir' : 'Fechar'}
         </button>
       </div>
       {!isCollapsed && children}
@@ -170,10 +170,7 @@ export function AnalyticsDashboard({
     const areaCode = selectedArea ?? '';
     const stackedTopN = params.initialTopN === 20 || params.topN === 20 ? 20 : 12;
     const isCollapsed = collapsedCharts[chartId] ?? chartConfig.defaultCollapsed ?? false;
-    const defaultClassName =
-      chartId === 'topFlows'
-        ? 'rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50 to-white p-4 shadow-sm'
-        : 'rounded-2xl border border-purple-100 bg-white p-4 shadow-sm';
+    const defaultClassName = 'rounded-xl border border-slate-200 bg-white p-3 shadow-none';
 
     switch (chartId) {
       case 'socialPie': {
@@ -386,8 +383,8 @@ export function AnalyticsDashboard({
     );
   }
 
-  return (
-    <div className="space-y-4 rounded-2xl border border-purple-100 bg-white/90 p-4 shadow-sm md:p-5">
+    return (
+    <div className="space-y-3">
       {showTopControls && (
         <div className="xl:sticky xl:top-0 xl:z-30">
           <div className="space-y-3 rounded-2xl border border-purple-100 bg-white/95 p-3 shadow-sm backdrop-blur-sm">
@@ -441,20 +438,20 @@ export function AnalyticsDashboard({
         </div>
       )}
 
-      <div className="rounded-xl border border-purple-100 bg-purple-50/70 p-3.5">
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-base font-semibold text-purple-900">{datasetProfile.dashboard.mainChartsTitle}</p>
-            <p className="text-xs text-purple-700">{datasetProfile.dashboard.mainChartsSubtitle}</p>
+            <p className="text-sm font-bold text-slate-950">{datasetProfile.dashboard.mainChartsTitle}</p>
+            <p className="text-xs text-slate-500">{datasetProfile.dashboard.mainChartsSubtitle}</p>
           </div>
           <div className="flex flex-wrap gap-1.5 text-[11px]">
-            <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 font-medium text-purple-800">
+            <span className="inline-flex items-center rounded-full bg-white px-2 py-0.5 font-medium text-slate-600">
               {datasetProfile.labels.areaChipLabel}: {areaName || selectedArea}
             </span>
-            <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 font-medium text-purple-800">
+            <span className="inline-flex items-center rounded-full bg-white px-2 py-0.5 font-medium text-slate-600">
               {datasetProfile.labels.levelChipLabel}: {activeLevelLabels.singular}
             </span>
-            <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 font-medium text-purple-800">
+            <span className="inline-flex items-center rounded-full bg-white px-2 py-0.5 font-medium text-slate-600">
               {datasetProfile.dashboard.directionLabel}: {direction === 'incoming'
                 ? datasetProfile.dashboard.directionValues.incoming
                 : datasetProfile.dashboard.directionValues.outgoing}
@@ -464,7 +461,7 @@ export function AnalyticsDashboard({
       </div>
 
       {mainChartIds.length > 0 ? (
-        <div className="space-y-6">{mainChartIds.map(renderChart)}</div>
+        <div className="space-y-3">{mainChartIds.map(renderChart)}</div>
       ) : (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           {datasetProfile.dashboard.genericAnalyticsHint}
@@ -472,11 +469,11 @@ export function AnalyticsDashboard({
       )}
 
       {advancedChartIds.length > 0 && (
-        <div className="rounded-xl border border-purple-100 bg-white p-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-2.5">
           <button
             type="button"
             onClick={() => setShowResearchCharts((prev) => !prev)}
-            className="w-full rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-left text-sm font-semibold text-purple-900 hover:bg-purple-100"
+            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-100"
           >
             {showResearchCharts
               ? datasetProfile.dashboard.advancedChartsHideLabel
@@ -485,7 +482,7 @@ export function AnalyticsDashboard({
         </div>
       )}
 
-      {showResearchCharts && <div className="space-y-6">{advancedChartIds.map(renderChart)}</div>}
+      {showResearchCharts && <div className="space-y-3">{advancedChartIds.map(renderChart)}</div>}
     </div>
   );
 }

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -18,12 +17,13 @@ import {
   type LatencySample,
   type LatencyScenario,
 } from '../../utils/performanceMetrics';
-import { ACTIVE_DATASET_PROFILE } from '../../constants/datasetProfiles';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
 
 interface ScenarioStats {
   scenario: LatencyScenario;
   label: string;
+  color: string;
+  background: string;
   min: number;
   q1: number;
   median: number;
@@ -31,6 +31,24 @@ interface ScenarioStats {
   max: number;
   count: number;
 }
+
+const SCENARIO_META: Record<LatencyScenario, { label: string; color: string; background: string }> = {
+  api: {
+    label: 'API Flask',
+    color: '#2563EB',
+    background: 'bg-blue-500',
+  },
+  duckdb: {
+    label: 'DuckDB-WASM',
+    color: '#0F766E',
+    background: 'bg-teal-600',
+  },
+  duckdb_cache: {
+    label: 'DuckDB + cache',
+    color: '#7C3AED',
+    background: 'bg-violet-600',
+  },
+};
 
 function quantile(sorted: number[], q: number): number {
   if (sorted.length === 0) return 0;
@@ -41,17 +59,32 @@ function quantile(sorted: number[], q: number): number {
   return sorted[base] + rest * (next - sorted[base]);
 }
 
-function computeScenarioStats(samples: LatencySample[], scenario: LatencyScenario, label: string): ScenarioStats | null {
+function formatMs(value: number): string {
+  if (value >= 1000) {
+    return `${(value / 1000).toLocaleString('pt-BR', {
+      maximumFractionDigits: 1,
+    })}s`;
+  }
+
+  return `${value.toLocaleString('pt-BR', {
+    maximumFractionDigits: 0,
+  })}ms`;
+}
+
+function computeScenarioStats(samples: LatencySample[], scenario: LatencyScenario): ScenarioStats | null {
   const values = samples
     .filter((sample) => sample.scenario === scenario)
     .map((sample) => sample.latencyMs)
     .sort((left, right) => left - right);
 
   if (values.length === 0) return null;
+  const meta = SCENARIO_META[scenario];
 
   return {
     scenario,
-    label,
+    label: meta.label,
+    color: meta.color,
+    background: meta.background,
     min: values[0],
     q1: quantile(values, 0.25),
     median: quantile(values, 0.5),
@@ -61,26 +94,28 @@ function computeScenarioStats(samples: LatencySample[], scenario: LatencyScenari
   };
 }
 
-function renderBoxplot(stats: ScenarioStats, globalMax: number) {
-  const toPct = (value: number): number => (globalMax > 0 ? (value / globalMax) * 100 : 0);
+function renderScenarioRow(stats: ScenarioStats, globalMax: number) {
+  const medianPct = globalMax > 0 ? Math.max(3, (stats.median / globalMax) * 100) : 0;
 
   return (
-    <div key={stats.scenario} className="rounded-lg border border-purple-100 bg-white p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <div className="text-sm font-semibold text-gray-800">{stats.label}</div>
-        <div className="text-xs text-gray-500">n={stats.count}</div>
+    <div key={stats.scenario} className="rounded-lg border border-slate-200 bg-white p-2.5">
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-bold text-slate-800">{stats.label}</div>
+          <div className="text-[10px] text-slate-500">{stats.count} amostras</div>
+        </div>
+        <div className="text-right">
+          <div className="text-sm font-bold text-slate-900">{formatMs(stats.median)}</div>
+          <div className="text-[10px] text-slate-500">mediana</div>
+        </div>
       </div>
-      <div className="relative h-8">
-        <div className="absolute top-1/2 h-[2px] -translate-y-1/2 rounded bg-gray-300" style={{ left: `${toPct(stats.min)}%`, width: `${Math.max(1, toPct(stats.max) - toPct(stats.min))}%` }} />
-        <div className="absolute top-1/2 h-4 -translate-y-1/2 rounded border border-purple-400 bg-purple-100" style={{ left: `${toPct(stats.q1)}%`, width: `${Math.max(2, toPct(stats.q3) - toPct(stats.q1))}%` }} />
-        <div className="absolute top-1/2 h-5 w-[2px] -translate-y-1/2 bg-purple-800" style={{ left: `${toPct(stats.median)}%` }} />
+      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full rounded-full ${stats.background}`} style={{ width: `${medianPct}%` }} />
       </div>
-      <div className="mt-1 grid grid-cols-5 text-[11px] text-gray-600">
-        <span>{stats.min.toFixed(1)}</span>
-        <span className="text-center">{stats.q1.toFixed(1)}</span>
-        <span className="text-center font-semibold text-purple-800">{stats.median.toFixed(1)}</span>
-        <span className="text-center">{stats.q3.toFixed(1)}</span>
-        <span className="text-right">{stats.max.toFixed(1)}</span>
+      <div className="mt-2 grid grid-cols-3 gap-1 text-[10px] text-slate-500">
+        <span>min {formatMs(stats.min)}</span>
+        <span className="text-center">Q1-Q3 {formatMs(stats.q1)}-{formatMs(stats.q3)}</span>
+        <span className="text-right">max {formatMs(stats.max)}</span>
       </div>
     </div>
   );
@@ -89,7 +124,6 @@ function renderBoxplot(stats: ScenarioStats, globalMax: number) {
 export function PerformanceLatencyPanel() {
   const [benchmarkEnabled, setBenchmarkEnabledState] = useState<boolean>(isLatencyBenchmarkEnabled());
   const [samples, setSamples] = useState<LatencySample[]>(getLatencySamples());
-  const aggregatePluralLabel = ACTIVE_DATASET_PROFILE.labels.aggregate.plural;
 
   useEffect(() => {
     const unsubscribe = subscribeLatencySamples(() => {
@@ -101,9 +135,9 @@ export function PerformanceLatencyPanel() {
 
   const scenarioStats = useMemo(() => {
     const stats = [
-      computeScenarioStats(samples, 'api', 'API Flask'),
-      computeScenarioStats(samples, 'duckdb', 'DuckDB-WASM'),
-      computeScenarioStats(samples, 'duckdb_cache', 'DuckDB + cache'),
+      computeScenarioStats(samples, 'api'),
+      computeScenarioStats(samples, 'duckdb'),
+      computeScenarioStats(samples, 'duckdb_cache'),
     ].filter((item): item is ScenarioStats => item !== null);
 
     return stats;
@@ -114,38 +148,47 @@ export function PerformanceLatencyPanel() {
     [scenarioStats]
   );
 
-  const timeSeriesRows = useMemo(() => {
-    const warmCold = samples
-      .filter((sample) => sample.scenario === 'duckdb_cache')
-      .slice(-120);
+  const summaryStats = useMemo(() => {
+    if (samples.length === 0) return null;
 
-    return warmCold.map((sample, index) => ({
+    const values = samples.map((sample) => sample.latencyMs).sort((left, right) => left - right);
+    const latest = samples[samples.length - 1];
+
+    return {
+      count: samples.length,
+      best: values[0],
+      median: quantile(values, 0.5),
+      latest,
+    };
+  }, [samples]);
+
+  const timeSeriesRows = useMemo(() => {
+    return samples.slice(-80).map((sample, index) => ({
       idx: index + 1,
-      cold: sample.cacheState === 'cold' ? sample.latencyMs : null,
-      warm: sample.cacheState === 'warm' ? sample.latencyMs : null,
       latency: sample.latencyMs,
+      scenario: SCENARIO_META[sample.scenario].label,
       cacheState: sample.cacheState,
+      resultCount: sample.resultCount,
     }));
   }, [samples]);
 
   return (
-    <div className="rounded-xl border border-purple-100 bg-white p-5 shadow-sm">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+    <div className="w-full">
+      <div className="mb-3 flex flex-col gap-2">
         <div>
-          <div className="flex items-center gap-2">
-            <h3 className="text-base font-semibold text-gray-800">Desempenho de latencia</h3>
-            <ChartObjectiveHelp objective="Demonstrar ganho arquitetural comparando distribuicao de latencia por cenario e evolucao temporal entre cache frio e quente." />
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs text-slate-500">Resumo das consultas coletadas durante o benchmark.</p>
+            <ChartObjectiveHelp objective="Acompanhar o tempo de resposta das consultas e identificar qual caminho de dados esta mais rapido nas interacoes recentes." />
           </div>
-          <p className="text-xs text-gray-600">Boxplot por cenario + serie temporal de cache frio/quente</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => setLatencyBenchmarkEnabled(!benchmarkEnabled)}
-            className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+            className={`rounded-md border px-2 py-1 text-[11px] font-semibold transition ${
               benchmarkEnabled
                 ? 'border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700'
-                : 'border-purple-200 bg-white text-purple-700 hover:bg-purple-50'
+                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
             }`}
           >
             {benchmarkEnabled ? 'Benchmark ativo' : 'Ativar benchmark'}
@@ -153,7 +196,7 @@ export function PerformanceLatencyPanel() {
           <button
             type="button"
             onClick={() => clearLatencySamples()}
-            className="rounded-md border border-purple-200 bg-white px-2.5 py-1 text-xs font-medium text-purple-700 hover:bg-purple-50"
+            className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
           >
             Limpar amostras
           </button>
@@ -161,50 +204,80 @@ export function PerformanceLatencyPanel() {
       </div>
 
       {!benchmarkEnabled && (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
-          Coleta desativada para evitar impacto no mapa. Ative apenas durante medicoes de benchmark.
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
+          Coleta pausada. Ative o benchmark e navegue pelo mapa para medir novas consultas.
         </div>
       )}
 
-      {samples.length === 0 && (
-        <div className="rounded-lg border border-purple-100 bg-purple-50 p-3 text-sm text-purple-800">
-          Sem amostras ainda. Interaja com o mapa (troque area/direcao/modo) para coletar latencias.
+      {benchmarkEnabled && samples.length === 0 && (
+        <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
+          Nenhuma medicao ainda. Selecione areas, troque direcao ou altere filtros para gerar as primeiras amostras.
         </div>
       )}
 
       {benchmarkEnabled && samples.length > 0 && (
-        <div className="space-y-5">
-          <div>
-            <h4 className="mb-2 text-sm font-semibold text-gray-700">Distribuicao por cenario (ms)</h4>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              {scenarioStats.map((stats) => renderBoxplot(stats, globalMax))}
+        <div className="space-y-3">
+          {summaryStats && (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Mediana</div>
+                <div className="mt-1 text-lg font-bold text-slate-900">{formatMs(summaryStats.median)}</div>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Ultima</div>
+                <div className="mt-1 text-lg font-bold text-slate-900">{formatMs(summaryStats.latest.latencyMs)}</div>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Melhor</div>
+                <div className="mt-1 text-lg font-bold text-slate-900">{formatMs(summaryStats.best)}</div>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Amostras</div>
+                <div className="mt-1 text-lg font-bold text-slate-900">{summaryStats.count}</div>
+              </div>
             </div>
-            <div className="mt-1 text-[11px] text-gray-500">
-              Linha fina = min/max, caixa = Q1-Q3, traco central = mediana.
+          )}
+
+          <div>
+            <h4 className="mb-2 text-xs font-bold text-slate-700">Comparacao por caminho</h4>
+            <div className="space-y-2">
+              {scenarioStats.map((stats) => renderScenarioRow(stats, globalMax))}
             </div>
           </div>
 
           <div>
-            <h4 className="mb-2 text-sm font-semibold text-gray-700">Serie temporal (DuckDB + cache: frio vs quente)</h4>
+            <h4 className="mb-2 text-xs font-bold text-slate-700">Ultimas medicoes</h4>
             {timeSeriesRows.length === 0 ? (
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
-                Ainda nao ha amostras de cache agregado. Selecione {aggregatePluralLabel.toLowerCase()} repetidamente para gerar cache frio/quente.
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                Ainda nao ha amostras suficientes para montar a serie.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={timeSeriesRows} margin={{ top: 8, right: 20, left: 8, bottom: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="idx" tick={{ fontSize: 11 }} />
-                  <YAxis tickFormatter={(value: number) => `${Number(value).toFixed(0)}`} tick={{ fontSize: 11 }} />
+              <ResponsiveContainer width="100%" height={170}>
+                <LineChart data={timeSeriesRows} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                  <XAxis dataKey="idx" tick={{ fontSize: 10, fill: '#64748B' }} axisLine={false} tickLine={false} />
+                  <YAxis tickFormatter={(value: number) => `${Number(value).toFixed(0)}`} tick={{ fontSize: 10, fill: '#64748B' }} width={34} axisLine={false} tickLine={false} />
                   <Tooltip
-                    formatter={(value: number | string | Array<number | string> | undefined, name) => [
-                      `${Number(value ?? 0).toFixed(2)} ms`,
-                      String(name ?? ''),
+                    formatter={(value: number | string | Array<number | string> | undefined) => [
+                      formatMs(Number(value ?? 0)),
+                      'Latencia',
                     ]}
+                    labelFormatter={(_label, payload) => {
+                      const row = payload?.[0]?.payload as
+                        | {
+                            scenario?: string;
+                            cacheState?: string;
+                            resultCount?: number;
+                          }
+                        | undefined;
+                      if (!row) return '';
+                      const cacheLabel = row.cacheState && row.cacheState !== 'n/a'
+                        ? `, cache ${row.cacheState}`
+                        : '';
+                      return `${row.scenario ?? 'Consulta'}${cacheLabel}, ${row.resultCount ?? 0} linhas`;
+                    }}
                   />
-                  <Legend />
-                  <Line type="monotone" dataKey="cold" name="Cache frio" connectNulls={false} stroke="#DC2626" strokeWidth={2} dot={{ r: 2 }} />
-                  <Line type="monotone" dataKey="warm" name="Cache quente" connectNulls={false} stroke="#059669" strokeWidth={2} dot={{ r: 2 }} />
+                  <Line type="monotone" dataKey="latency" name="Latencia" stroke="#2563EB" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} />
                 </LineChart>
               </ResponsiveContainer>
             )}

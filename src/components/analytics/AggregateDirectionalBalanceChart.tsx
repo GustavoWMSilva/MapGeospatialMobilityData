@@ -88,7 +88,7 @@ export function AggregateDirectionalBalanceChart({
     };
   }, [demographicFilters, topN, includeInternalFlows]);
 
-  const chartHeight = useMemo(() => Math.max(360, rows.length * 34 + 110), [rows.length]);
+  const chartHeight = useMemo(() => Math.max(300, rows.length * 24 + 70), [rows.length]);
   const maxAbsBalance = useMemo(
     () => Math.max(1, ...rows.map((row) => Math.abs(row.balance))),
     [rows]
@@ -117,32 +117,34 @@ export function AggregateDirectionalBalanceChart({
 
   return (
     <div className="w-full">
-      <div className="mb-4">
-        <div className="flex items-center gap-2">
-          <h3 className="text-lg font-semibold text-gray-800">
-            Saldo Direcional por {aggregateUnitLabel}
-          </h3>
+      <div className="mb-3">
+        <div className="flex items-center gap-1.5">
+          <p className="text-xs text-slate-500">Saldo = entrada - saida (positivo = area atratora)</p>
           <ChartObjectiveHelp
             objective={`Identificar areas atratoras e emissoras com o saldo liquido (incoming - outgoing) por ${aggregateUnitLabel}.`}
           />
         </div>
-        <p className="text-sm text-gray-600">Saldo = entrada - saida (positivo = area atratora)</p>
       </div>
 
       <ResponsiveContainer width="100%" height={chartHeight}>
-        <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 12, left: 28, bottom: 4 }}>
-          <CartesianGrid strokeDasharray="3 3" />
+        <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
           <XAxis
             type="number"
             domain={[-maxAbsBalance, maxAbsBalance]}
             tickFormatter={(value: number) => Number(value).toLocaleString('pt-BR')}
+            tick={{ fontSize: 10, fill: '#64748B' }}
+            axisLine={false}
+            tickLine={false}
           />
           <YAxis
             type="category"
             dataKey="aggregateAreaName"
-            width={250}
+            width={126}
             interval={0}
-            tick={{ fontSize: 11 }}
+            tick={{ fontSize: 10, fill: '#475569' }}
+            axisLine={false}
+            tickLine={false}
           />
           <ReferenceLine x={0} stroke="#374151" strokeDasharray="4 4" />
           <Tooltip
@@ -159,7 +161,7 @@ export function AggregateDirectionalBalanceChart({
               return `${row.aggregateAreaName} (${row.aggregateAreaCode})`;
             }}
           />
-          <Bar dataKey="balance" name="saldo" radius={[4, 4, 4, 4]}>
+          <Bar dataKey="balance" name="saldo" radius={[4, 4, 4, 4]} barSize={14}>
             {rows.map((row) => (
               <Cell
                 key={row.aggregateAreaCode}
@@ -170,7 +172,7 @@ export function AggregateDirectionalBalanceChart({
         </BarChart>
       </ResponsiveContainer>
 
-      <div className="mt-3 flex flex-wrap gap-4 text-xs text-gray-600">
+      <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-slate-500">
         <span className="inline-flex items-center gap-1">
           <span className="h-3 w-3 rounded-sm" style={{ backgroundColor: POSITIVE_COLOR }}></span>
           Atratora (saldo positivo)

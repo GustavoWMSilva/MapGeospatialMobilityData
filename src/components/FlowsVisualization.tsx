@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { Source, Layer } from '@vis.gl/react-maplibre';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Layer, Source } from '@vis.gl/react-maplibre';
 import { FlowFilters } from './FlowFilters';
 import { loadFlows, loadFlowsFiltered } from '../utils/dataService';
 import { hasActiveDemographicFilters } from '../constants/datasetProfiles';
@@ -20,6 +20,14 @@ interface FlowFeature {
   };
 }
 
+interface FlowStats {
+  total: number;
+  max: number;
+  min: number;
+  avg: number;
+  count: number;
+}
+
 interface FlowsVisualizationProps {
   selectedCode: string | null;
   isVisible?: boolean;
@@ -33,6 +41,27 @@ interface FlowsVisualizationProps {
   onActiveConnectionsChange?: (codes: string[]) => void;
 }
 
+function getRelevantFlows(
+  flows: FlowFeature[],
+  selectedCode: string,
+  flowDirection: 'incoming' | 'outgoing'
+): FlowFeature[] {
+  return flows.filter((feature) => {
+    const { origin_code: originCode, dest_code: destCode } = feature.properties;
+    return flowDirection === 'incoming' ? destCode === selectedCode : originCode === selectedCode;
+  });
+}
+
+function getConnectedAreaCode(
+  feature: FlowFeature,
+  selectedCode: string,
+  flowDirection: 'incoming' | 'outgoing'
+): string | null {
+  const { origin_code: originCode, dest_code: destCode } = feature.properties;
+  const code = flowDirection === 'incoming' ? originCode : destCode;
+  return code && code !== selectedCode ? code : null;
+}
+
 export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   selectedCode,
   isVisible = true,
@@ -42,34 +71,27 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   datasetProfile,
   demographicFilters = {},
   showInternal = false,
-  // onShowInternalChange,
-  onActiveConnectionsChange
+  onActiveConnectionsChange,
 }) => {
   const [flowsData, setFlowsData] = useState<FlowFeature[]>([]);
   const [loading, setLoading] = useState(true);
   const [isIntensityMinimized, setIsIntensityMinimized] = useState(true);
   const [isStatsMinimized, setIsStatsMinimized] = useState(false);
   const [isFiltersMinimized, setIsFiltersMinimized] = useState(false);
-  
-  // Estados dos filtros - valores padrão dependem do tipo de dados
   const [maxFlows, setMaxFlows] = useState(geographyLevel === 'aggregate' ? 200 : 500);
   const [minCount, setMinCount] = useState(geographyLevel === 'aggregate' ? 50 : 10);
 
-  // Usar useRef para evitar re-execuções duplicadas
   const loadingRef = useRef(false);
-  const currentLoadRef = useRef<string>('');
+  const currentLoadRef = useRef('');
   const previousSelectedCode = useRef<string | null>(null);
 
-  // Resetar minCount quando mudar de área selecionada (ANTES de carregar dados)
   useEffect(() => {
     if (selectedCode !== previousSelectedCode.current) {
-      console.log(`Nova área selecionada (${previousSelectedCode.current} → ${selectedCode}), resetando minCount para 0`);
-      setMinCount(0); // Sempre resetar para 0 ao mudar de área
+      setMinCount(0);
       previousSelectedCode.current = selectedCode;
     }
   }, [selectedCode]);
 
-  // Carregar dados usando dataService (DuckDB-WASM ou API)
   useEffect(() => {
     const filtersKey = JSON.stringify(
       datasetProfile.demographicDimensions.map((dimension) => ({
@@ -78,188 +100,119 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       }))
     );
     const loadKey = `${geographyLevel}|${selectedCode}|${flowDirection}|${filtersKey}`;
-    
-    // Evitar carregamentos duplicados
+
     if (loadingRef.current && currentLoadRef.current === loadKey) {
       return;
     }
 
-    console.log(`FlowsVisualization useEffect disparado - geographyLevel: ${geographyLevel}, selectedCode: ${selectedCode}, filters:`, demographicFilters);
-    
     if (!selectedCode) {
       setFlowsData([]);
       setLoading(false);
       return;
     }
-    
-    loadingRef.current = true;
-    currentLoadRef.current = loadKey;
-    setLoading(true);
-    
-    const loadData = async () => {
+
+    let cancelled = false;
+
+    async function loadData() {
+      const areaCode = selectedCode;
+      if (!areaCode) return;
+
+      loadingRef.current = true;
+      currentLoadRef.current = loadKey;
+      setLoading(true);
+
       try {
-        console.log(`Carregando flows para ${selectedCode} (${geographyLevel})...`);
-        
-        // Usar loadFlowsFiltered se há filtros demográficos
-        const hasFilters = hasActiveDemographicFilters(demographicFilters, datasetProfile.demographicDimensions);
+        const hasFilters = hasActiveDemographicFilters(
+          demographicFilters,
+          datasetProfile.demographicDimensions
+        );
         const data = hasFilters
-          ? await loadFlowsFiltered(selectedCode, flowDirection, 50000, geographyLevel, demographicFilters)
-          : await loadFlows(selectedCode, flowDirection, 50000, geographyLevel);
-        
-        console.log(`Fluxos carregados:`, data.features?.length || 0);
-        setFlowsData(data.features as FlowFeature[] || []);
-        
-        // Debug: mostrar alguns códigos de exemplo
-        if (data.features?.length > 0) {
-          const sampleCodes = new Set<string>();
-          (data.features as FlowFeature[]).slice(0, 50).forEach((f) => {
-            sampleCodes.add(f.properties.origin_code);
-            sampleCodes.add(f.properties.dest_code);
-          });
-          console.log('Exemplos de códigos nos dados:', Array.from(sampleCodes).slice(0, 10));
+          ? await loadFlowsFiltered(areaCode, flowDirection, 50000, geographyLevel, demographicFilters)
+          : await loadFlows(areaCode, flowDirection, 50000, geographyLevel);
+
+        if (!cancelled) {
+          setFlowsData((data.features as FlowFeature[]) || []);
         }
       } catch (error) {
-        console.error(`Erro ao carregar flows:`, error);
-        setFlowsData([]);
+        console.error('Erro ao carregar fluxos:', error);
+        if (!cancelled) {
+          setFlowsData([]);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
         loadingRef.current = false;
       }
+    }
+
+    void loadData();
+
+    return () => {
+      cancelled = true;
     };
-    
-    loadData();
-  }, [geographyLevel, selectedCode, flowDirection, demographicFilters, datasetProfile]);
+  }, [datasetProfile.demographicDimensions, demographicFilters, flowDirection, geographyLevel, selectedCode]);
 
-  // Filtrar fluxos baseado na direção e calcular estatísticas
-  const { flowsGeoJSON, stats } = useMemo(() => {
-    console.log(`useMemo disparado - selectedCode: ${selectedCode}, flowsData.length: ${flowsData.length}, geographyLevel: ${geographyLevel}`);
-    
-    if (!selectedCode || flowsData.length === 0) {
-      console.log(`Retornando null - selectedCode: ${selectedCode}, flowsData.length: ${flowsData.length}`);
-      return { flowsGeoJSON: null, stats: null };
-    }
+  const baseRelevantFlows = useMemo(() => {
+    if (!selectedCode || flowsData.length === 0) return [];
 
-    // Debug: mostrar alguns códigos dos primeiros fluxos
-    if (flowsData.length > 0) {
-      console.log(`Primeiros 5 fluxos:`, flowsData.slice(0, 5).map(f => ({
-        origin: f.properties.origin_code,
-        dest: f.properties.dest_code,
-        count: f.properties.count
-      })));
-    }
+    let relevantFlows = getRelevantFlows(flowsData, selectedCode, flowDirection);
 
-    // Filtrar fluxos baseado na direção
-    let filteredFlows = flowsData.filter(feature => {
-      if (flowDirection === 'incoming') {
-        // Fluxos que CHEGAM no código selecionado
-        return feature.properties.dest_code === selectedCode;
-      } else {
-        // Fluxos que SAEM do código selecionado
-        return feature.properties.origin_code === selectedCode;
-      }
-    });
-
-    console.log(`Após filtrar por ${flowDirection} em ${selectedCode}: ${filteredFlows.length} fluxos encontrados`);
-    
-    // Aplicar filtros adicionais
-    // 1. Filtro de fluxos internos
     if (!showInternal) {
-      filteredFlows = filteredFlows.filter(f => 
-        f.properties.origin_code !== f.properties.dest_code
+      relevantFlows = relevantFlows.filter(
+        (feature) => feature.properties.origin_code !== feature.properties.dest_code
       );
     }
-    
-    // 2. Filtro de mínimo de pessoas
+
+    return relevantFlows.sort((left, right) => right.properties.count - left.properties.count);
+  }, [selectedCode, flowsData, flowDirection, showInternal]);
+
+  const totalAvailableFlows = baseRelevantFlows.length;
+
+  const filteredFlows = useMemo(() => {
+    let nextFlows = baseRelevantFlows;
+
     if (minCount > 0) {
-      filteredFlows = filteredFlows.filter(f => f.properties.count >= minCount);
-    }
-    
-    // 3. Ordenar por contagem e limitar quantidade
-    filteredFlows = filteredFlows
-      .sort((a, b) => b.properties.count - a.properties.count)
-      .slice(0, maxFlows);
-    
-    console.log(`Após aplicar filtros (min: ${minCount}, max: ${maxFlows}, internal: ${showInternal}): ${filteredFlows.length} fluxos`);
-
-    if (filteredFlows.length === 0) {
-      console.warn(`Nenhum fluxo encontrado ${flowDirection === 'incoming' ? 'chegando em' : 'saindo de'}:`, selectedCode);
-      console.warn(`Verificando se o código existe nos dados...`);
-      
-      // Debug: verificar se o código existe em QUALQUER fluxo
-      const existsAsOrigin = flowsData.some(f => f.properties.origin_code === selectedCode);
-      const existsAsDest = flowsData.some(f => f.properties.dest_code === selectedCode);
-      console.log(`Código ${selectedCode} - Existe como origem: ${existsAsOrigin}, como destino: ${existsAsDest}`);
-      
-      return { flowsGeoJSON: null, stats: null, connectedPointsGeoJSON: null };
+      nextFlows = nextFlows.filter((feature) => feature.properties.count >= minCount);
     }
 
-    const counts = filteredFlows.map(f => f.properties.count);
-    const totalFlow = counts.reduce((sum, c) => sum + c, 0);
-    const maxFlow = Math.max(...counts);
-    const minFlow = Math.min(...counts);
-    const avgFlow = totalFlow / counts.length;
-    
-    const directionText = flowDirection === 'incoming' ? 'chegando em' : 'saindo de';
-    console.log(`${filteredFlows.length} fluxos ${directionText} ${selectedCode} (${geographyLevel.toUpperCase()})`);
-    console.log(`Total de pessoas: ${totalFlow.toLocaleString('pt-BR')}`);
-    console.log(`Fluxo máximo: ${maxFlow.toLocaleString('pt-BR')}`);
-    console.log(`Fluxo mínimo: ${minFlow.toLocaleString('pt-BR')}`);
+    return nextFlows.slice(0, maxFlows);
+  }, [baseRelevantFlows, maxFlows, minCount]);
+
+  const stats = useMemo<FlowStats | null>(() => {
+    if (filteredFlows.length === 0) return null;
+
+    const counts = filteredFlows.map((feature) => feature.properties.count);
+    const total = counts.reduce((sum, count) => sum + count, 0);
 
     return {
-      flowsGeoJSON: {
-        type: 'FeatureCollection' as const,
-        features: filteredFlows
-      },
-      stats: {
-        total: totalFlow,
-        max: maxFlow,
-        min: minFlow,
-        avg: avgFlow,
-        count: filteredFlows.length
-      }
+      total,
+      max: Math.max(...counts),
+      min: Math.min(...counts),
+      avg: total / filteredFlows.length,
+      count: filteredFlows.length,
     };
-  }, [selectedCode, flowsData, flowDirection, geographyLevel, maxFlows, minCount, showInternal]);
+  }, [filteredFlows]);
 
-  // Contar total de flows disponíveis e máximo de pessoas (APÓS aplicar filtros)
-  const { totalAvailableFlows, maxPeopleCount } = useMemo(() => {
-    if (!selectedCode || flowsData.length === 0) return { totalAvailableFlows: 0, maxPeopleCount: 0 };
-    
-    let relevantFlows = flowsData.filter(feature => {
-      if (flowDirection === 'incoming') {
-        return feature.properties.dest_code === selectedCode;
-      } else {
-        return feature.properties.origin_code === selectedCode;
-      }
-    });
-    
-    // Total ANTES dos filtros
-    const totalBeforeFilters = relevantFlows.length;
-    
-    // Aplicar filtro de fluxos internos (igual ao useMemo principal)
-    if (!showInternal) {
-      relevantFlows = relevantFlows.filter(f => 
-        f.properties.origin_code !== f.properties.dest_code
-      );
-    }
-    
-    // Ordenar e limitar pela quantidade máxima (igual ao useMemo principal)
-    const topFlows = relevantFlows
-      .sort((a, b) => b.properties.count - a.properties.count)
-      .slice(0, maxFlows);
-    
-    // Pegar o MAIOR valor de count nos fluxos QUE REALMENTE SERÃO EXIBIDOS
-    const maxCount = topFlows.length > 0 
-      ? Math.max(...topFlows.map(f => f.properties.count))
+  const maxPeopleCount = useMemo(() => {
+    const topFlows = baseRelevantFlows.slice(0, maxFlows);
+    return topFlows.length > 0
+      ? Math.max(...topFlows.map((feature) => feature.properties.count))
       : 0;
-    
-    console.log(`maxPeopleCount calculado para ${selectedCode}: ${maxCount} pessoas (maior fluxo após filtros)`);
-    console.log(`Total antes dos filtros: ${totalBeforeFilters}, após filtros: ${topFlows.length}`);
-    
+  }, [baseRelevantFlows, maxFlows]);
+
+  const flowsGeoJSON = useMemo<GeoJSON.FeatureCollection<GeoJSON.LineString> | null>(() => {
+    if (filteredFlows.length === 0) return null;
+
     return {
-      totalAvailableFlows: totalBeforeFilters,
-      maxPeopleCount: maxCount
+      type: 'FeatureCollection',
+      features: filteredFlows.map((feature) => ({
+        type: 'Feature',
+        properties: feature.properties,
+        geometry: feature.geometry,
+      })),
     };
-  }, [selectedCode, flowsData, flowDirection, showInternal, maxFlows]);
+  }, [filteredFlows]);
 
   useEffect(() => {
     if (!onActiveConnectionsChange || !selectedCode || !flowsGeoJSON) {
@@ -270,58 +223,45 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
     const connectedCodes = Array.from(
       new Set(
         flowsGeoJSON.features
-          .map((feature) =>
-            flowDirection === 'incoming'
-              ? feature.properties.origin_code
-              : feature.properties.dest_code
-          )
-          .filter((code) => code && code !== selectedCode)
+          .map((feature) => getConnectedAreaCode(feature as FlowFeature, selectedCode, flowDirection))
+          .filter((code): code is string => Boolean(code))
       )
     );
 
     onActiveConnectionsChange(connectedCodes);
   }, [onActiveConnectionsChange, selectedCode, flowDirection, flowsGeoJSON]);
 
-  if (loading || !isVisible || !selectedCode) {
+  if (loading || !isVisible || !selectedCode || !flowsGeoJSON || !stats) {
     return null;
   }
 
-  // Se não houver dados após os filtros, não renderizar
-  if (!flowsGeoJSON || !stats) {
-    return null;
-  }
-
-  // Calcular intervalos dinâmicos baseados nos dados
   const intervals = [
-    { value: 0, label: '0', color: '#F5F3FF' },
+    { value: 0, label: '0', color: '#F8FAFC' },
     { value: Math.round(stats.max * 0.01), label: Math.round(stats.max * 0.01).toLocaleString('pt-BR'), color: '#EDE9FE' },
     { value: Math.round(stats.max * 0.05), label: Math.round(stats.max * 0.05).toLocaleString('pt-BR'), color: '#DDD6FE' },
     { value: Math.round(stats.max * 0.1), label: Math.round(stats.max * 0.1).toLocaleString('pt-BR'), color: '#C4B5FD' },
     { value: Math.round(stats.max * 0.2), label: Math.round(stats.max * 0.2).toLocaleString('pt-BR'), color: '#A78BFA' },
     { value: Math.round(stats.max * 0.5), label: Math.round(stats.max * 0.5).toLocaleString('pt-BR'), color: '#8B5CF6' },
-    { value: stats.max, label: `${stats.max.toLocaleString('pt-BR')}+`, color: '#6D28D9' }
+    { value: stats.max, label: stats.max.toLocaleString('pt-BR'), color: '#6D28D9' },
   ];
 
   const isCompactUI = !isFullscreen;
   const intensityWidth = isIntensityMinimized
-    ? (isCompactUI ? '156px' : '200px')
-    : (isCompactUI ? '180px' : '220px');
+    ? (isCompactUI ? '132px' : '160px')
+    : (isCompactUI ? '220px' : '260px');
   const statsWidth = isStatsMinimized
-    ? (isCompactUI ? '150px' : '180px')
-    : (isCompactUI ? '170px' : '200px');
+    ? (isCompactUI ? '128px' : '156px')
+    : (isCompactUI ? '220px' : '250px');
 
   return (
     <>
-      {/* Filtros de Fluxos */}
       <FlowFilters
         maxFlows={maxFlows}
         onMaxFlowsChange={setMaxFlows}
         minCount={minCount}
         onMinCountChange={setMinCount}
-        // showInternal={showInternal}
-        // onShowInternalChange={onShowInternalChange}
         totalAvailable={totalAvailableFlows}
-        totalFiltered={stats?.count || 0}
+        totalFiltered={stats.count}
         maxPeopleCount={maxPeopleCount}
         isMinimized={isFiltersMinimized}
         onToggleMinimize={() => setIsFiltersMinimized(!isFiltersMinimized)}
@@ -330,55 +270,49 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
         isCompact={isCompactUI}
       />
 
-      {/* Legenda de Intensidade - Design Melhorado */}
       <div
-        className={`absolute bg-white/98 backdrop-blur-md shadow-2xl border border-purple-200 z-10 ${
-          isCompactUI ? 'bottom-6 right-2 rounded-lg p-2' : 'bottom-10 right-4 rounded-xl p-3'
+        className={`absolute z-10 border border-slate-200 bg-white/92 shadow-lg shadow-slate-950/10 backdrop-blur-md ${
+          isCompactUI ? 'bottom-4 right-3 rounded-lg p-2.5' : 'bottom-6 right-4 rounded-xl p-3'
         }`}
         style={{ width: intensityWidth }}
       >
         <div className="flex items-center gap-2">
-
-          <h3 className={`${isCompactUI ? 'text-sm' : 'text-base'} font-bold text-purple-900 flex-1`}>
-            Intensidade de Fluxo
-                  {isFiltersMinimized.valueOf() ? ' (Filtros Minimizado)' : ''}
-
+          <h3 className={`${isCompactUI ? 'text-xs' : 'text-sm'} flex-1 font-semibold text-slate-900`}>
+            Intensidade
           </h3>
           <button
             onClick={() => setIsIntensityMinimized(!isIntensityMinimized)}
-            className={`${isCompactUI ? 'w-6 h-6 text-xs rounded-md' : 'w-7 h-7 rounded-lg'} flex items-center justify-center bg-purple-100 hover:bg-purple-200 transition-colors text-purple-700 font-bold`}
-            title={isIntensityMinimized ? "Expandir" : "Minimizar"}
+            className={`${isCompactUI ? 'h-6 w-6 text-xs rounded-md' : 'h-7 w-7 rounded-lg'} flex items-center justify-center border border-slate-200 bg-white font-bold text-slate-500 transition-colors hover:bg-slate-100`}
+            title={isIntensityMinimized ? 'Expandir' : 'Minimizar'}
+            type="button"
           >
-            {isIntensityMinimized ? '▾' : '▴'}
+            {isIntensityMinimized ? '+' : '-'}
           </button>
         </div>
-        
+
         {!isIntensityMinimized && (
           <>
-            {/* Barra de Gradiente Contínuo */}
-            <div className={isCompactUI ? 'mb-2.5' : 'mb-4'}>
-              <div className="h-6 rounded-lg shadow-inner relative overflow-hidden" 
-                   style={{ 
-                     background: 'linear-gradient(to right, #F5F3FF 0%, #EDE9FE 14%, #DDD6FE 28%, #C4B5FD 42%, #A78BFA 57%, #8B5CF6 71%, #6D28D9 100%)'
-                   }}>
-                <div className="absolute inset-0 border-2 border-gray-300 rounded-lg pointer-events-none"></div>
-              </div>
-              <div className="flex justify-between mt-1 px-1">
-                <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-semibold text-gray-600`}>0</span>
-                <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-semibold text-gray-600`}>{stats.max.toLocaleString('pt-BR')}</span>
+            <div className="mt-2">
+              <div
+                className="h-2.5 overflow-hidden rounded-full border border-slate-200"
+                style={{
+                  background: 'linear-gradient(to right, #F8FAFC 0%, #EDE9FE 25%, #C4B5FD 55%, #8B5CF6 80%, #6D28D9 100%)',
+                }}
+              />
+              <div className="mt-1 flex justify-between px-0.5">
+                <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-medium text-slate-500`}>0</span>
+                <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-medium text-slate-500`}>
+                  {stats.max.toLocaleString('pt-BR')}
+                </span>
               </div>
             </div>
 
-            {/* Lista de Faixas com Ícones Visuais - Dinâmico */}
-            <div className={isCompactUI ? 'space-y-1.5' : 'space-y-2.5'}>
-              {intervals.map((interval, index) => (
-                <div key={index} className={`flex items-center group hover:bg-gray-50 rounded-lg transition-colors ${isCompactUI ? 'gap-2 p-1.5' : 'gap-3 p-2'}`}>
-                  <div 
-                    className={`${isCompactUI ? 'w-9 h-4' : 'w-12 h-5'} rounded shadow-sm ${index === 0 ? 'border-2 border-gray-300' : index === intervals.length - 1 ? 'shadow-lg border border-gray-700' : ''}`}
-                    style={{ backgroundColor: interval.color }}
-                  ></div>
-                  <span className={`${isCompactUI ? 'text-[11px]' : 'text-sm'} ${index >= intervals.length - 2 ? 'font-bold text-gray-900' : index >= intervals.length - 4 ? 'font-semibold text-gray-800' : 'font-medium text-gray-700'}`}>
-                    {index === 0 ? interval.label : `${intervals[index - 1]?.value || 0} - ${interval.label}`}
+            <div className="mt-3 grid grid-cols-2 gap-1.5">
+              {intervals.slice(1).map((interval, index) => (
+                <div key={`${interval.value}-${index}`} className="flex items-center gap-1.5 rounded-md bg-slate-50 px-1.5 py-1">
+                  <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: interval.color }} />
+                  <span className="truncate text-[10px] font-medium text-slate-600">
+                    {index === intervals.length - 2 ? `${interval.label}+` : interval.label}
                   </span>
                 </div>
               ))}
@@ -387,99 +321,81 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
         )}
       </div>
 
-      {/* Estatísticas Compactas */}
       <div
-        className={`absolute bg-white/98 backdrop-blur-md shadow-2xl border border-purple-200 z-10 ${
-          isCompactUI ? 'bottom-2 left-2 rounded-lg p-2' : 'bottom-4 left-4 rounded-xl p-3'
+        className={`absolute z-10 border border-slate-200 bg-white/92 shadow-lg shadow-slate-950/10 backdrop-blur-md ${
+          isCompactUI ? 'bottom-4 left-3 rounded-lg p-2.5' : 'bottom-6 left-4 rounded-xl p-3'
         }`}
-        style={{
-          width: statsWidth,
-          transform: isCompactUI ? 'scale(0.9)' : undefined,
-          transformOrigin: 'bottom left',
-        }}
+        style={{ width: statsWidth }}
       >
-        <div className="flex items-center gap-2 ">
-
-          <h3 className="text-sm font-bold text-purple-900 flex-1">
-            Estatísticas de Fluxo
-          </h3>
+        <div className="flex items-center gap-2">
+          <h3 className="flex-1 text-xs font-semibold text-slate-900">Resumo</h3>
           <button
             onClick={() => setIsStatsMinimized(!isStatsMinimized)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg bg-purple-100 hover:bg-purple-200 transition-colors text-purple-700 font-bold"
-            title={isStatsMinimized ? "Expandir" : "Minimizar"}
+            className="flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 bg-white text-xs font-bold text-slate-500 transition-colors hover:bg-slate-100"
+            title={isStatsMinimized ? 'Expandir' : 'Minimizar'}
+            type="button"
           >
-            {isStatsMinimized ? '▾' : '▴'}
+            {isStatsMinimized ? '+' : '-'}
           </button>
         </div>
-        
+
         {!isStatsMinimized && (
           <>
-            <div className="space-y-2">
-              <div className="flex justify-between items-center bg-purple-50 p-2 rounded-lg">
-                <span className="text-xs font-medium text-gray-700">Total de fluxos:</span>
-                <span className="text-sm font-bold text-purple-700">{stats.count}</span>
+            <div className="mt-2 grid grid-cols-3 gap-1.5">
+              <div className="rounded-md bg-slate-50 px-2 py-1.5">
+                <span className="block text-[10px] font-medium text-slate-500">Fluxos</span>
+                <span className="text-xs font-bold text-slate-950">{stats.count.toLocaleString('pt-BR')}</span>
               </div>
-              <div className="flex justify-between items-center bg-purple-50 p-2 rounded-lg">
-                <span className="text-xs font-medium text-gray-700">Total de pessoas:</span>
-                <span className="text-sm font-bold text-purple-700">{stats.total.toLocaleString('pt-BR')}</span>
+              <div className="rounded-md bg-slate-50 px-2 py-1.5">
+                <span className="block text-[10px] font-medium text-slate-500">Pessoas</span>
+                <span className="text-xs font-bold text-slate-950">{stats.total.toLocaleString('pt-BR')}</span>
               </div>
-              <div className="flex justify-between items-center bg-purple-50 p-2 rounded-lg">
-                <span className="text-xs font-medium text-gray-700">Média por fluxo:</span>
-                <span className="text-sm font-bold text-purple-700">{Math.round(stats.avg).toLocaleString('pt-BR')}</span>
+              <div className="rounded-md bg-slate-50 px-2 py-1.5">
+                <span className="block text-[10px] font-medium text-slate-500">Media</span>
+                <span className="text-xs font-bold text-slate-950">{Math.round(stats.avg).toLocaleString('pt-BR')}</span>
               </div>
             </div>
 
-            <div className="mt-3 pt-3 border-t border-gray-200">
-              <div className="flex items-start gap-2">
-                <p className="text-xs text-gray-600 leading-relaxed">
-                  Linhas mais grossas e roxas = maior volume
-                </p>
-              </div>
+            <div className="mt-2 border-t border-slate-200 pt-2">
+              <p className="text-[10px] leading-relaxed text-slate-500">
+                Espessura e cor indicam maior volume de fluxo.
+              </p>
             </div>
           </>
         )}
       </div>
 
-      {/* Camada de linhas com cores baseadas no volume de fluxo */}
-      <Source
-        id={`${geographyLevel}-flows`}
-        type="geojson"
-        data={flowsGeoJSON}
-      >
-        {/* Linhas principais - cor baseada no volume */}
+      <Source id={`${geographyLevel}-flows`} type="geojson" data={flowsGeoJSON}>
         <Layer
           id={`${geographyLevel}-flow-lines`}
           type="line"
           paint={{
-            // Cor: gradiente de roxo claro a roxo intenso
             'line-color': [
               'interpolate',
               ['linear'],
               ['get', 'count'],
-              0, '#F5F3FF',
+              0, '#F8FAFC',
               100, '#EDE9FE',
               500, '#DDD6FE',
               1000, '#C4B5FD',
               2000, '#A78BFA',
               5000, '#8B5CF6',
-              10000, '#6D28D9'
+              10000, '#6D28D9',
             ],
-            // Espessura: proporcional ao volume
             'line-width': [
               'interpolate',
               ['linear'],
               ['get', 'count'],
-              0, 1,
-              500, 2,
-              1000, 3,
-              2000, 4,
-              5000, 6
+              0, 0.8,
+              500, 1.6,
+              1000, 2.4,
+              2000, 3.4,
+              5000, 5,
             ],
-            'line-opacity': 0.8
+            'line-opacity': 0.72,
           }}
         />
-        
-        {/* Camada de brilho para destacar linhas */}
+
         <Layer
           id={`${geographyLevel}-flow-glow`}
           type="line"
@@ -489,24 +405,23 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
               ['linear'],
               ['get', 'count'],
               0, '#EDE9FE',
-              100, '#DDD6FE',
               500, '#C4B5FD',
               1000, '#A78BFA',
               2000, '#8B5CF6',
-              5000, '#6D28D9'
+              5000, '#6D28D9',
             ],
             'line-width': [
               'interpolate',
               ['linear'],
               ['get', 'count'],
-              0, 3,
-              500, 4,
-              1000, 6,
-              2000, 8,
-              5000, 10
+              0, 2,
+              500, 3,
+              1000, 4,
+              2000, 6,
+              5000, 8,
             ],
-            'line-opacity': 0.3,
-            'line-blur': 4
+            'line-opacity': 0.18,
+            'line-blur': 5,
           }}
         />
       </Source>

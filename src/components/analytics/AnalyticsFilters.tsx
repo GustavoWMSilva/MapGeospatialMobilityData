@@ -36,21 +36,27 @@ export function AnalyticsFilters({
   };
 
   return (
-    <div className={`rounded-xl border border-purple-100 bg-white ${compact ? 'p-3.5 shadow-none' : 'p-6 shadow-sm'}`}>
-      <h2 className={`${compact ? 'mb-2 text-sm uppercase tracking-wide' : 'mb-4 text-xl'} font-bold text-purple-900`}>
+    <div className={`rounded-xl border bg-white ${
+      compact ? 'border-slate-200 p-3 shadow-none' : 'border-purple-100 p-6 shadow-sm'
+    }`}>
+      <h2 className={`${compact ? 'mb-3 text-xs uppercase tracking-wide text-slate-500' : 'mb-4 text-xl text-purple-900'} font-bold`}>
         Filtros analiticos
       </h2>
 
-      <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 ${compact ? 'gap-2.5' : 'gap-4'}`}>
+      <div className={`grid grid-cols-1 ${compact ? 'gap-3' : 'gap-4 md:grid-cols-2 xl:grid-cols-3'}`}>
         <div>
-          <label htmlFor="direction" className={`block font-medium text-purple-900 ${compact ? 'mb-1.5 text-xs' : 'mb-2 text-sm'}`}>
+          <label htmlFor="direction" className={`block font-medium ${compact ? 'mb-1.5 text-xs text-slate-600' : 'mb-2 text-sm text-purple-900'}`}>
             Direcao do fluxo
           </label>
           <select
             id="direction"
             value={direction}
             onChange={handleDirectionChange}
-            className={`w-full rounded-lg border border-purple-200 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-300 ${compact ? 'px-2.5 py-2 text-sm' : 'px-3 py-2 shadow-sm'}`}
+            className={`w-full rounded-lg border bg-white focus:outline-none focus:ring-2 ${
+              compact
+                ? 'border-slate-200 px-2.5 py-2 text-sm text-slate-800 focus:border-slate-400 focus:ring-slate-200'
+                : 'border-purple-200 px-3 py-2 shadow-sm focus:border-purple-400 focus:ring-purple-300'
+            }`}
           >
             <option value="incoming">{datasetProfile.dashboard.directionValues.incoming} (para a area selecionada)</option>
             <option value="outgoing">{datasetProfile.dashboard.directionValues.outgoing} (a partir da area selecionada)</option>
@@ -61,7 +67,7 @@ export function AnalyticsFilters({
           <div key={dimension.key}>
             <label
               htmlFor={`dimension-${dimension.key}`}
-              className={`block font-medium text-purple-900 ${compact ? 'mb-1.5 text-xs' : 'mb-2 text-sm'}`}
+              className={`block font-medium ${compact ? 'mb-1.5 text-xs text-slate-600' : 'mb-2 text-sm text-purple-900'}`}
             >
               {dimension.label}
             </label>
@@ -69,7 +75,11 @@ export function AnalyticsFilters({
               id={`dimension-${dimension.key}`}
               value={getDemographicFilterValue(filters, dimension.key)}
               onChange={(event) => handleDimensionChange(dimension.key, event.target.value)}
-              className={`w-full rounded-lg border border-purple-200 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-300 ${compact ? 'px-2.5 py-2 text-sm' : 'px-3 py-2 shadow-sm'}`}
+              className={`w-full rounded-lg border bg-white focus:outline-none focus:ring-2 ${
+                compact
+                  ? 'border-slate-200 px-2.5 py-2 text-sm text-slate-800 focus:border-slate-400 focus:ring-slate-200'
+                  : 'border-purple-200 px-3 py-2 shadow-sm focus:border-purple-400 focus:ring-purple-300'
+              }`}
             >
               <option value="all">{dimension.allLabel || `Todos - ${dimension.label}`}</option>
               {dimension.options.map((option) => (
@@ -88,10 +98,12 @@ export function AnalyticsFilters({
         ))}
       </div>
 
-      <div className={`${compact ? 'mt-2.5 pt-2.5' : 'mt-4 pt-4'} border-t border-purple-100`}>
+      <div className={`${compact ? 'mt-3 pt-3 border-slate-200' : 'mt-4 pt-4 border-purple-100'} border-t`}>
         <div className="flex flex-wrap gap-2">
-          <span className={`${compact ? 'text-[11px]' : 'text-sm'} font-medium text-purple-900`}>Filtros ativos:</span>
-          <span className={`inline-flex items-center rounded-full bg-purple-100 font-medium text-purple-800 ${compact ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-0.5 text-xs'}`}>
+          <span className={`${compact ? 'w-full text-[11px] text-slate-500' : 'text-sm text-purple-900'} font-medium`}>Filtros ativos:</span>
+          <span className={`inline-flex items-center rounded-full font-medium ${
+            compact ? 'bg-slate-100 px-2 py-0.5 text-[10px] text-slate-700' : 'bg-purple-100 px-2.5 py-0.5 text-xs text-purple-800'
+          }`}>
             {direction === 'incoming'
               ? datasetProfile.dashboard.directionValues.incoming
               : datasetProfile.dashboard.directionValues.outgoing}
@@ -104,7 +116,9 @@ export function AnalyticsFilters({
           {activeBadges.map((badge) => (
             <span
               key={badge.key}
-              className={`inline-flex items-center rounded-full bg-violet-100 font-medium text-violet-800 ${compact ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-0.5 text-xs'}`}
+              className={`inline-flex items-center rounded-full font-medium ${
+                compact ? 'bg-slate-100 px-2 py-0.5 text-[10px] text-slate-700' : 'bg-violet-100 px-2.5 py-0.5 text-xs text-violet-800'
+              }`}
             >
               {badge.label}: {badge.valueLabel}
             </span>

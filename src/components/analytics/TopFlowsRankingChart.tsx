@@ -39,6 +39,7 @@ interface FlowFeature {
 interface RankingDatum {
   routeLabel: string;
   fullRouteLabel: string;
+  counterpartLabel: string;
   count: number;
 }
 
@@ -62,7 +63,13 @@ function getRouteLabel(properties: FlowFeatureProperties): string {
   return `${origin} -> ${destination}`;
 }
 
-function shortenRouteLabel(label: string, maxLength = 44): string {
+function getCounterpartLabel(properties: FlowFeatureProperties, direction: 'incoming' | 'outgoing'): string {
+  return direction === 'incoming'
+    ? (properties.origin_name || properties.origin_code)
+    : (properties.dest_name || properties.dest_code);
+}
+
+function shortenRouteLabel(label: string, maxLength = 30): string {
   if (label.length <= maxLength) {
     return label;
   }
@@ -110,7 +117,8 @@ export function TopFlowsRankingChart({
         const ranking = withoutInternal
           .map((feature) => ({
             fullRouteLabel: getRouteLabel(feature.properties),
-            routeLabel: shortenRouteLabel(getRouteLabel(feature.properties)),
+            counterpartLabel: getCounterpartLabel(feature.properties, direction),
+            routeLabel: shortenRouteLabel(getCounterpartLabel(feature.properties, direction)),
             count: feature.properties.count,
           }))
           .sort((a, b) => b.count - a.count)
@@ -138,7 +146,7 @@ export function TopFlowsRankingChart({
     };
   }, [areaCode, geographyLevel, direction, demographicFilters, includeInternalFlows, topN]);
 
-  const chartHeight = useMemo(() => Math.max(300, rows.length * 32 + 80), [rows.length]);
+  const chartHeight = useMemo(() => Math.max(240, rows.length * 26 + 58), [rows.length]);
 
   if (loading) {
     return (
@@ -167,26 +175,27 @@ export function TopFlowsRankingChart({
 
   return (
     <div className="w-full">
-      <div className="mb-3">
+      <div className="mb-2">
         <div className="flex items-center gap-2">
-          <h3 className="text-base font-semibold text-gray-800">Top 10 fluxos</h3>
+          <p className="text-xs text-slate-500">
+            {direction === 'incoming' ? 'Principais origens' : 'Principais destinos'} por volume, com filtros ativos
+          </p>
           <ChartObjectiveHelp objective="Mostrar os 10 maiores fluxos e como os filtros demográficos alteram o ranking entre origem e destino." />
         </div>
-        <p className="text-xs text-gray-600">
-          Ranking por volume ({direction === 'incoming' ? 'entrada' : 'saida'}) com filtros ativos
-        </p>
       </div>
 
       <ResponsiveContainer width="100%" height={chartHeight}>
-        <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 12, left: 28, bottom: 4 }}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis type="number" />
+        <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
+          <XAxis type="number" hide />
           <YAxis
             type="category"
             dataKey="routeLabel"
-            width={210}
+            width={168}
             interval={0}
-            tick={{ fontSize: 11 }}
+            tick={{ fontSize: 10, fill: '#475569' }}
+            axisLine={false}
+            tickLine={false}
           />
           <Tooltip
             formatter={(value: number | string | Array<number | string> | undefined) => [
@@ -198,7 +207,7 @@ export function TopFlowsRankingChart({
               return row?.fullRouteLabel || '';
             }}
           />
-          <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+          <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={14}>
             {rows.map((entry, index) => (
               <Cell key={`${entry.fullRouteLabel}-${index}`} fill={BAR_COLORS[index % BAR_COLORS.length]} />
             ))}

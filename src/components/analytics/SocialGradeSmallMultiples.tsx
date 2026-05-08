@@ -34,8 +34,8 @@ const COLORS = [
 ];
 
 function shortName(value: string): string {
-  if (value.length <= 18) return value;
-  return `${value.slice(0, 17)}...`;
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 11)}...`;
 }
 
 export function SocialGradeSmallMultiples({
@@ -126,26 +126,27 @@ export function SocialGradeSmallMultiples({
   return (
     <div className="w-full">
       <div className="mb-3">
-        <div className="flex items-center gap-2">
-          <h3 className="text-base font-semibold text-gray-800">Multiplos paineis por {dimension.label.toLowerCase()}</h3>
+        <div className="flex items-center gap-1.5">
+          <p className="text-xs text-slate-500">Comparacao lado a lado com o mesmo eixo visual</p>
           <ChartObjectiveHelp objective={`Comparar rapidamente o mesmo indicador entre categorias de ${dimension.label.toLowerCase()} usando paineis padronizados.`} />
         </div>
-        <p className="text-xs text-gray-600">Comparacao lado a lado com o mesmo eixo visual</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-2">
         {charts.map((chart, index) => (
-          <div key={chart.value} className="rounded-lg border border-purple-100 bg-white p-3">
-            <div className="mb-2 text-sm font-semibold text-gray-800">{chart.title}</div>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={chart.rows} layout="vertical" margin={{ top: 4, right: 4, left: 4, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(value: number) => Number(value).toLocaleString('pt-BR')} />
+          <div key={chart.value} className="rounded-lg border border-slate-200 bg-white p-2.5">
+            <div className="mb-2 text-xs font-bold text-slate-800">{chart.title}</div>
+            <ResponsiveContainer width="100%" height={150}>
+              <BarChart data={chart.rows} layout="vertical" margin={{ top: 2, right: 4, left: 0, bottom: 2 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
+                <XAxis type="number" hide />
                 <YAxis
                   type="category"
                   dataKey="aggregateAreaName"
-                  tick={{ fontSize: 10 }}
-                  width={88}
+                  tick={{ fontSize: 10, fill: '#475569' }}
+                  width={72}
+                  axisLine={false}
+                  tickLine={false}
                   tickFormatter={(value: string) => shortName(value)}
                 />
                 <Tooltip
@@ -159,7 +160,7 @@ export function SocialGradeSmallMultiples({
                     return `${row.aggregateAreaName} (${row.aggregateAreaCode})`;
                   }}
                 />
-                <Bar dataKey="balance" fill={COLORS[index % COLORS.length]} />
+                <Bar dataKey="balance" fill={COLORS[index % COLORS.length]} barSize={10} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

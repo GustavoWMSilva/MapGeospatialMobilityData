@@ -18,6 +18,7 @@ interface AgeBarChartProps {
 interface CategoryBarDatum {
   value: string;
   name: string;
+  shortName: string;
   total: number;
   percentage: number;
   color: string;
@@ -31,6 +32,25 @@ const CATEGORY_COLORS = [
   MAP_COLORS.analytics.palette.purple,
   '#64748B',
 ];
+
+function getShortCategoryLabel(label: string, value: string): string {
+  const ageRange = label.match(/\d+\s*[-–]\s*\d+/);
+  if (ageRange) return ageRange[0].replace(/\s/g, '');
+
+  const plusAge = label.match(/\d+\s*\+/);
+  if (plusAge) return plusAge[0].replace(/\s/g, '');
+
+  const agedRange = value.match(/aged\s+(\d+)\s+to\s+(\d+)/i);
+  if (agedRange) return `${agedRange[1]}-${agedRange[2]}`;
+
+  const agedPlus = value.match(/aged\s+(\d+)\s*(?:years)?\s*(?:and over|\+)/i);
+  if (agedPlus) return `${agedPlus[1]}+`;
+
+  const beforeParentheses = label.split('(')[0]?.trim();
+  if (beforeParentheses && beforeParentheses.length <= 10) return beforeParentheses;
+
+  return label.length > 10 ? `${label.slice(0, 9)}...` : label;
+}
 
 export function AgeBarChart({
   areaCode,
@@ -78,6 +98,7 @@ export function AgeBarChart({
         const chartData = stats.map((stat, index) => ({
           value: stat.value,
           name: stat.label,
+          shortName: getShortCategoryLabel(stat.label, stat.value),
           total: stat.total,
           percentage: stat.percentage,
           color: CATEGORY_COLORS[index % CATEGORY_COLORS.length],
@@ -130,35 +151,44 @@ export function AgeBarChart({
 
   return (
     <div className="w-full">
-      <div className="mb-4">
-        <div className="flex items-center gap-2">
-          <h3 className="text-base font-semibold text-gray-800">
-            Distribuicao por {dimension.label.toLowerCase()}
-          </h3>
+      <div className="mb-2">
+        <div className="flex items-center gap-1.5">
+          <p className="text-xs text-slate-500">
+            {direction === 'incoming' ? 'Entrada' : 'Saida'} por {dimension.label.toLowerCase()}
+          </p>
           <ChartObjectiveHelp objective={`Evidenciar a distribuicao dos fluxos por ${dimension.label.toLowerCase()}.`} />
         </div>
-        <p className="text-sm text-gray-600">
-          {direction === 'incoming' ? 'Entrada' : 'Saida'} por {dimension.label.toLowerCase()}
-        </p>
       </div>
 
-      <ResponsiveContainer width="100%" height={340}>
-        <BarChart data={data} margin={{ top: 12, right: 16, left: 8, bottom: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-          <XAxis dataKey="name" interval={0} tick={{ fontSize: 12 }} />
-          <YAxis width={44} tick={{ fontSize: 12 }} />
+      <ResponsiveContainer width="100%" height={230}>
+        <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+          <XAxis
+            dataKey="shortName"
+            interval={0}
+            tick={{ fontSize: 10, fill: '#475569' }}
+            tickMargin={6}
+            height={26}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis width={38} tick={{ fontSize: 11, fill: '#64748B' }} axisLine={false} tickLine={false} />
           <Tooltip
             formatter={(value: number | string | Array<number | string> | undefined, _name: string | undefined, props: any) => [
               `${Number(value ?? 0).toLocaleString('pt-BR')} (${props.payload.percentage}%)`,
               'Pessoas',
             ]}
+            labelFormatter={(_label, payload) => {
+              const row = payload?.[0]?.payload as CategoryBarDatum | undefined;
+              return row?.name ?? '';
+            }}
           />
           <Bar
             dataKey="total"
             fill="#8884d8"
-            radius={[6, 6, 0, 0]}
+            radius={[5, 5, 0, 0]}
             onClick={(entry: any) => {
-              const clickedValue = entry?.value as string | undefined;
+              const clickedValue = entry?.payload?.value as string | undefined;
               if (!clickedValue || !onSelectValue) return;
               onSelectValue(selectedValue === clickedValue ? 'all' : clickedValue);
             }}
@@ -177,22 +207,22 @@ export function AgeBarChart({
         </BarChart>
       </ResponsiveContainer>
 
-      <div className="mt-4 grid grid-cols-2 gap-2 text-sm md:grid-cols-3">
+      <div className="mt-2 grid grid-cols-1 gap-1.5 text-xs">
         {data.map((item) => (
           <button
             key={item.name}
             type="button"
             onClick={() => onSelectValue?.(selectedValue === item.value ? 'all' : item.value)}
-            className={`flex items-center gap-2 rounded px-2 py-1 text-left transition ${
-              selectedValue === item.value ? 'bg-gray-100 ring-1 ring-gray-300' : 'hover:bg-gray-50'
+            className={`flex items-center justify-between gap-2 rounded-md px-2 py-1 text-left transition ${
+              selectedValue === item.value ? 'bg-slate-100 ring-1 ring-slate-300' : 'hover:bg-slate-50'
             }`}
           >
-            <div
-              className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: item.color }}
-            />
-            <span className="text-gray-700">
-              {item.name}: <strong>{item.total.toLocaleString('pt-BR')}</strong>
+            <span className="flex min-w-0 items-center gap-2 text-slate-600">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+              <span className="truncate">{item.name}</span>
+            </span>
+            <span className="font-semibold text-slate-900">
+              {item.total.toLocaleString('pt-BR')}
             </span>
           </button>
         ))}

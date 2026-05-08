@@ -11,7 +11,7 @@ import {
   getAggregateLookupPath,
   getDemographicFilterValue,
 } from '../constants/datasetProfiles';
-import type { DemographicDimensionConfig, DemographicFilters } from '../types';
+import type { DemographicDimensionConfig, DemographicDimensionOption, DemographicFilters } from '../types';
 
 let db: duckdb.AsyncDuckDB | null = null;
 let conn: duckdb.AsyncDuckDBConnection | null = null;
@@ -93,7 +93,7 @@ export async function initDuckDB(): Promise<void> {
       const worker = new Worker(worker_url);
       
       // Logger
-      const logger = new duckdb.ConsoleLogger();
+      const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING);
       
       // Instanciar DuckDB
       db = new duckdb.AsyncDuckDB(logger, worker);
@@ -357,6 +357,37 @@ export interface AggregateODFlow {
 
 function escapeSqlLiteral(value: string): string {
   return value.replace(/'/g, "''");
+}
+
+function normalizeDimensionText(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function findDimensionOption(
+  rawValue: string,
+  options: DemographicDimensionOption[]
+): DemographicDimensionOption | undefined {
+  const normalizedRaw = normalizeDimensionText(rawValue);
+  const rawTokens = ` ${normalizedRaw.replace(/[^a-z0-9]+/g, ' ')} `;
+
+  return options.find((option) => {
+    const normalizedValue = normalizeDimensionText(option.value);
+    const normalizedLabel = normalizeDimensionText(option.label);
+
+    if (normalizedRaw === normalizedValue || normalizedRaw === normalizedLabel) {
+      return true;
+    }
+
+    if (normalizedLabel.includes(normalizedRaw) || normalizedRaw.includes(normalizedLabel)) {
+      return true;
+    }
+
+    return normalizedValue.length <= 3 && rawTokens.includes(` ${normalizedValue} `);
+  });
 }
 
 function getInternalFlowCondition(includeInternalFlows: boolean): string {
@@ -2047,12 +2078,23 @@ export async function getAggregateDimensionShares(
   const internalFlowCondition = getInternalFlowCondition(includeInternalFlows);
   const filteredBaseFlowsCte = await buildFilteredBaseFlowsCte(filters, includeInternalFlows, dimension.key);
   const validOptions = dimension.options.filter((option) => option.value !== 'all');
+  const categoryColumnRef = `d.${dimension.categoryColumn}`;
+  const getOptionCondition = (value: string, label: string) => {
+    const safeValue = escapeSqlLiteral(value);
+    const safeLabel = escapeSqlLiteral(label);
+
+    if ((dimension.matchMode || 'equals') === 'contains') {
+      return `(${categoryColumnRef} LIKE '%${safeValue}%' OR ${categoryColumnRef} LIKE '%${safeLabel}%')`;
+    }
+
+    return `(${categoryColumnRef} = '${safeValue}' OR ${categoryColumnRef} = '${safeLabel}')`;
+  };
   const optionConditions =
     validOptions.length > 0
       ? validOptions
-          .map((option) => `(${getDimensionFilterCondition(dimension, option.value)})`)
+          .map((option) => getOptionCondition(option.value, option.label))
           .join(' OR ')
-      : `${dimension.categoryColumn} IS NOT NULL`;
+      : `${categoryColumnRef} IS NOT NULL`;
 
   const query = `
     WITH
@@ -2066,7 +2108,7 @@ export async function getAggregateDimensionShares(
       INNER JOIN base_flows
         ON d.origin_code = base_flows.origin_code
        AND d.dest_code = base_flows.dest_code
-      WHERE ${optionConditions}
+      WHERE (${optionConditions})
         AND ${internalFlowCondition.replace('origin_code', 'd.origin_code').replace('dest_code', 'd.dest_code')}
       GROUP BY d.${areaCodeColumn}, d.${dimension.categoryColumn}
     ),
@@ -2115,12 +2157,14 @@ export async function getAggregateDimensionShares(
   const result = await conn.query(query);
 
   return result.toArray().map((row) => {
-    const value = String(row.category_value);
+    const rawValue = String(row.category_value);
+    const matchedOption = findDimensionOption(rawValue, validOptions);
+    const value = matchedOption?.value || rawValue;
     return {
       aggregate_area_code: String(row.aggregate_code),
       aggregate_area_name: String(row.aggregate_name ?? row.aggregate_code),
       category_value: value,
-      category_label: labelByValue.get(value) || value,
+      category_label: matchedOption?.label || labelByValue.get(value) || rawValue,
       total: Number(row.total),
       percentage: Number(row.percentage),
       aggregate_area_total: Number(row.aggregate_total),

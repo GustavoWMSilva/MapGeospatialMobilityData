@@ -11,7 +11,11 @@ import {
 } from 'recharts';
 import { ACTIVE_DATASET_PROFILE } from '../../constants/datasetProfiles';
 import { getAggregateDimensionShares } from '../../utils/duckdb';
-import type { DemographicDimensionConfig, DemographicFilters } from '../../types';
+import type {
+  DemographicDimensionConfig,
+  DemographicDimensionOption,
+  DemographicFilters,
+} from '../../types';
 import { getAnalyticsErrorMessage } from './analyticsUtils';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
 import { MAP_COLORS } from '../../constants/mapColors';
@@ -44,6 +48,42 @@ const CATEGORY_COLORS = [
 function truncateLabel(value: string, maxLength = 24): string {
   if (value.length <= maxLength) return value;
   return `${value.slice(0, maxLength - 1)}...`;
+}
+
+function normalizeDimensionText(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function findCategoryOption(
+  value: string,
+  options: DemographicDimensionOption[]
+): DemographicDimensionOption | undefined {
+  const normalizedValue = normalizeDimensionText(value);
+  const valueTokens = ` ${normalizedValue.replace(/[^a-z0-9]+/g, ' ')} `;
+
+  return options.find((option) => {
+    const optionValue = normalizeDimensionText(option.value);
+    const optionLabel = normalizeDimensionText(option.label);
+
+    if (normalizedValue === optionValue || normalizedValue === optionLabel) {
+      return true;
+    }
+
+    if (optionLabel.includes(normalizedValue) || normalizedValue.includes(optionLabel)) {
+      return true;
+    }
+
+    return optionValue.length <= 3 && valueTokens.includes(` ${optionValue} `);
+  });
+}
+
+function normalizeCategoryValue(value: string, dimension: DemographicDimensionConfig): string {
+  const match = findCategoryOption(value, dimension.options);
+  return match?.value || value;
 }
 
 export function AggregateSocialGradeStacked100({
@@ -91,7 +131,8 @@ export function AggregateSocialGradeStacked100({
           const target = byAggregateArea.get(row.aggregate_area_code);
           if (!target) return;
 
-          target[row.category_value] = row.percentage;
+          const categoryKey = normalizeCategoryValue(row.category_value, dimension);
+          target[categoryKey] = Number(target[categoryKey] || 0) + row.percentage;
         });
 
         if (!cancelled) {
@@ -127,7 +168,7 @@ export function AggregateSocialGradeStacked100({
     return sorted.slice(0, selectedTopN);
   }, [rows, orderBy, selectedTopN]);
 
-  const chartHeight = useMemo(() => Math.max(380, visibleRows.length * 34 + 110), [visibleRows.length]);
+  const chartHeight = useMemo(() => Math.max(300, visibleRows.length * 24 + 80), [visibleRows.length]);
   const categories = useMemo(
     () => dimension.options.filter((option) => option.value !== 'all'),
     [dimension.options]
@@ -157,27 +198,24 @@ export function AggregateSocialGradeStacked100({
   return (
     <div className="w-full">
       <div className="mb-3">
-        <div className="flex items-center gap-2">
-          <h3 className="text-base font-semibold text-gray-800">
-            {dimension.label} por {aggregateUnitLabel} (100%)
-          </h3>
+        <div className="flex items-center gap-1.5">
+          <p className="text-xs text-slate-500">
+            Comparativo proporcional por area ({direction === 'incoming' ? 'entrada' : 'saida'})
+          </p>
           <ChartObjectiveHelp
             objective={`Comparar proporcionalmente ${dimension.label.toLowerCase()} entre ${aggregateUnitPluralLabel.toLowerCase()}, independentemente do volume absoluto.`}
           />
         </div>
-        <p className="text-xs text-gray-600">
-          Comparativo proporcional por area ({direction === 'incoming' ? 'entrada' : 'saida'})
-        </p>
       </div>
 
-      <div className="mb-3 flex flex-wrap gap-2">
+      <div className="mb-3 flex flex-wrap gap-1.5">
         <button
           type="button"
           onClick={() => setSelectedTopN(12)}
-          className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+          className={`rounded-md border px-2 py-1 text-[11px] font-semibold transition ${
             selectedTopN === 12
-              ? 'border-purple-600 bg-purple-600 text-white'
-              : 'border-purple-200 bg-white text-purple-700 hover:bg-purple-50'
+              ? 'border-slate-900 bg-slate-900 text-white'
+              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
           }`}
         >
           Top 12
@@ -185,10 +223,10 @@ export function AggregateSocialGradeStacked100({
         <button
           type="button"
           onClick={() => setSelectedTopN(20)}
-          className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+          className={`rounded-md border px-2 py-1 text-[11px] font-semibold transition ${
             selectedTopN === 20
-              ? 'border-purple-600 bg-purple-600 text-white'
-              : 'border-purple-200 bg-white text-purple-700 hover:bg-purple-50'
+              ? 'border-slate-900 bg-slate-900 text-white'
+              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
           }`}
         >
           Top 20
@@ -196,10 +234,10 @@ export function AggregateSocialGradeStacked100({
         <button
           type="button"
           onClick={() => setOrderBy('total')}
-          className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+          className={`rounded-md border px-2 py-1 text-[11px] font-semibold transition ${
             orderBy === 'total'
-              ? 'border-purple-600 bg-purple-600 text-white'
-              : 'border-purple-200 bg-white text-purple-700 hover:bg-purple-50'
+              ? 'border-slate-900 bg-slate-900 text-white'
+              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
           }`}
         >
           Ordem: Total
@@ -209,10 +247,10 @@ export function AggregateSocialGradeStacked100({
             key={category.value}
             type="button"
             onClick={() => setOrderBy(category.value)}
-            className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+            className={`rounded-md border px-2 py-1 text-[11px] font-semibold transition ${
               orderBy === category.value
-                ? 'border-purple-600 bg-purple-600 text-white'
-                : 'border-purple-200 bg-white text-purple-700 hover:bg-purple-50'
+                ? 'border-slate-900 bg-slate-900 text-white'
+                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
             }`}
           >
             Ordem: {category.label}%
@@ -221,15 +259,17 @@ export function AggregateSocialGradeStacked100({
       </div>
 
       <ResponsiveContainer width="100%" height={chartHeight}>
-        <BarChart data={visibleRows} layout="vertical" margin={{ top: 4, right: 20, left: 24, bottom: 4 }}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis type="number" domain={[0, 100]} tickFormatter={(value: number) => `${Number(value)}%`} />
+        <BarChart data={visibleRows} layout="vertical" margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
+          <XAxis type="number" domain={[0, 100]} tickFormatter={(value: number) => `${Number(value)}%`} tick={{ fontSize: 10, fill: '#64748B' }} axisLine={false} tickLine={false} />
           <YAxis
             dataKey="aggregateAreaLabel"
             type="category"
             interval={0}
-            width={180}
-            tick={{ fontSize: 11 }}
+            width={120}
+            tick={{ fontSize: 10, fill: '#475569' }}
+            axisLine={false}
+            tickLine={false}
           />
           <Tooltip
             formatter={(value: number | string | Array<number | string> | undefined, name) => [
@@ -245,7 +285,7 @@ export function AggregateSocialGradeStacked100({
               return `${row.aggregateAreaName} (${row.aggregateAreaCode})`;
             }}
           />
-          <Legend />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
           {categories.map((category, index) => (
             <Bar
               key={category.value}

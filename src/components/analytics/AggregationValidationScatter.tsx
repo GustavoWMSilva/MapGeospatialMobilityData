@@ -376,13 +376,12 @@ export function AggregationValidationScatter({
   return (
     <div className="w-full">
       <div className="mb-3">
-        <div className="flex items-center gap-2">
-          <h3 className="text-base font-semibold text-gray-800">Validacao base→agregado (Referencia vs Dinamico)</h3>
+        <div className="flex items-center gap-1.5">
+          <p className="text-xs text-gray-600">
+            Scatter com linha y=x ({direction === 'incoming' ? 'incoming' : 'outgoing'})
+          </p>
           <ChartObjectiveHelp objective={`Validar a consistencia tecnica da agregacao da unidade base para ${aggregateUnitLabel} comparando totais dinamicos com uma referencia externa.`} />
         </div>
-        <p className="text-xs text-gray-600">
-          Scatter com linha y=x ({direction === 'incoming' ? 'incoming' : 'outgoing'})
-        </p>
       </div>
 
       <div className={`mb-4 rounded-lg border px-3 py-2 text-xs ${validationSummary.color}`}>

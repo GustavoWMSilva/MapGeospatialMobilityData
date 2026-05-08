@@ -151,28 +151,25 @@ export function SocialGradePieChart({
 
   return (
     <div className="w-full">
-      <div className="mb-4">
-        <div className="flex items-center gap-2">
-          <h3 className="text-base font-semibold text-gray-800">
-            Distribuicao por {dimension.label.toLowerCase()}
-          </h3>
+      <div className="mb-2">
+        <div className="flex items-center gap-1.5">
+          <p className="text-xs text-slate-500">
+            {direction === 'incoming' ? 'Entrada' : 'Saida'} por {dimension.label.toLowerCase()}
+          </p>
           <ChartObjectiveHelp objective={`Mostrar a composicao dos fluxos por ${dimension.label.toLowerCase()} na area selecionada.`} />
         </div>
-        <p className="text-sm text-gray-600">
-          {direction === 'incoming' ? 'Entrada' : 'Saida'} por {dimension.label.toLowerCase()}
-        </p>
       </div>
 
-      <ResponsiveContainer width="100%" height={340}>
-        <PieChart margin={{ top: 10, right: 20, left: 20, bottom: 10 }}>
+      <ResponsiveContainer width="100%" height={220}>
+        <PieChart margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
           <Pie
             data={data}
             cx="50%"
             cy="50%"
             labelLine={false}
             label={CustomLabel}
-            innerRadius={46}
-            outerRadius={112}
+            innerRadius={42}
+            outerRadius={78}
             fill="#8884d8"
             dataKey="value"
             onClick={(_, index) => {
@@ -202,22 +199,22 @@ export function SocialGradePieChart({
         </PieChart>
       </ResponsiveContainer>
 
-      <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+      <div className="mt-2 grid grid-cols-1 gap-1.5 text-xs">
         {data.map((item) => (
           <button
             key={item.name}
             type="button"
             onClick={() => onSelectValue?.(selectedValue === item.code ? 'all' : item.code)}
-            className={`flex items-center gap-2 rounded px-2 py-1 text-left transition ${
-              selectedValue === item.code ? 'bg-gray-100 ring-1 ring-gray-300' : 'hover:bg-gray-50'
+            className={`flex items-center justify-between gap-2 rounded-md px-2 py-1 text-left transition ${
+              selectedValue === item.code ? 'bg-slate-100 ring-1 ring-slate-300' : 'hover:bg-slate-50'
             }`}
           >
-            <div
-              className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: item.color }}
-            />
-            <span className="text-gray-700">
-              {item.name}: <strong>{item.value.toLocaleString('pt-BR')}</strong>
+            <span className="flex min-w-0 items-center gap-2 text-slate-600">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+              <span className="truncate">{item.name}</span>
+            </span>
+            <span className="font-semibold text-slate-900">
+              {item.value.toLocaleString('pt-BR')}
             </span>
           </button>
         ))}

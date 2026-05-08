@@ -2,15 +2,12 @@ import * as React from 'react';
 import { useRef, useCallback, useEffect } from 'react';
 import type { MapRef } from '@vis.gl/react-maplibre';
 
-// Components
 import { InteractiveMap } from './components/InteractiveMap';
 import { AreaSelectionControls } from './components/AreaSelectionControls';
 import { AggregateAreaSelector } from './components/AggregateAreaSelector';
 import { CacheDebugPanel } from './components/CacheDebugPanel';
 import { AnalyticsDashboard } from './components/analytics';
 import { AnalyticsFilters } from './components/analytics/AnalyticsFilters';
-
-// Hooks
 import { useSelectedArea } from './hooks/useSelectedArea';
 import {
   ACTIVE_DATASET_PROFILE,
@@ -20,8 +17,6 @@ import {
   getDatasetToggleOptions,
   persistActiveDataset,
 } from './constants/datasetProfiles';
-
-// Constants & Types
 import type { DemographicFilters, GeographyLevel, ViewState } from './types';
 
 const DEFAULT_VIEW_STATE: ViewState = {
@@ -47,21 +42,18 @@ export default function App() {
   const [showBasePoints, setShowBasePoints] = React.useState(false);
   const [showAggregateAreas, setShowAggregateAreas] = React.useState(true);
   const [selectedAggregateAreaCode, setSelectedAggregateAreaCode] = React.useState<string | null>(null);
-  const [selectedAggregateAreaName, setSelectedAggregateAreaName] = React.useState<string>('');
-  const [selectedBaseAreaName, setSelectedBaseAreaName] = React.useState<string>('');
+  const [selectedAggregateAreaName, setSelectedAggregateAreaName] = React.useState('');
+  const [selectedBaseAreaName, setSelectedBaseAreaName] = React.useState('');
   const [geographyLevel, setGeographyLevel] = React.useState<GeographyLevel>('aggregate');
   const [flowDirection, setFlowDirection] = React.useState<'incoming' | 'outgoing'>('incoming');
   const [isFullscreen, setIsFullscreen] = React.useState(false);
   const [includeInternalFlows, setIncludeInternalFlows] = React.useState(false);
-
-  // Filtros demograficos (compartilhados entre Dashboard e Mapa)
   const [demographicFilters, setDemographicFilters] = React.useState<DemographicFilters>(() =>
     createInitialDemographicFilters(ACTIVE_DATASET_PROFILE)
   );
 
   const mapRef = useRef<MapRef>(null);
 
-  // Pre-inicializar DuckDB para evitar delay na primeira selecao
   useEffect(() => {
     const preinitDB = async () => {
       try {
@@ -73,14 +65,14 @@ export default function App() {
         console.warn('Erro ao pre-inicializar DuckDB:', err);
       }
     };
-    preinitDB();
+
+    void preinitDB();
   }, []);
 
   useEffect(() => {
     setDemographicFilters(createInitialDemographicFilters(ACTIVE_DATASET_PROFILE));
   }, []);
 
-  // Hooks
   const {
     selectedAreaCode: selectedBaseAreaCode,
     selectArea: selectBaseArea,
@@ -128,11 +120,9 @@ export default function App() {
   const handleMapClick = useCallback((event: MapClickEvent) => {
     const { lng, lat } = event.lngLat;
 
-    // Tentar detectar features no ponto clicado
     if (mapRef.current && event.features && event.features.length > 0) {
       const feature = event.features[0];
 
-      // Seleção de área agregada
       if (
         feature.layer.id === 'aggregate-area-points-layer' ||
         feature.layer.id === 'ltla-heatmap-circles' ||
@@ -140,11 +130,7 @@ export default function App() {
       ) {
         const aggregateAreaCode = String(feature.properties.code || '');
         const aggregateAreaName = String(feature.properties.name || '');
-        console.log(
-          `${ACTIVE_DATASET_PROFILE.labels.aggregate.singular} selecionado:`,
-          aggregateAreaName,
-          aggregateAreaCode
-        );
+        console.log(`${ACTIVE_DATASET_PROFILE.labels.aggregate.singular} selecionado:`, aggregateAreaName, aggregateAreaCode);
         setSelectedAggregateAreaCode(aggregateAreaCode);
         setSelectedAggregateAreaName(aggregateAreaName);
         selectBaseArea(null);
@@ -155,11 +141,7 @@ export default function App() {
       if (feature.layer.id === 'aggregate-boundaries-clickable') {
         const aggregateAreaCode = String(feature.properties.ltla_code || feature.properties.code || '');
         const aggregateAreaName = String(feature.properties.ltla_name || feature.properties.name || '');
-        console.log(
-          `Limite de ${ACTIVE_DATASET_PROFILE.labels.aggregate.singular} clicado:`,
-          aggregateAreaName,
-          aggregateAreaCode
-        );
+        console.log(`Limite de ${ACTIVE_DATASET_PROFILE.labels.aggregate.singular} clicado:`, aggregateAreaName, aggregateAreaCode);
         setSelectedAggregateAreaCode(aggregateAreaCode);
         setSelectedAggregateAreaName(aggregateAreaName);
         selectBaseArea(null);
@@ -167,15 +149,10 @@ export default function App() {
         return;
       }
 
-      // Seleção de área base
       if (feature.layer.id === 'all-area-points-layer') {
         const baseAreaCode = String(feature.properties.code || '');
         const baseAreaName = String(feature.properties.name || '');
-        console.log(
-          `${ACTIVE_DATASET_PROFILE.labels.base.singular} selecionada:`,
-          baseAreaName,
-          baseAreaCode
-        );
+        console.log(`${ACTIVE_DATASET_PROFILE.labels.base.singular} selecionada:`, baseAreaName, baseAreaCode);
         selectBaseArea(baseAreaCode);
         setSelectedBaseAreaName(baseAreaName);
         setSelectedAggregateAreaCode(null);
@@ -191,11 +168,7 @@ export default function App() {
           ''
         );
         const baseAreaName = String(feature.properties.MSOA21NM || feature.properties.name || '');
-        console.log(
-          `Limite de ${ACTIVE_DATASET_PROFILE.labels.base.singular} clicado:`,
-          baseAreaName,
-          baseAreaCode
-        );
+        console.log(`Limite de ${ACTIVE_DATASET_PROFILE.labels.base.singular} clicado:`, baseAreaName, baseAreaCode);
         selectBaseArea(baseAreaCode);
         setSelectedBaseAreaName(baseAreaName);
         setSelectedAggregateAreaCode(null);
@@ -204,10 +177,8 @@ export default function App() {
       }
     }
 
-    // Se nao clicou em nenhuma feature, apenas registra o ponto (comportamento antigo)
     console.log('Clicou em:', { longitude: lng, latitude: lat });
-    // addPoint(lng, lat); // Comentado para nao adicionar marcador
-  }, [mapRef, selectBaseArea]);
+  }, [selectBaseArea]);
 
   const selectedArea =
     geographyLevel === 'aggregate'
@@ -217,245 +188,267 @@ export default function App() {
     geographyLevel === 'aggregate'
       ? selectedAggregateAreaName
       : selectedBaseAreaName;
+  const selectedUnitLabel =
+    geographyLevel === 'aggregate'
+      ? ACTIVE_DATASET_PROFILE.labels.aggregate.singular
+      : ACTIVE_DATASET_PROFILE.labels.base.singular;
+
+  const map = (
+    <InteractiveMap
+      mapRef={mapRef}
+      viewState={viewState}
+      points={[]}
+      onMove={onMove}
+      onClick={handleMapClick}
+      onFlyToPoint={() => {}}
+      mobilityDataSource={mobilityDataSource}
+      selectedBaseAreaCode={selectedBaseAreaCode}
+      showBasePoints={showBasePoints}
+      showAggregateAreas={showAggregateAreas}
+      selectedAggregateAreaCode={selectedAggregateAreaCode}
+      flowDirection={flowDirection}
+      isFullscreen={isFullscreen}
+      geographyLevel={geographyLevel}
+      datasetProfile={ACTIVE_DATASET_PROFILE}
+      demographicFilters={demographicFilters}
+      includeInternalFlows={includeInternalFlows}
+      onIncludeInternalFlowsChange={setIncludeInternalFlows}
+    />
+  );
 
   return (
-    <main style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #faf5ff 0%, #ffffff 50%, #f3e8ff 100%)' }}>
-      {/* Header */}
+    <main className="min-h-screen bg-slate-100 text-slate-900">
       {!isFullscreen && (
-      <div className="border-b border-purple-200 bg-gradient-to-r from-purple-700 via-purple-700 to-purple-800 shadow-sm">
-        <div className="flex flex-col gap-4 px-6 py-5 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h1 className="text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-6xl">
-            Visualização de Mobilidade Geoespacial
-          </h1>
-          <p className="mt-1 text-sm text-purple-100">
-            {ACTIVE_DATASET_PROFILE.description}
-          </p>
-          </div>
-
-          <div className="rounded-2xl border border-purple-300/40 bg-white/10 p-2 backdrop-blur-sm">
-            <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-purple-100">
-              Base de dados
+        <div className="flex h-screen min-w-[1180px] flex-col">
+          <header className="flex h-20 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6 shadow-sm">
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-slate-950">
+                Visualizacao de Mobilidade Geoespacial
+              </h1>
+              <p className="mt-1 max-w-3xl text-xs text-slate-500">
+                {ACTIVE_DATASET_PROFILE.description}
+              </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {DATASET_TOGGLE_OPTIONS.map((option) => {
-                const isActive = option.id === activeDatasetId;
 
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => handleDatasetChange(option.id)}
-                    className={`rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
-                      isActive
-                        ? 'bg-white text-purple-800 shadow-lg'
-                        : 'bg-purple-900/20 text-white hover:bg-white/20'
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-      )}
+            <div className="flex items-center gap-3">
+              <div className="hidden text-right lg:block">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  {ACTIVE_DATASET_PROFILE.labels.datasetActiveLabel}
+                </p>
+                <p className="text-sm font-semibold text-slate-900">{ACTIVE_DATASET_PROFILE.label}</p>
+              </div>
 
-      {!isFullscreen && (
-      <div className="px-6 pb-6 pt-4">
-        {/* Barra superior: busca da cidade + Analytics Filters (acima dos gráficos) */}
-        <div className="mb-5 grid gap-4 xl:grid-cols-[minmax(420px,1fr)_minmax(0,1.25fr)]">
-          <div>
-            <div className="mb-3 rounded-xl border border-purple-100 bg-white p-2.5 shadow-sm">
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="mr-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-700">Controles:</div>
-                <button
-                  onClick={toggleGeographyLevel}
-                  className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors sm:text-xs ${
-                    geographyLevel === 'aggregate'
-                      ? 'border-purple-700 bg-purple-700 text-white hover:bg-purple-800'
-                      : 'border-purple-300 bg-purple-50 text-purple-800 hover:bg-purple-100'
-                  }`}
-                >
-                  {geographyLevel === 'aggregate'
-                    ? ACTIVE_DATASET_PROFILE.labels.aggregate.modeLabel
-                    : ACTIVE_DATASET_PROFILE.labels.base.modeLabel}
-                </button>
-                <button
-                  onClick={() => setIsFullscreen(!isFullscreen)}
-                  className="rounded-md border border-purple-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-purple-800 transition-colors hover:bg-purple-50 sm:text-xs"
-                  title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-                >
-                  Tela Cheia
-                </button>
+              <div className="flex gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
+                {DATASET_TOGGLE_OPTIONS.map((option) => {
+                  const isActive = option.id === activeDatasetId;
+
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => handleDatasetChange(option.id)}
+                      className={`rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
+                        isActive
+                          ? 'bg-slate-950 text-white shadow-sm'
+                          : 'text-slate-600 hover:bg-white hover:text-slate-950'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
-            {geographyLevel === 'aggregate' ? (
-              <AggregateAreaSelector
-                selectedAggregateAreaCode={selectedAggregateAreaCode}
-                onSelectAggregateArea={(aggregateAreaCode, aggregateAreaName) => {
-                  setSelectedAggregateAreaCode(aggregateAreaCode);
-                  setSelectedAggregateAreaName(aggregateAreaName);
-                  selectBaseArea(null);
-                  setSelectedBaseAreaName('');
-                }}
-                onClearSelection={() => {
-                  setSelectedAggregateAreaCode(null);
-                  setSelectedAggregateAreaName('');
-                }}
-              />
-            ) : (
-              <AreaSelectionControls
-                selectedAreaCode={selectedBaseAreaCode}
-                onSelectArea={(code) => {
-                  selectBaseArea(code);
-                  setSelectedBaseAreaName('');
-                  setSelectedAggregateAreaCode(null);
-                  setSelectedAggregateAreaName('');
-                }}
-                onClearSelection={() => {
-                  clearBaseSelection();
-                  setSelectedBaseAreaName('');
-                }}
-              />
-            )}
-          </div>
+          </header>
 
-          <div className="space-y-2 rounded-2xl border border-purple-100 bg-white p-3 shadow-sm">
-            <p className="px-1 text-xs font-semibold uppercase tracking-wide text-purple-800">
-              Filtros dos Gráficos
-            </p>
+          <div className="grid min-h-0 flex-1 grid-cols-[320px_minmax(520px,1fr)_400px] gap-4 p-4">
+            <aside className="min-h-0 overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-4">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Explorar</p>
+                <h2 className="mt-1 text-lg font-bold text-slate-950">Selecionar area</h2>
+              </div>
 
-            <div className="rounded-lg border border-purple-100 bg-purple-50/60 px-3 py-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-purple-700">
-                {ACTIVE_DATASET_PROFILE.labels.datasetActiveLabel}
-              </p>
-              <p className="text-sm font-semibold text-purple-950">{ACTIVE_DATASET_PROFILE.label}</p>
-              <p className="text-[11px] text-purple-700">{ACTIVE_DATASET_PROFILE.description}</p>
-            </div>
-
-            <AnalyticsFilters
-              datasetProfile={ACTIVE_DATASET_PROFILE}
-              filters={demographicFilters}
-              direction={flowDirection}
-              compact
-              onFiltersChange={setDemographicFilters}
-              onDirectionChange={setFlowDirection}
-            />
-
-            <div className="rounded-lg border border-purple-100 bg-purple-50/40 p-2.5">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={includeInternalFlows}
-                  onChange={(e) => setIncludeInternalFlows(e.target.checked)}
-                  className="mt-1 h-4 w-4 accent-purple-600"
-                />
-                <div>
-                  <p className="text-xs font-medium text-gray-800">Incluir fluxo interno (origem = destino)</p>
-                  <p className="text-[11px] text-gray-600">Quando desativado, os gráficos ignoram fluxos dentro da mesma área.</p>
+              <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={activateAggregateLevel}
+                    className={`rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
+                      geographyLevel === 'aggregate'
+                        ? 'bg-slate-950 text-white'
+                        : 'bg-white text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    {ACTIVE_DATASET_PROFILE.labels.aggregate.modeLabel}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={activateBaseLevel}
+                    className={`rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
+                      geographyLevel === 'base'
+                        ? 'bg-slate-950 text-white'
+                        : 'bg-white text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    {ACTIVE_DATASET_PROFILE.labels.base.modeLabel}
+                  </button>
                 </div>
-              </label>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen(true)}
+                  className="mt-2 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100"
+                >
+                  Tela cheia
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {geographyLevel === 'aggregate' ? (
+                  <AggregateAreaSelector
+                    selectedAggregateAreaCode={selectedAggregateAreaCode}
+                    onSelectAggregateArea={(aggregateAreaCode, aggregateAreaName) => {
+                      setSelectedAggregateAreaCode(aggregateAreaCode);
+                      setSelectedAggregateAreaName(aggregateAreaName);
+                      selectBaseArea(null);
+                      setSelectedBaseAreaName('');
+                    }}
+                    onClearSelection={() => {
+                      setSelectedAggregateAreaCode(null);
+                      setSelectedAggregateAreaName('');
+                    }}
+                  />
+                ) : (
+                  <AreaSelectionControls
+                    selectedAreaCode={selectedBaseAreaCode}
+                    onSelectArea={(code) => {
+                      selectBaseArea(code);
+                      setSelectedBaseAreaName('');
+                      setSelectedAggregateAreaCode(null);
+                      setSelectedAggregateAreaName('');
+                    }}
+                    onClearSelection={() => {
+                      clearBaseSelection();
+                      setSelectedBaseAreaName('');
+                    }}
+                  />
+                )}
+
+                <section className="rounded-xl border border-slate-200 bg-white p-3">
+                  <div className="mb-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Filtros</p>
+                    <h3 className="text-sm font-bold text-slate-950">Leitura dos fluxos</h3>
+                  </div>
+
+                  <AnalyticsFilters
+                    datasetProfile={ACTIVE_DATASET_PROFILE}
+                    filters={demographicFilters}
+                    direction={flowDirection}
+                    compact
+                    onFiltersChange={setDemographicFilters}
+                    onDirectionChange={setFlowDirection}
+                  />
+
+                  <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <input
+                      type="checkbox"
+                      checked={includeInternalFlows}
+                      onChange={(e) => setIncludeInternalFlows(e.target.checked)}
+                      className="mt-1 h-4 w-4 accent-slate-900"
+                    />
+                    <span>
+                      <span className="block text-xs font-semibold text-slate-800">
+                        {ACTIVE_DATASET_PROFILE.dashboard.includeInternalFlowsLabel}
+                      </span>
+                      <span className="mt-1 block text-[11px] leading-4 text-slate-500">
+                        {ACTIVE_DATASET_PROFILE.dashboard.includeInternalFlowsHint}
+                      </span>
+                    </span>
+                  </label>
+                </section>
+              </div>
+            </aside>
+
+            <section className="min-h-0">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Mapa principal</p>
+                  <h2 className="text-base font-bold text-slate-950">
+                    {selectedArea
+                      ? `${selectedUnitLabel}: ${selectedAreaName || selectedArea}`
+                      : 'Clique no mapa ou use a busca para iniciar'}
+                  </h2>
+                </div>
+                <div className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600">
+                  {flowDirection === 'incoming'
+                    ? ACTIVE_DATASET_PROFILE.dashboard.directionValues.incoming
+                    : ACTIVE_DATASET_PROFILE.dashboard.directionValues.outgoing}
+                </div>
+              </div>
+
+              <div className="h-[calc(100vh-8.25rem)]">{map}</div>
+            </section>
+
+            <aside className="min-h-0 overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-4">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Leitura rapida</p>
+                <h2 className="text-lg font-bold text-slate-950">Indicadores e graficos</h2>
+                {selectedArea && (
+                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      {selectedUnitLabel} selecionado
+                    </p>
+                    <p className="mt-1 truncate text-base font-bold text-slate-950">
+                      {selectedAreaName || selectedArea}
+                    </p>
+                    <p className="mt-1 truncate font-mono text-[11px] text-slate-500">{selectedArea}</p>
+                  </div>
+                )}
+              </div>
+
+              <AnalyticsDashboard
+                selectedArea={selectedArea}
+                areaName={selectedAreaName}
+                geographyLevel={geographyLevel}
+                datasetProfile={ACTIVE_DATASET_PROFILE}
+                demographicFilters={demographicFilters}
+                direction={flowDirection}
+                includeInternalFlows={includeInternalFlows}
+                showTopControls={false}
+                onDemographicFiltersChange={setDemographicFilters}
+                onDirectionChange={setFlowDirection}
+                onIncludeInternalFlowsChange={setIncludeInternalFlows}
+              />
+            </aside>
           </div>
         </div>
-
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(480px,1fr)]">
-          <div className="self-start xl:sticky xl:top-6">
-            <InteractiveMap
-              mapRef={mapRef}
-              viewState={viewState}
-              points={[]}
-              onMove={onMove}
-              onClick={handleMapClick}
-              onFlyToPoint={() => {}}
-              mobilityDataSource={mobilityDataSource}
-              selectedBaseAreaCode={selectedBaseAreaCode}
-              showBasePoints={showBasePoints}
-              showAggregateAreas={showAggregateAreas}
-              selectedAggregateAreaCode={selectedAggregateAreaCode}
-              flowDirection={flowDirection}
-              isFullscreen={false}
-              geographyLevel={geographyLevel}
-              datasetProfile={ACTIVE_DATASET_PROFILE}
-              demographicFilters={demographicFilters}
-              includeInternalFlows={includeInternalFlows}
-              onIncludeInternalFlowsChange={setIncludeInternalFlows}
-            />
-          </div>
-
-          <div className="space-y-5 xl:h-[calc(100vh-8.5rem)] xl:overflow-y-auto xl:pr-2">
-            <AnalyticsDashboard
-              selectedArea={selectedArea}
-              areaName={selectedAreaName}
-              geographyLevel={geographyLevel}
-              datasetProfile={ACTIVE_DATASET_PROFILE}
-              demographicFilters={demographicFilters}
-              direction={flowDirection}
-              includeInternalFlows={includeInternalFlows}
-              showTopControls={false}
-              onDemographicFiltersChange={setDemographicFilters}
-              onDirectionChange={setFlowDirection}
-              onIncludeInternalFlowsChange={setIncludeInternalFlows}
-            />
-          </div>
-        </div>
-      </div>
       )}
 
       {isFullscreen && (
-      <div className="fixed inset-0 z-50">
-        <InteractiveMap
-          mapRef={mapRef}
-          viewState={viewState}
-          points={[]}
-          onMove={onMove}
-          onClick={handleMapClick}
-          onFlyToPoint={() => {}}
-          mobilityDataSource={mobilityDataSource}
-          selectedBaseAreaCode={selectedBaseAreaCode}
-          showBasePoints={showBasePoints}
-          showAggregateAreas={showAggregateAreas}
-          selectedAggregateAreaCode={selectedAggregateAreaCode}
-          flowDirection={flowDirection}
-          isFullscreen
-          geographyLevel={geographyLevel}
-          datasetProfile={ACTIVE_DATASET_PROFILE}
-          demographicFilters={demographicFilters}
-          includeInternalFlows={includeInternalFlows}
-          onIncludeInternalFlowsChange={setIncludeInternalFlows}
-        />
+        <div className="fixed inset-0 z-50">
+          {map}
 
-        {/* Controles flutuantes no modo fullscreen */}
-        <>
-          {/* Botao de sair da tela cheia */}
           <button
+            type="button"
             onClick={() => setIsFullscreen(false)}
-            className="fixed top-4 right-4 z-[60] px-6 py-3 rounded-lg font-bold transition-all shadow-2xl bg-gradient-to-r from-purple-600 to-purple-700 text-white border-2 border-white hover:from-purple-700 hover:to-purple-800 hover:scale-105"
+            className="fixed right-4 top-4 z-[60] rounded-lg border border-white bg-slate-950 px-5 py-3 text-sm font-bold text-white shadow-2xl transition-colors hover:bg-slate-800"
             title="Sair da tela cheia"
           >
-            Sair da Tela Cheia
+            Sair da tela cheia
           </button>
 
-          {/* Painel de controles flutuante */}
-          <div className="fixed top-4 left-4 z-[60] flex flex-col gap-3">
-            {/* Botao de alternar modo */}
+          <div className="fixed left-4 top-4 z-[60] flex flex-col gap-3">
             <button
+              type="button"
               onClick={toggleGeographyLevel}
-              className={`px-5 py-2.5 rounded-lg font-semibold transition-all shadow-2xl transform hover:scale-105 border-2 border-white ${
-                geographyLevel === 'aggregate'
-                  ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800'
-                  : 'bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700'
-              }`}
+              className="rounded-lg border border-white bg-white/95 px-4 py-2.5 text-sm font-semibold text-slate-950 shadow-2xl backdrop-blur-sm"
             >
               {geographyLevel === 'aggregate'
                 ? `Modo: ${ACTIVE_DATASET_PROFILE.labels.aggregate.modeLabel}`
                 : `Modo: ${ACTIVE_DATASET_PROFILE.labels.base.modeLabel}`}
             </button>
 
-            <div className="rounded-xl border-2 border-white bg-white/90 p-2 shadow-2xl backdrop-blur-sm">
-              <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-purple-700">
+            <div className="rounded-xl border border-white bg-white/95 p-2 shadow-2xl backdrop-blur-sm">
+              <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                 Base de dados
               </div>
               <div className="flex gap-2">
@@ -469,8 +462,8 @@ export default function App() {
                       onClick={() => handleDatasetChange(option.id)}
                       className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
                         isActive
-                          ? 'bg-purple-700 text-white'
-                          : 'bg-purple-50 text-purple-800 hover:bg-purple-100'
+                          ? 'bg-slate-950 text-white'
+                          : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
                       }`}
                     >
                       {option.label}
@@ -480,11 +473,9 @@ export default function App() {
               </div>
             </div>
           </div>
-        </>
-      </div>
+        </div>
       )}
 
-      {/* Painel de Debug do Cache */}
       <CacheDebugPanel />
     </main>
   );
