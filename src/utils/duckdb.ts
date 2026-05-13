@@ -8,16 +8,23 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import {
   ACTIVE_DATASET_PROFILE,
+  getBaseCentroidsPath,
   getAggregateLookupPath,
   getDemographicFilterValue,
 } from '../constants/datasetProfiles';
-import type { DemographicDimensionConfig, DemographicDimensionOption, DemographicFilters } from '../types';
+import type {
+  DemographicDimensionConfig,
+  DemographicDimensionOption,
+  DemographicFilters,
+  GeographyLevel,
+} from '../types';
 
 let db: duckdb.AsyncDuckDB | null = null;
 let conn: duckdb.AsyncDuckDBConnection | null = null;
 let initialized = false;
 let initPromise: Promise<void> | null = null;
 let ltlaLookupTableReady = false;
+let baseLookupTableReady = false;
 const isDevMode = import.meta.env.DEV;
 
 function debugLog(...args: unknown[]) {
@@ -435,9 +442,9 @@ async function ensureLTLALookupTable(): Promise<void> {
   await conn.query(`
     CREATE OR REPLACE TABLE ltla_lookup AS
     SELECT
-      TRIM(msoa21cd) AS msoa21cd,
-      TRIM(ltla22cd) AS ltla22cd,
-      TRIM(ltla22nm) AS ltla22nm
+      TRIM(CAST(msoa21cd AS VARCHAR)) AS msoa21cd,
+      TRIM(CAST(ltla22cd AS VARCHAR)) AS ltla22cd,
+      TRIM(CAST(ltla22nm AS VARCHAR)) AS ltla22nm
     FROM read_csv_auto('${fileName}', HEADER = TRUE)
     WHERE msoa21cd IS NOT NULL
       AND ltla22cd IS NOT NULL
@@ -445,6 +452,91 @@ async function ensureLTLALookupTable(): Promise<void> {
 
   ltlaLookupTableReady = true;
   debugLog('? Tabela ltla_lookup pronta para agregações LTLA');
+}
+
+async function ensureBaseLookupTable(): Promise<void> {
+  await initDuckDB();
+
+  if (!db || !conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  if (baseLookupTableReady) {
+    return;
+  }
+
+  if (await tableExists('base_lookup')) {
+    baseLookupTableReady = true;
+    return;
+  }
+
+  const response = await fetch(getBaseCentroidsPath());
+  if (!response.ok) {
+    throw new Error(`Falha ao carregar base_lookup.csv (${response.status})`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  const fileName = 'base_lookup.csv';
+  await db.registerFileBuffer(fileName, new Uint8Array(arrayBuffer));
+
+  await conn.query(`
+    CREATE OR REPLACE TABLE base_lookup AS
+    SELECT
+      TRIM(CAST(code AS VARCHAR)) AS code,
+      TRIM(CAST(name AS VARCHAR)) AS name
+    FROM read_csv_auto('${fileName}', HEADER = TRUE)
+    WHERE code IS NOT NULL
+  `);
+
+  baseLookupTableReady = true;
+  debugLog('? Tabela base_lookup pronta para agregações no nível base');
+}
+
+async function ensureAnalyticsLookupTable(geographyLevel: GeographyLevel): Promise<void> {
+  if (geographyLevel === 'aggregate') {
+    await ensureLTLALookupTable();
+    return;
+  }
+
+  await ensureBaseLookupTable();
+}
+
+function buildAreaFlowsCte(geographyLevel: GeographyLevel): string {
+  if (geographyLevel === 'aggregate') {
+    return `
+      area_flows AS (
+        SELECT
+          origin_lookup.ltla22cd AS origin_area_code,
+          MAX(origin_lookup.ltla22nm) AS origin_area_name,
+          dest_lookup.ltla22cd AS dest_area_code,
+          MAX(dest_lookup.ltla22nm) AS dest_area_name,
+          SUM(base_flows.count) AS flow_count
+        FROM base_flows
+        INNER JOIN ltla_lookup origin_lookup
+          ON base_flows.origin_code = origin_lookup.msoa21cd
+        INNER JOIN ltla_lookup dest_lookup
+          ON base_flows.dest_code = dest_lookup.msoa21cd
+        GROUP BY origin_lookup.ltla22cd, dest_lookup.ltla22cd
+      )
+    `;
+  }
+
+  return `
+    area_flows AS (
+      SELECT
+        base_flows.origin_code AS origin_area_code,
+        COALESCE(MAX(origin_lookup.name), base_flows.origin_code) AS origin_area_name,
+        base_flows.dest_code AS dest_area_code,
+        COALESCE(MAX(dest_lookup.name), base_flows.dest_code) AS dest_area_name,
+        SUM(base_flows.count) AS flow_count
+      FROM base_flows
+      LEFT JOIN base_lookup origin_lookup
+        ON base_flows.origin_code = origin_lookup.code
+      LEFT JOIN base_lookup dest_lookup
+        ON base_flows.dest_code = dest_lookup.code
+      GROUP BY base_flows.origin_code, base_flows.dest_code
+    )
+  `;
 }
 
 async function resolveAreaWhereClause(
@@ -1901,7 +1993,8 @@ export async function getTopAggregateODFlows(
 export async function getAggregateDirectionalBalancesForFilters(
   filters: DemographicFilters = {},
   topN: number = 15,
-  includeInternalFlows: boolean = false
+  includeInternalFlows: boolean = false,
+  geographyLevel: GeographyLevel = 'aggregate'
 ): Promise<AggregateDirectionalBalanceResult[]> {
   await initDuckDB();
 
@@ -1909,43 +2002,31 @@ export async function getAggregateDirectionalBalancesForFilters(
     throw new Error('DuckDB não inicializado');
   }
 
-  await ensureLTLALookupTable();
+  await ensureAnalyticsLookupTable(geographyLevel);
 
   const safeTopN = Math.max(1, Math.min(topN, 40));
   const baseFlowsCte = await buildFilteredBaseFlowsCte(filters, includeInternalFlows);
+  const areaFlowsCte = buildAreaFlowsCte(geographyLevel);
 
   const query = `
     WITH
     ${baseFlowsCte},
-    aggregate_flows AS (
-      SELECT
-        origin_lookup.ltla22cd AS origin_aggregate_code,
-        MAX(origin_lookup.ltla22nm) AS origin_aggregate_name,
-        dest_lookup.ltla22cd AS dest_aggregate_code,
-        MAX(dest_lookup.ltla22nm) AS dest_aggregate_name,
-        SUM(base_flows.count) AS flow_count
-      FROM base_flows
-      INNER JOIN ltla_lookup origin_lookup
-        ON base_flows.origin_code = origin_lookup.msoa21cd
-      INNER JOIN ltla_lookup dest_lookup
-        ON base_flows.dest_code = dest_lookup.msoa21cd
-      GROUP BY origin_lookup.ltla22cd, dest_lookup.ltla22cd
-    ),
+    ${areaFlowsCte},
     incoming_totals AS (
       SELECT
-        dest_aggregate_code AS aggregate_code,
-        MAX(dest_aggregate_name) AS aggregate_name,
+        dest_area_code AS aggregate_code,
+        MAX(dest_area_name) AS aggregate_name,
         SUM(flow_count) AS incoming_total
-      FROM aggregate_flows
-      GROUP BY dest_aggregate_code
+      FROM area_flows
+      GROUP BY dest_area_code
     ),
     outgoing_totals AS (
       SELECT
-        origin_aggregate_code AS aggregate_code,
-        MAX(origin_aggregate_name) AS aggregate_name,
+        origin_area_code AS aggregate_code,
+        MAX(origin_area_name) AS aggregate_name,
         SUM(flow_count) AS outgoing_total
-      FROM aggregate_flows
-      GROUP BY origin_aggregate_code
+      FROM area_flows
+      GROUP BY origin_area_code
     ),
     aggregate_balances AS (
       SELECT
@@ -1982,7 +2063,8 @@ export async function getAggregateDirectionalBalancesForFilters(
 export async function getTopAggregateODFlowsForFilters(
   filters: DemographicFilters = {},
   topN: number = 10,
-  includeInternalFlows: boolean = false
+  includeInternalFlows: boolean = false,
+  geographyLevel: GeographyLevel = 'aggregate'
 ): Promise<AggregateODFlow[]> {
   await initDuckDB();
 
@@ -1990,27 +2072,25 @@ export async function getTopAggregateODFlowsForFilters(
     throw new Error('DuckDB não inicializado');
   }
 
-  await ensureLTLALookupTable();
+  await ensureAnalyticsLookupTable(geographyLevel);
 
   const safeTopN = Math.max(4, Math.min(topN, 20));
   const baseFlowsCte = await buildFilteredBaseFlowsCte(filters, includeInternalFlows);
+  const areaFlowsCte = buildAreaFlowsCte(geographyLevel);
 
   const query = `
     WITH
     ${baseFlowsCte},
+    ${areaFlowsCte},
     aggregate_od AS (
       SELECT
-        origin_lookup.ltla22cd AS origin_aggregate_code,
-        MAX(origin_lookup.ltla22nm) AS origin_aggregate_name,
-        dest_lookup.ltla22cd AS dest_aggregate_code,
-        MAX(dest_lookup.ltla22nm) AS dest_aggregate_name,
-        SUM(base_flows.count) AS total_count
-      FROM base_flows
-      INNER JOIN ltla_lookup origin_lookup
-        ON base_flows.origin_code = origin_lookup.msoa21cd
-      INNER JOIN ltla_lookup dest_lookup
-        ON base_flows.dest_code = dest_lookup.msoa21cd
-      GROUP BY origin_lookup.ltla22cd, dest_lookup.ltla22cd
+        origin_area_code AS origin_aggregate_code,
+        MAX(origin_area_name) AS origin_aggregate_name,
+        dest_area_code AS dest_aggregate_code,
+        MAX(dest_area_name) AS dest_aggregate_name,
+        SUM(flow_count) AS total_count
+      FROM area_flows
+      GROUP BY origin_area_code, dest_area_code
     ),
     area_activity AS (
       SELECT
@@ -2058,7 +2138,8 @@ export async function getAggregateDimensionShares(
   filters: DemographicFilters = {},
   direction: 'incoming' | 'outgoing' = 'incoming',
   topN: number = 30,
-  includeInternalFlows: boolean = false
+  includeInternalFlows: boolean = false,
+  geographyLevel: GeographyLevel = 'aggregate'
 ): Promise<AggregateDimensionShareResult[]> {
   await initDuckDB();
 
@@ -2066,7 +2147,7 @@ export async function getAggregateDimensionShares(
     throw new Error('DuckDB não inicializado');
   }
 
-  await ensureLTLALookupTable();
+  await ensureAnalyticsLookupTable(geographyLevel);
 
   if (!(await tableExists(dimension.dataset.tableName))) {
     debugWarn(`Tabela ${dimension.dataset.tableName} não disponível para composição agregada`);
@@ -2095,6 +2176,32 @@ export async function getAggregateDimensionShares(
           .map((option) => getOptionCondition(option.value, option.label))
           .join(' OR ')
       : `${categoryColumnRef} IS NOT NULL`;
+  const areaCategoryTotalsCte =
+    geographyLevel === 'aggregate'
+      ? `
+    aggregate_category_totals AS (
+      SELECT
+        lookup.ltla22cd AS aggregate_code,
+        MAX(lookup.ltla22nm) AS aggregate_name,
+        dimension_rows.category_value,
+        SUM(dimension_rows.total) AS total
+      FROM dimension_rows
+      INNER JOIN ltla_lookup lookup
+        ON dimension_rows.base_area_code = lookup.msoa21cd
+      GROUP BY lookup.ltla22cd, dimension_rows.category_value
+    )`
+      : `
+    aggregate_category_totals AS (
+      SELECT
+        dimension_rows.base_area_code AS aggregate_code,
+        COALESCE(MAX(base_lookup.name), dimension_rows.base_area_code) AS aggregate_name,
+        dimension_rows.category_value,
+        SUM(dimension_rows.total) AS total
+      FROM dimension_rows
+      LEFT JOIN base_lookup
+        ON dimension_rows.base_area_code = base_lookup.code
+      GROUP BY dimension_rows.base_area_code, dimension_rows.category_value
+    )`;
 
   const query = `
     WITH
@@ -2112,17 +2219,7 @@ export async function getAggregateDimensionShares(
         AND ${internalFlowCondition.replace('origin_code', 'd.origin_code').replace('dest_code', 'd.dest_code')}
       GROUP BY d.${areaCodeColumn}, d.${dimension.categoryColumn}
     ),
-    aggregate_category_totals AS (
-      SELECT
-        lookup.ltla22cd AS aggregate_code,
-        MAX(lookup.ltla22nm) AS aggregate_name,
-        dimension_rows.category_value,
-        SUM(dimension_rows.total) AS total
-      FROM dimension_rows
-      INNER JOIN ltla_lookup lookup
-        ON dimension_rows.base_area_code = lookup.msoa21cd
-      GROUP BY lookup.ltla22cd, dimension_rows.category_value
-    ),
+    ${areaCategoryTotalsCte},
     aggregate_totals AS (
       SELECT
         aggregate_code,

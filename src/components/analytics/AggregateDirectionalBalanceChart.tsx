@@ -12,13 +12,14 @@ import {
 } from 'recharts';
 import { ACTIVE_DATASET_PROFILE } from '../../constants/datasetProfiles';
 import { getAggregateDirectionalBalancesForFilters } from '../../utils/duckdb';
-import type { DemographicFilters } from '../../types';
+import type { DemographicFilters, GeographyLevel } from '../../types';
 import { getAnalyticsErrorMessage } from './analyticsUtils';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
 import { MAP_COLORS } from '../../constants/mapColors';
 
 interface AggregateDirectionalBalanceChartProps {
   demographicFilters?: DemographicFilters;
+  geographyLevel?: GeographyLevel;
   includeInternalFlows?: boolean;
   topN?: number;
 }
@@ -36,13 +37,17 @@ const NEGATIVE_COLOR = MAP_COLORS.analytics.directional.negative;
 
 export function AggregateDirectionalBalanceChart({
   demographicFilters = {},
+  geographyLevel = 'aggregate',
   includeInternalFlows = false,
   topN = 15,
 }: AggregateDirectionalBalanceChartProps) {
   const [rows, setRows] = useState<AggregateDirectionalBalanceDatum[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const aggregateUnitLabel = ACTIVE_DATASET_PROFILE.labels.aggregate.singular;
+  const activeUnitLabel =
+    geographyLevel === 'aggregate'
+      ? ACTIVE_DATASET_PROFILE.labels.aggregate.singular
+      : ACTIVE_DATASET_PROFILE.labels.base.singular;
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +60,8 @@ export function AggregateDirectionalBalanceChart({
         const balances = await getAggregateDirectionalBalancesForFilters(
           demographicFilters,
           topN,
-          includeInternalFlows
+          includeInternalFlows,
+          geographyLevel
         );
 
         const normalized = balances.map((row) => ({
@@ -86,7 +92,7 @@ export function AggregateDirectionalBalanceChart({
     return () => {
       cancelled = true;
     };
-  }, [demographicFilters, topN, includeInternalFlows]);
+  }, [demographicFilters, topN, includeInternalFlows, geographyLevel]);
 
   const chartHeight = useMemo(() => Math.max(300, rows.length * 24 + 70), [rows.length]);
   const maxAbsBalance = useMemo(
@@ -109,7 +115,7 @@ export function AggregateDirectionalBalanceChart({
   if (rows.length === 0) {
     return (
       <div className="flex h-80 flex-col items-center justify-center p-4 text-center text-gray-500">
-        <p className="font-semibold">Sem dados para saldo direcional por {aggregateUnitLabel}</p>
+        <p className="font-semibold">Sem dados para saldo direcional por {activeUnitLabel}</p>
         <p className="mt-2 text-sm">Ajuste os filtros demograficos para tentar novamente</p>
       </div>
     );
@@ -121,7 +127,7 @@ export function AggregateDirectionalBalanceChart({
         <div className="flex items-center gap-1.5">
           <p className="text-xs text-slate-500">Saldo = entrada - saida (positivo = area atratora)</p>
           <ChartObjectiveHelp
-            objective={`Identificar areas atratoras e emissoras com o saldo liquido (incoming - outgoing) por ${aggregateUnitLabel}.`}
+            objective={`Identificar areas atratoras e emissoras com o saldo liquido (incoming - outgoing) por ${activeUnitLabel}.`}
           />
         </div>
       </div>

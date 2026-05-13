@@ -52,7 +52,7 @@ export function AnalyticsFilters({
             id="direction"
             value={direction}
             onChange={handleDirectionChange}
-            className={`w-full rounded-lg border bg-white focus:outline-none focus:ring-2 ${
+            className={`w-full rounded-lg border bg-white focus:outline-none focus:ring-2  ${
               compact
                 ? 'border-slate-200 px-2.5 py-2 text-sm text-slate-800 focus:border-slate-400 focus:ring-slate-200'
                 : 'border-purple-200 px-3 py-2 shadow-sm focus:border-purple-400 focus:ring-purple-300'

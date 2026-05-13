@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ACTIVE_DATASET_PROFILE } from '../../constants/datasetProfiles';
 import { getTopAggregateODFlowsForFilters } from '../../utils/duckdb';
-import type { DemographicFilters } from '../../types';
+import type { DemographicFilters, GeographyLevel } from '../../types';
 import { getAnalyticsErrorMessage } from './analyticsUtils';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
 import { MAP_COLORS } from '../../constants/mapColors';
 
 interface AggregateODHeatmapProps {
   demographicFilters?: DemographicFilters;
+  geographyLevel?: GeographyLevel;
   includeInternalFlows?: boolean;
   initialTopN?: number;
 }
@@ -34,6 +35,7 @@ function getHeatColor(value: number, max: number): string {
 
 export function AggregateODHeatmap({
   demographicFilters = {},
+  geographyLevel = 'aggregate',
   includeInternalFlows = false,
   initialTopN = 10,
 }: AggregateODHeatmapProps) {
@@ -42,7 +44,10 @@ export function AggregateODHeatmap({
   const [error, setError] = useState<string | null>(null);
   const [matrixData, setMatrixData] = useState<Map<string, Map<string, number>>>(new Map());
   const [areas, setAreas] = useState<MatrixArea[]>([]);
-  const aggregateUnitPlural = ACTIVE_DATASET_PROFILE.labels.aggregate.plural;
+  const activeUnitPlural =
+    geographyLevel === 'aggregate'
+      ? ACTIVE_DATASET_PROFILE.labels.aggregate.plural
+      : ACTIVE_DATASET_PROFILE.labels.base.plural;
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +60,8 @@ export function AggregateODHeatmap({
         const flows = await getTopAggregateODFlowsForFilters(
           demographicFilters,
           topN,
-          includeInternalFlows
+          includeInternalFlows,
+          geographyLevel
         );
         const areaMap = new Map<string, string>();
         const matrix = new Map<string, Map<string, number>>();
@@ -109,7 +115,7 @@ export function AggregateODHeatmap({
     return () => {
       cancelled = true;
     };
-  }, [demographicFilters, topN, includeInternalFlows]);
+  }, [demographicFilters, topN, includeInternalFlows, geographyLevel]);
 
   const maxValue = useMemo(() => {
     let currentMax = 0;
@@ -149,7 +155,7 @@ export function AggregateODHeatmap({
           <div className="flex items-center gap-1.5">
             <p className="text-xs text-slate-500">Matriz origem x destino para padroes de fluxo</p>
             <ChartObjectiveHelp
-              objective={`Evidenciar padroes de fluxo origem-destino que nao ficam claros apenas no mapa, focando nas ${aggregateUnitPlural.toLowerCase()} de maior atividade.`}
+              objective={`Evidenciar padroes de fluxo origem-destino que nao ficam claros apenas no mapa, focando nas ${activeUnitPlural.toLowerCase()} de maior atividade.`}
             />
           </div>
         </div>

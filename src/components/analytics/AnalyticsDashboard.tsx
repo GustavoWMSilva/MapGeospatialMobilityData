@@ -114,7 +114,16 @@ export function AnalyticsDashboard({
   );
   const supportsLegacyAnalytics = datasetProfile.analyticsMode === 'uk-legacy';
   const activeLevelLabels = getDataSourceUnitLabels(geographyLevel, datasetProfile);
-  const aggregateUnitLabel = datasetProfile.labels.aggregate.singular;
+  const activeUnitLabel = activeLevelLabels.singular;
+  const getLevelAwareChartTitle = (title: string) => {
+    if (geographyLevel === 'aggregate') {
+      return title;
+    }
+
+    return title
+      .split(datasetProfile.labels.aggregate.plural).join(datasetProfile.labels.base.plural)
+      .split(datasetProfile.labels.aggregate.singular).join(datasetProfile.labels.base.singular);
+  };
 
   const canRenderChart = (chartId: DatasetChartId) => {
     const chartConfig = getDashboardChartConfig(datasetProfile, chartId);
@@ -140,11 +149,11 @@ export function AnalyticsDashboard({
     }
 
     if (chartId === 'odHeatmap' || chartId === 'directionalBalance') {
-      return geographyLevel === 'aggregate';
+      return true;
     }
 
     if (chartId === 'socialMultiples' || chartId === 'aggregateStacked') {
-      return geographyLevel === 'aggregate' && Boolean(getChartDimension(chartId));
+      return Boolean(getChartDimension(chartId));
     }
 
     if (chartId === 'aggregationScatter') {
@@ -171,6 +180,7 @@ export function AnalyticsDashboard({
     const stackedTopN = params.initialTopN === 20 || params.topN === 20 ? 20 : 12;
     const isCollapsed = collapsedCharts[chartId] ?? chartConfig.defaultCollapsed ?? false;
     const defaultClassName = 'rounded-xl border border-slate-200 bg-white p-3 shadow-none';
+    const chartTitle = getLevelAwareChartTitle(chartConfig.title);
 
     switch (chartId) {
       case 'socialPie': {
@@ -180,7 +190,7 @@ export function AnalyticsDashboard({
         return (
           <ChartCard
             key={chartId}
-            title={chartConfig.title}
+            title={chartTitle}
             isCollapsed={isCollapsed}
             onToggle={() => toggleChart(chartId)}
             className={defaultClassName}
@@ -209,7 +219,7 @@ export function AnalyticsDashboard({
         return (
           <ChartCard
             key={chartId}
-            title={chartConfig.title}
+            title={chartTitle}
             isCollapsed={isCollapsed}
             onToggle={() => toggleChart(chartId)}
             className={defaultClassName}
@@ -235,7 +245,7 @@ export function AnalyticsDashboard({
         return (
           <ChartCard
             key={chartId}
-            title={chartConfig.title}
+            title={chartTitle}
             isCollapsed={isCollapsed}
             onToggle={() => toggleChart(chartId)}
             className={defaultClassName}
@@ -252,15 +262,16 @@ export function AnalyticsDashboard({
         );
       case 'performance':
         return (
-          <ChartCard key={chartId} title={chartConfig.title} isCollapsed={isCollapsed} onToggle={() => toggleChart(chartId)}>
+          <ChartCard key={chartId} title={chartTitle} isCollapsed={isCollapsed} onToggle={() => toggleChart(chartId)}>
             <PerformanceLatencyPanel />
           </ChartCard>
         );
       case 'odHeatmap':
         return (
-          <ChartCard key={chartId} title={chartConfig.title} isCollapsed={isCollapsed} onToggle={() => toggleChart(chartId)}>
+          <ChartCard key={chartId} title={chartTitle} isCollapsed={isCollapsed} onToggle={() => toggleChart(chartId)}>
             <AggregateODHeatmap
               demographicFilters={demographicFilters}
+              geographyLevel={geographyLevel}
               includeInternalFlows={includeInternalFlows}
               initialTopN={params.initialTopN ?? params.topN ?? 10}
             />
@@ -271,10 +282,11 @@ export function AnalyticsDashboard({
         if (!multiplesDimension) return null;
 
         return (
-          <ChartCard key={chartId} title={chartConfig.title} isCollapsed={isCollapsed} onToggle={() => toggleChart(chartId)}>
+          <ChartCard key={chartId} title={chartTitle} isCollapsed={isCollapsed} onToggle={() => toggleChart(chartId)}>
             <SocialGradeSmallMultiples
               dimension={multiplesDimension}
               demographicFilters={demographicFilters}
+              geographyLevel={geographyLevel}
               includeInternalFlows={includeInternalFlows}
               topN={params.topN ?? 6}
             />
@@ -286,10 +298,11 @@ export function AnalyticsDashboard({
         if (!stackedDimension) return null;
 
         return (
-          <ChartCard key={chartId} title={chartConfig.title} isCollapsed={isCollapsed} onToggle={() => toggleChart(chartId)}>
+          <ChartCard key={chartId} title={chartTitle} isCollapsed={isCollapsed} onToggle={() => toggleChart(chartId)}>
             <AggregateSocialGradeStacked100
               dimension={stackedDimension}
               demographicFilters={demographicFilters}
+              geographyLevel={geographyLevel}
               direction={direction}
               includeInternalFlows={includeInternalFlows}
               initialTopN={stackedTopN}
@@ -299,7 +312,7 @@ export function AnalyticsDashboard({
       }
       case 'aggregationScatter':
         return (
-          <ChartCard key={chartId} title={chartConfig.title} isCollapsed={isCollapsed} onToggle={() => toggleChart(chartId)}>
+          <ChartCard key={chartId} title={chartTitle} isCollapsed={isCollapsed} onToggle={() => toggleChart(chartId)}>
             <AggregationValidationScatter
               direction={direction}
               includeInternalFlows={includeInternalFlows}
@@ -312,12 +325,13 @@ export function AnalyticsDashboard({
         return (
           <ChartCard
             key={chartId}
-            title={chartConfig.title || `Saldo direcional por ${aggregateUnitLabel}`}
+            title={chartTitle || `Saldo direcional por ${activeUnitLabel}`}
             isCollapsed={isCollapsed}
             onToggle={() => toggleChart(chartId)}
           >
             <AggregateDirectionalBalanceChart
               demographicFilters={demographicFilters}
+              geographyLevel={geographyLevel}
               includeInternalFlows={includeInternalFlows}
               topN={params.topN ?? 15}
             />

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { getAggregateDirectionalBalancesForFilters } from '../../utils/duckdb';
-import type { DemographicDimensionConfig, DemographicFilters } from '../../types';
+import type { DemographicDimensionConfig, DemographicFilters, GeographyLevel } from '../../types';
 import { getAnalyticsErrorMessage } from './analyticsUtils';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
 import { MAP_COLORS } from '../../constants/mapColors';
@@ -9,6 +9,7 @@ import { MAP_COLORS } from '../../constants/mapColors';
 interface SocialGradeSmallMultiplesProps {
   dimension: DemographicDimensionConfig;
   demographicFilters?: DemographicFilters;
+  geographyLevel?: GeographyLevel;
   includeInternalFlows?: boolean;
   topN?: number;
 }
@@ -41,6 +42,7 @@ function shortName(value: string): string {
 export function SocialGradeSmallMultiples({
   dimension,
   demographicFilters = {},
+  geographyLevel = 'aggregate',
   includeInternalFlows = false,
   topN = 6,
 }: SocialGradeSmallMultiplesProps) {
@@ -65,7 +67,12 @@ export function SocialGradeSmallMultiples({
               config.value === 'all'
                 ? demographicFilters
                 : { ...demographicFilters, [dimension.key]: config.value };
-            const balances = await getAggregateDirectionalBalancesForFilters(nextFilters, topN, includeInternalFlows);
+            const balances = await getAggregateDirectionalBalancesForFilters(
+              nextFilters,
+              topN,
+              includeInternalFlows,
+              geographyLevel
+            );
             const rows = balances.map((row) => ({
               aggregateAreaCode: row.aggregate_area_code,
               aggregateAreaName: row.aggregate_area_name || row.aggregate_area_code,
@@ -100,7 +107,7 @@ export function SocialGradeSmallMultiples({
     return () => {
       cancelled = true;
     };
-  }, [dimension, demographicFilters, topN, includeInternalFlows]);
+  }, [dimension, demographicFilters, topN, includeInternalFlows, geographyLevel]);
 
   if (loading) {
     return (

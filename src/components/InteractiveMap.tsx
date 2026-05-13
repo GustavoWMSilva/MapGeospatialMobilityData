@@ -83,7 +83,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       className={
         isFullscreen
           ? 'relative h-screen w-screen overflow-hidden'
-          : 'relative h-full min-h-[620px] overflow-hidden rounded-xl border border-slate-200 shadow-xl'
+          : 'relative h-full min-h-0 overflow-hidden rounded-xl border border-slate-200 shadow-xl'
       }
     >
       <Map

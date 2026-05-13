@@ -217,9 +217,9 @@ export default function App() {
   );
 
   return (
-    <main className="min-h-screen bg-slate-100 text-slate-900">
+    <main className="h-screen overflow-hidden bg-slate-100 text-slate-900">
       {!isFullscreen && (
-        <div className="flex h-screen min-w-[1180px] flex-col">
+        <div className="flex h-full min-w-[1180px] flex-col overflow-hidden">
           <header className="flex h-20 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6 shadow-sm">
             <div>
               <h1 className="text-xl font-bold tracking-tight text-slate-950">
@@ -368,8 +368,8 @@ export default function App() {
               </div>
             </aside>
 
-            <section className="min-h-0">
-              <div className="mb-3 flex items-center justify-between">
+            <section className="flex min-h-0 flex-col">
+              <div className="mb-3 flex shrink-0 items-center justify-between">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Mapa principal</p>
                   <h2 className="text-base font-bold text-slate-950">
@@ -385,7 +385,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="h-[calc(100vh-8.25rem)]">{map}</div>
+              <div className="min-h-0 flex-1">{map}</div>
             </section>
 
             <aside className="min-h-0 overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

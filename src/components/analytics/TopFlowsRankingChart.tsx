@@ -4,6 +4,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -74,6 +75,27 @@ function shortenRouteLabel(label: string, maxLength = 30): string {
     return label;
   }
   return `${label.slice(0, maxLength - 1)}…`;
+}
+
+function renderSingleLineLabel(props: any) {
+  const x = Number(props.x ?? 0);
+  const y = Number(props.y ?? 0);
+  const height = Number(props.height ?? 0);
+
+  return (
+    <text
+      x={x + 6}
+      y={y + height / 2}
+      fill="#111827"
+      fontSize={10}
+      fontWeight={600}
+      dominantBaseline="middle"
+      textAnchor="start"
+      style={{ whiteSpace: 'nowrap', pointerEvents: 'none' }}
+    >
+      {String(props.value ?? '')}
+    </text>
+  );
 }
 
 export function TopFlowsRankingChart({
@@ -185,15 +207,15 @@ export function TopFlowsRankingChart({
       </div>
 
       <ResponsiveContainer width="100%" height={chartHeight}>
-        <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+        <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 0, left: 0, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
           <XAxis type="number" hide />
           <YAxis
             type="category"
             dataKey="routeLabel"
-            width={168}
+            width={0}
             interval={0}
-            tick={{ fontSize: 10, fill: '#475569' }}
+            tick={false}
             axisLine={false}
             tickLine={false}
           />
@@ -208,6 +230,10 @@ export function TopFlowsRankingChart({
             }}
           />
           <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={14}>
+            <LabelList
+              dataKey="routeLabel"
+              content={renderSingleLineLabel}
+            />
             {rows.map((entry, index) => (
               <Cell key={`${entry.fullRouteLabel}-${index}`} fill={BAR_COLORS[index % BAR_COLORS.length]} />
             ))}

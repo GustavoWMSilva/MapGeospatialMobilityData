@@ -15,6 +15,7 @@ import type {
   DemographicDimensionConfig,
   DemographicDimensionOption,
   DemographicFilters,
+  GeographyLevel,
 } from '../../types';
 import { getAnalyticsErrorMessage } from './analyticsUtils';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
@@ -23,6 +24,7 @@ import { MAP_COLORS } from '../../constants/mapColors';
 interface AggregateSocialGradeStacked100Props {
   dimension: DemographicDimensionConfig;
   demographicFilters?: DemographicFilters;
+  geographyLevel?: GeographyLevel;
   direction?: 'incoming' | 'outgoing';
   includeInternalFlows?: boolean;
   initialTopN?: 12 | 20;
@@ -89,6 +91,7 @@ function normalizeCategoryValue(value: string, dimension: DemographicDimensionCo
 export function AggregateSocialGradeStacked100({
   dimension,
   demographicFilters = {},
+  geographyLevel = 'aggregate',
   direction = 'incoming',
   includeInternalFlows = false,
   initialTopN = 12,
@@ -98,8 +101,14 @@ export function AggregateSocialGradeStacked100({
   const [rows, setRows] = useState<AggregateStackedDatum[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const aggregateUnitLabel = ACTIVE_DATASET_PROFILE.labels.aggregate.singular;
-  const aggregateUnitPluralLabel = ACTIVE_DATASET_PROFILE.labels.aggregate.plural;
+  const activeUnitLabel =
+    geographyLevel === 'aggregate'
+      ? ACTIVE_DATASET_PROFILE.labels.aggregate.singular
+      : ACTIVE_DATASET_PROFILE.labels.base.singular;
+  const activeUnitPluralLabel =
+    geographyLevel === 'aggregate'
+      ? ACTIVE_DATASET_PROFILE.labels.aggregate.plural
+      : ACTIVE_DATASET_PROFILE.labels.base.plural;
 
   useEffect(() => {
     let cancelled = false;
@@ -114,7 +123,8 @@ export function AggregateSocialGradeStacked100({
           demographicFilters,
           direction,
           30,
-          includeInternalFlows
+          includeInternalFlows,
+          geographyLevel
         );
         const byAggregateArea = new Map<string, AggregateStackedDatum>();
 
@@ -155,7 +165,7 @@ export function AggregateSocialGradeStacked100({
     return () => {
       cancelled = true;
     };
-  }, [dimension, demographicFilters, direction, includeInternalFlows]);
+  }, [dimension, demographicFilters, direction, includeInternalFlows, geographyLevel]);
 
   const visibleRows = useMemo(() => {
     const sorted = [...rows];
@@ -189,7 +199,7 @@ export function AggregateSocialGradeStacked100({
   if (visibleRows.length === 0) {
     return (
       <div className="flex h-80 flex-col items-center justify-center p-4 text-center text-gray-500">
-        <p className="font-semibold">Sem dados de {dimension.label.toLowerCase()} para {aggregateUnitLabel}</p>
+        <p className="font-semibold">Sem dados de {dimension.label.toLowerCase()} para {activeUnitLabel}</p>
         <p className="mt-2 text-sm">Verifique a disponibilidade do dataset demografico</p>
       </div>
     );
@@ -203,7 +213,7 @@ export function AggregateSocialGradeStacked100({
             Comparativo proporcional por area ({direction === 'incoming' ? 'entrada' : 'saida'})
           </p>
           <ChartObjectiveHelp
-            objective={`Comparar proporcionalmente ${dimension.label.toLowerCase()} entre ${aggregateUnitPluralLabel.toLowerCase()}, independentemente do volume absoluto.`}
+            objective={`Comparar proporcionalmente ${dimension.label.toLowerCase()} entre ${activeUnitPluralLabel.toLowerCase()}, independentemente do volume absoluto.`}
           />
         </div>
       </div>
