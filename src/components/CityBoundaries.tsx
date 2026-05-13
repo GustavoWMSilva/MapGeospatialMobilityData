@@ -297,9 +297,9 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
             'line-opacity': [
               'case',
               isSelectedExpression,
-              MAP_COLORS.boundaries.selectedLineOpacity,
+              0,
               isConnectedExpression,
-              MAP_COLORS.boundaries.connectedLineOpacity,
+              0,
               isFallbackMsoaExpression,
               0,
               MAP_COLORS.boundaries.baseLineOpacity
