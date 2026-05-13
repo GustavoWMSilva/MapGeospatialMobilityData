@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Source, Layer } from '@vis.gl/react-maplibre';
+import { featureCollection, polygon, union } from '@turf/turf';
 import { fetchWithCache } from '../utils/cacheService';
 import { MAP_COLORS } from '../constants/mapColors';
 import {
@@ -24,6 +25,16 @@ interface LTLAFallbackRow {
   msoaCode: string;
   ltlaCode: string;
   ltlaName: string;
+}
+
+type PolygonalGeometry = GeoJSON.Polygon | GeoJSON.MultiPolygon;
+type BoundaryOutlineRole = 'selected' | 'connected';
+
+interface BoundaryOutlineGroup {
+  code: string;
+  role: BoundaryOutlineRole;
+  properties: GeoJSON.GeoJsonProperties;
+  geometries: PolygonalGeometry[];
 }
 
 const BOUNDARY_CACHE_VERSION = 'boundary-outer-rings-v2';
@@ -182,6 +193,125 @@ const keepOnlyOuterRings = (geometry: GeoJSON.Geometry): GeoJSON.Geometry => {
   return geometry;
 };
 
+const getFeatureAreaCode = (feature: GeoJSON.Feature): string => {
+  const properties = feature.properties || {};
+
+  return String(
+    (properties as any).ltla_code ||
+    (properties as any).MSOA21CD ||
+    (properties as any).msoa_code ||
+    (properties as any).code ||
+    ''
+  );
+};
+
+const isPolygonalGeometry = (geometry: GeoJSON.Geometry | null): geometry is PolygonalGeometry => {
+  return geometry?.type === 'Polygon' || geometry?.type === 'MultiPolygon';
+};
+
+const isValidLinearRing = (ring: GeoJSON.Position[] | undefined): ring is GeoJSON.Position[] => {
+  return Boolean(ring && ring.length >= 4);
+};
+
+const toOuterRingPolygons = (
+  geometry: PolygonalGeometry
+): Array<GeoJSON.Feature<GeoJSON.Polygon>> => {
+  if (geometry.type === 'Polygon') {
+    const outerRing = geometry.coordinates[0];
+    return isValidLinearRing(outerRing) ? [polygon([outerRing])] : [];
+  }
+
+  return geometry.coordinates
+    .map((polygonCoordinates) => polygonCoordinates[0])
+    .filter(isValidLinearRing)
+    .map((outerRing) => polygon([outerRing]));
+};
+
+const mergeOutlineGeometries = (geometries: PolygonalGeometry[]): PolygonalGeometry | null => {
+  const outerRingPolygons = geometries.flatMap(toOuterRingPolygons);
+
+  if (outerRingPolygons.length === 0) {
+    return null;
+  }
+
+  if (outerRingPolygons.length === 1) {
+    return outerRingPolygons[0].geometry;
+  }
+
+  try {
+    const merged = union(featureCollection(outerRingPolygons));
+
+    if (merged?.geometry && isPolygonalGeometry(merged.geometry)) {
+      return keepOnlyOuterRings(merged.geometry) as PolygonalGeometry;
+    }
+  } catch (error) {
+    console.warn('Falha ao dissolver contorno da area selecionada:', error);
+  }
+
+  return {
+    type: 'MultiPolygon',
+    coordinates: outerRingPolygons.map((feature) => feature.geometry.coordinates),
+  };
+};
+
+const buildBoundaryOutlineData = (
+  boundariesData: GeoJSON.FeatureCollection,
+  selectedCode: string | null,
+  connectedCodes: string[]
+): GeoJSON.FeatureCollection => {
+  const connectedCodeSet = new Set(connectedCodes);
+  const groups = new Map<string, BoundaryOutlineGroup>();
+
+  (boundariesData.features || []).forEach((feature) => {
+    const code = getFeatureAreaCode(feature);
+    const isSelected = Boolean(selectedCode && code === selectedCode);
+    const isConnected = connectedCodeSet.has(code);
+
+    if (!code || (!isSelected && !isConnected) || !isPolygonalGeometry(feature.geometry)) {
+      return;
+    }
+
+    const role: BoundaryOutlineRole = isSelected ? 'selected' : 'connected';
+    const existingGroup = groups.get(code);
+
+    if (existingGroup) {
+      existingGroup.geometries.push(feature.geometry);
+      if (role === 'selected') {
+        existingGroup.role = 'selected';
+      }
+      return;
+    }
+
+    groups.set(code, {
+      code,
+      role,
+      properties: feature.properties || {},
+      geometries: [feature.geometry],
+    });
+  });
+
+  return {
+    type: 'FeatureCollection',
+    features: Array.from(groups.values()).flatMap((group) => {
+      const geometry = mergeOutlineGeometries(group.geometries);
+
+      if (!geometry) {
+        return [];
+      }
+
+      return [{
+        type: 'Feature',
+        geometry,
+        properties: {
+          ...group.properties,
+          outline_code: group.code,
+          outline_role: group.role,
+        },
+      }];
+    }),
+  };
+};
+
 export const CityBoundaries: React.FC<CityBoundariesProps> = ({
   isVisible = true,
   borderColor = MAP_COLORS.boundaries.line,
@@ -227,21 +357,15 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
     void loadBoundaries();
   }, [geographyLevel]);
 
-  const outerRingBoundariesData = useMemo<GeoJSON.FeatureCollection | null>(() => {
+  const outlineBoundariesData = useMemo<GeoJSON.FeatureCollection | null>(() => {
     if (!boundariesData) {
       return null;
     }
 
-    return {
-      ...boundariesData,
-      features: (boundariesData.features || []).map((feature) => ({
-        ...feature,
-        geometry: keepOnlyOuterRings(feature.geometry),
-      })),
-    };
-  }, [boundariesData]);
+    return buildBoundaryOutlineData(boundariesData, selectedCode, connectedCodes);
+  }, [boundariesData, selectedCode, connectedCodes]);
 
-  if (loading || !boundariesData || !outerRingBoundariesData || !isVisible) {
+  if (loading || !boundariesData || !outlineBoundariesData || !isVisible) {
     return null;
   }
 
@@ -256,7 +380,6 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
   const isSelectedExpression: any = ['==', areaCodeExpression, selectedCode || '__none__'];
   const isConnectedExpression: any = ['in', areaCodeExpression, ['literal', connectedCodes]];
   const isFallbackMsoaExpression: any = ['==', ['coalesce', ['get', 'is_fallback_msoa'], false], true];
-  const baseBoundaryLineOpacity = selectedCode ? 0 : MAP_COLORS.boundaries.baseLineOpacity;
 
   return (
     <>
@@ -305,9 +428,11 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
               'case',
               isSelectedExpression,
               0,
+              isConnectedExpression,
+              0,
               isFallbackMsoaExpression,
               0,
-              baseBoundaryLineOpacity
+              MAP_COLORS.boundaries.baseLineOpacity
             ]
           }}
         />
@@ -316,33 +441,37 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
       <Source
         id={`${geographyLevel}-selected-boundaries-outer-rings`}
         type="geojson"
-        data={outerRingBoundariesData}
+        data={outlineBoundariesData}
       >
         <Layer
           id={`${geographyLevel}-selected-boundaries-outer-line`}
           type="line"
+          layout={{
+            'line-cap': 'round',
+            'line-join': 'round'
+          }}
           paint={{
             'line-color': [
               'case',
-              isSelectedExpression,
+              ['==', ['get', 'outline_role'], 'selected'],
               MAP_COLORS.boundaries.selectedLine,
-              isConnectedExpression,
+              ['==', ['get', 'outline_role'], 'connected'],
               MAP_COLORS.boundaries.connectedLine,
               'transparent'
             ],
             'line-width': [
               'case',
-              isSelectedExpression,
+              ['==', ['get', 'outline_role'], 'selected'],
               MAP_COLORS.boundaries.selectedLineWidth,
-              isConnectedExpression,
+              ['==', ['get', 'outline_role'], 'connected'],
               MAP_COLORS.boundaries.connectedLineWidth,
               0
             ],
             'line-opacity': [
               'case',
-              isSelectedExpression,
+              ['==', ['get', 'outline_role'], 'selected'],
               MAP_COLORS.boundaries.selectedLineOpacity,
-              isConnectedExpression,
+              ['==', ['get', 'outline_role'], 'connected'],
               MAP_COLORS.boundaries.connectedLineOpacity,
               0
             ]
