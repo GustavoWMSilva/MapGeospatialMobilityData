@@ -256,6 +256,7 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
   const isSelectedExpression: any = ['==', areaCodeExpression, selectedCode || '__none__'];
   const isConnectedExpression: any = ['in', areaCodeExpression, ['literal', connectedCodes]];
   const isFallbackMsoaExpression: any = ['==', ['coalesce', ['get', 'is_fallback_msoa'], false], true];
+  const baseBoundaryLineOpacity = selectedCode ? 0 : MAP_COLORS.boundaries.baseLineOpacity;
 
   return (
     <>
@@ -298,27 +299,15 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
           id={`${geographyLevel}-boundaries-line`}
           type="line"
           paint={{
-            'line-color': [
-              'case',
-              isConnectedExpression,
-              MAP_COLORS.boundaries.connectedLine,
-              borderColor
-            ],
-            'line-width': [
-              'case',
-              isConnectedExpression,
-              MAP_COLORS.boundaries.connectedLineWidth,
-              borderWidth
-            ],
+            'line-color': borderColor,
+            'line-width': borderWidth,
             'line-opacity': [
               'case',
               isSelectedExpression,
               0,
-              isConnectedExpression,
-              0,
               isFallbackMsoaExpression,
               0,
-              MAP_COLORS.boundaries.baseLineOpacity
+              baseBoundaryLineOpacity
             ]
           }}
         />
