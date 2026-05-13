@@ -26,6 +26,13 @@ interface LTLAFallbackRow {
   ltlaName: string;
 }
 
+const BOUNDARY_CACHE_VERSION = 'boundary-outer-rings-v2';
+
+const withBoundaryCacheVersion = (path: string): string => {
+  const separator = path.includes('?') ? '&' : '?';
+  return `${path}${separator}v=${BOUNDARY_CACHE_VERSION}`;
+};
+
 const parseCSVLine = (line: string): string[] => {
   const result: string[] = [];
   let current = '';
@@ -185,10 +192,11 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
       geographyLevel === 'aggregate'
         ? getAggregateBoundariesPath()
         : getBaseBoundariesPath();
+    const versionedBoundaryFile = withBoundaryCacheVersion(boundaryFile);
 
     const loadBoundaries = async () => {
       try {
-        const data = await fetchWithCache(boundaryFile);
+        const data = await fetchWithCache(versionedBoundaryFile);
         let geojson = data as GeoJSON.FeatureCollection;
 
         if (geographyLevel === 'aggregate') {
