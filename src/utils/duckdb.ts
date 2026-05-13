@@ -17,6 +17,7 @@ import type {
   DemographicDimensionOption,
   DemographicFilters,
   GeographyLevel,
+  MobilityIntensityMetric,
 } from '../types';
 
 let db: duckdb.AsyncDuckDB | null = null;
@@ -360,6 +361,16 @@ export interface AggregateODFlow {
   dest_aggregate_area_code: string;
   dest_aggregate_area_name: string;
   count: number;
+}
+
+export interface MobilityIntensityRow {
+  area_code: string;
+  area_name: string;
+  incoming_total: number;
+  outgoing_total: number;
+  total: number;
+  balance: number;
+  value: number;
 }
 
 function escapeSqlLiteral(value: string): string {
@@ -2130,6 +2141,86 @@ export async function getTopAggregateODFlowsForFilters(
     dest_aggregate_area_code: String(row.dest_aggregate_code),
     dest_aggregate_area_name: String(row.dest_aggregate_name ?? row.dest_aggregate_code),
     count: Number(row.count),
+  }));
+}
+
+export async function getMobilityIntensityByArea(
+  filters: DemographicFilters = {},
+  geographyLevel: GeographyLevel = 'aggregate',
+  metric: MobilityIntensityMetric = 'total',
+  includeInternalFlows: boolean = false
+): Promise<MobilityIntensityRow[]> {
+  await initDuckDB();
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  await ensureAnalyticsLookupTable(geographyLevel);
+
+  const baseFlowsCte = await buildFilteredBaseFlowsCte(filters, includeInternalFlows);
+  const areaFlowsCte = buildAreaFlowsCte(geographyLevel);
+  const valueExpression =
+    metric === 'incoming'
+      ? 'incoming_total'
+      : metric === 'outgoing'
+        ? 'outgoing_total'
+        : metric === 'balance'
+          ? 'balance'
+          : 'incoming_total + outgoing_total';
+
+  const query = `
+    WITH
+    ${baseFlowsCte},
+    ${areaFlowsCte},
+    incoming_totals AS (
+      SELECT
+        dest_area_code AS area_code,
+        MAX(dest_area_name) AS area_name,
+        SUM(flow_count) AS incoming_total
+      FROM area_flows
+      GROUP BY dest_area_code
+    ),
+    outgoing_totals AS (
+      SELECT
+        origin_area_code AS area_code,
+        MAX(origin_area_name) AS area_name,
+        SUM(flow_count) AS outgoing_total
+      FROM area_flows
+      GROUP BY origin_area_code
+    ),
+    area_totals AS (
+      SELECT
+        COALESCE(incoming_totals.area_code, outgoing_totals.area_code) AS area_code,
+        COALESCE(incoming_totals.area_name, outgoing_totals.area_name) AS area_name,
+        COALESCE(incoming_totals.incoming_total, 0) AS incoming_total,
+        COALESCE(outgoing_totals.outgoing_total, 0) AS outgoing_total,
+        COALESCE(incoming_totals.incoming_total, 0) - COALESCE(outgoing_totals.outgoing_total, 0) AS balance
+      FROM incoming_totals
+      FULL OUTER JOIN outgoing_totals
+        ON incoming_totals.area_code = outgoing_totals.area_code
+    )
+    SELECT
+      area_code,
+      area_name,
+      incoming_total,
+      outgoing_total,
+      incoming_total + outgoing_total AS total,
+      balance,
+      ${valueExpression} AS value
+    FROM area_totals
+    ORDER BY ABS(value) DESC
+  `;
+
+  const result = await conn.query(query);
+  return result.toArray().map((row) => ({
+    area_code: String(row.area_code),
+    area_name: String(row.area_name ?? row.area_code),
+    incoming_total: Number(row.incoming_total),
+    outgoing_total: Number(row.outgoing_total),
+    total: Number(row.total),
+    balance: Number(row.balance),
+    value: Number(row.value),
   }));
 }
 

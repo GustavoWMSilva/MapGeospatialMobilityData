@@ -17,7 +17,7 @@ import {
   getDatasetToggleOptions,
   persistActiveDataset,
 } from './constants/datasetProfiles';
-import type { DemographicFilters, GeographyLevel, ViewState } from './types';
+import type { DemographicFilters, GeographyLevel, MobilityIntensityMetric, ViewState } from './types';
 
 const DEFAULT_VIEW_STATE: ViewState = {
   longitude: ACTIVE_DATASET_PROFILE.mapView.longitude,
@@ -48,6 +48,8 @@ export default function App() {
   const [flowDirection, setFlowDirection] = React.useState<'incoming' | 'outgoing'>('incoming');
   const [isFullscreen, setIsFullscreen] = React.useState(false);
   const [includeInternalFlows, setIncludeInternalFlows] = React.useState(false);
+  const [showMobilityIntensity, setShowMobilityIntensity] = React.useState(false);
+  const [mobilityIntensityMetric, setMobilityIntensityMetric] = React.useState<MobilityIntensityMetric>('total');
   const [demographicFilters, setDemographicFilters] = React.useState<DemographicFilters>(() =>
     createInitialDemographicFilters(ACTIVE_DATASET_PROFILE)
   );
@@ -212,6 +214,8 @@ export default function App() {
       datasetProfile={ACTIVE_DATASET_PROFILE}
       demographicFilters={demographicFilters}
       includeInternalFlows={includeInternalFlows}
+      showMobilityIntensity={showMobilityIntensity}
+      mobilityIntensityMetric={mobilityIntensityMetric}
       onIncludeInternalFlowsChange={setIncludeInternalFlows}
     />
   );
@@ -364,6 +368,38 @@ export default function App() {
                       </span>
                     </span>
                   </label>
+
+                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <label className="flex cursor-pointer items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={showMobilityIntensity}
+                        onChange={(e) => setShowMobilityIntensity(e.target.checked)}
+                        className="mt-1 h-4 w-4 accent-slate-900"
+                      />
+                      <span>
+                        <span className="block text-xs font-semibold text-slate-800">
+                          Mapa de calor de mobilidade
+                        </span>
+                        <span className="mt-1 block text-[11px] leading-4 text-slate-500">
+                          Colore as áreas com maior movimentação considerando os filtros ativos.
+                        </span>
+                      </span>
+                    </label>
+
+                    {showMobilityIntensity && (
+                      <select
+                        value={mobilityIntensityMetric}
+                        onChange={(e) => setMobilityIntensityMetric(e.target.value as MobilityIntensityMetric)}
+                        className="mt-3 w-full rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                      >
+                        <option value="total">Total (entrada + saida)</option>
+                        <option value="incoming">Entrada</option>
+                        <option value="outgoing">Saída</option>
+                        <option value="balance">Saldo (entrada - saída)</option>
+                      </select>
+                    )}
+                  </div>
                 </section>
               </div>
             </aside>

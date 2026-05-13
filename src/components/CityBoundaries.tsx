@@ -8,7 +8,8 @@ import {
   getAggregateLookupPath,
   getBaseBoundariesPath,
 } from '../constants/datasetProfiles';
-import type { GeographyLevel } from '../types';
+import { getMobilityIntensityByArea } from '../utils/duckdb';
+import type { DemographicFilters, GeographyLevel, MobilityIntensityMetric } from '../types';
 
 interface CityBoundariesProps {
   isVisible?: boolean;
@@ -19,6 +20,10 @@ interface CityBoundariesProps {
   geographyLevel?: GeographyLevel;
   selectedCode?: string | null;
   connectedCodes?: string[];
+  showMobilityIntensity?: boolean;
+  mobilityIntensityMetric?: MobilityIntensityMetric;
+  demographicFilters?: DemographicFilters;
+  includeInternalFlows?: boolean;
 }
 
 interface LTLAFallbackRow {
@@ -35,6 +40,14 @@ interface BoundaryOutlineGroup {
   role: BoundaryOutlineRole;
   properties: GeoJSON.GeoJsonProperties;
   geometries: PolygonalGeometry[];
+}
+
+interface MobilityIntensityDatum {
+  value: number;
+  incomingTotal: number;
+  outgoingTotal: number;
+  total: number;
+  balance: number;
 }
 
 const BOUNDARY_CACHE_VERSION = 'boundary-outer-rings-v2';
@@ -312,6 +325,44 @@ const buildBoundaryOutlineData = (
   };
 };
 
+const buildIntensityBoundariesData = (
+  boundariesData: GeoJSON.FeatureCollection,
+  intensityByCode: Map<string, MobilityIntensityDatum>,
+  metric: MobilityIntensityMetric
+): GeoJSON.FeatureCollection => {
+  const rawValues = Array.from(intensityByCode.values()).map((datum) => datum.value);
+  const maxValue =
+    metric === 'balance'
+      ? Math.max(1, ...rawValues.map((value) => Math.abs(value)))
+      : Math.max(1, ...rawValues);
+
+  return {
+    ...boundariesData,
+    features: (boundariesData.features || []).map((feature) => {
+      const code = getFeatureAreaCode(feature);
+      const datum = intensityByCode.get(code);
+      const value = datum?.value ?? 0;
+      const normalized =
+        metric === 'balance'
+          ? (value + maxValue) / (maxValue * 2)
+          : value / maxValue;
+
+      return {
+        ...feature,
+        properties: {
+          ...(feature.properties || {}),
+          mobility_intensity_value: value,
+          mobility_intensity_norm: Math.max(0, Math.min(1, normalized)),
+          mobility_intensity_incoming: datum?.incomingTotal ?? 0,
+          mobility_intensity_outgoing: datum?.outgoingTotal ?? 0,
+          mobility_intensity_total: datum?.total ?? 0,
+          mobility_intensity_balance: datum?.balance ?? 0,
+        },
+      };
+    }),
+  };
+};
+
 export const CityBoundaries: React.FC<CityBoundariesProps> = ({
   isVisible = true,
   borderColor = MAP_COLORS.boundaries.line,
@@ -320,9 +371,14 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
   fillOpacity = MAP_COLORS.boundaries.fillOpacity,
   geographyLevel = 'aggregate',
   selectedCode = null,
-  connectedCodes = []
+  connectedCodes = [],
+  showMobilityIntensity = false,
+  mobilityIntensityMetric = 'total',
+  demographicFilters = {},
+  includeInternalFlows = false
 }) => {
   const [boundariesData, setBoundariesData] = useState<GeoJSON.FeatureCollection | null>(null);
+  const [intensityByCode, setIntensityByCode] = useState<Map<string, MobilityIntensityDatum>>(new Map());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -357,6 +413,56 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
     void loadBoundaries();
   }, [geographyLevel]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!showMobilityIntensity) {
+      setIntensityByCode(new Map());
+      return;
+    }
+
+    const loadIntensity = async () => {
+      try {
+        const rows = await getMobilityIntensityByArea(
+          demographicFilters,
+          geographyLevel,
+          mobilityIntensityMetric,
+          includeInternalFlows
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        setIntensityByCode(
+          new Map(
+            rows.map((row) => [
+              row.area_code,
+              {
+                value: row.value,
+                incomingTotal: row.incoming_total,
+                outgoingTotal: row.outgoing_total,
+                total: row.total,
+                balance: row.balance,
+              },
+            ])
+          )
+        );
+      } catch (error) {
+        console.warn('Falha ao carregar intensidade de mobilidade:', error);
+        if (!cancelled) {
+          setIntensityByCode(new Map());
+        }
+      }
+    };
+
+    void loadIntensity();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [demographicFilters, geographyLevel, includeInternalFlows, mobilityIntensityMetric, showMobilityIntensity]);
+
   const outlineBoundariesData = useMemo<GeoJSON.FeatureCollection | null>(() => {
     if (!boundariesData) {
       return null;
@@ -365,7 +471,19 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
     return buildBoundaryOutlineData(boundariesData, selectedCode, connectedCodes);
   }, [boundariesData, selectedCode, connectedCodes]);
 
-  if (loading || !boundariesData || !outlineBoundariesData || !isVisible) {
+  const displayBoundariesData = useMemo<GeoJSON.FeatureCollection | null>(() => {
+    if (!boundariesData) {
+      return null;
+    }
+
+    if (!showMobilityIntensity) {
+      return boundariesData;
+    }
+
+    return buildIntensityBoundariesData(boundariesData, intensityByCode, mobilityIntensityMetric);
+  }, [boundariesData, intensityByCode, mobilityIntensityMetric, showMobilityIntensity]);
+
+  if (loading || !boundariesData || !displayBoundariesData || !outlineBoundariesData || !isVisible) {
     return null;
   }
 
@@ -380,32 +498,70 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
   const isSelectedExpression: any = ['==', areaCodeExpression, selectedCode || '__none__'];
   const isConnectedExpression: any = ['in', areaCodeExpression, ['literal', connectedCodes]];
   const isFallbackMsoaExpression: any = ['==', ['coalesce', ['get', 'is_fallback_msoa'], false], true];
+  const intensityColorExpression: any =
+    mobilityIntensityMetric === 'balance'
+      ? [
+          'interpolate',
+          ['linear'],
+          ['coalesce', ['get', 'mobility_intensity_norm'], 0.5],
+          0,
+          '#B91C1C',
+          0.35,
+          '#FCA5A5',
+          0.5,
+          '#F8FAFC',
+          0.65,
+          '#86EFAC',
+          1,
+          '#15803D'
+        ]
+      : [
+          'interpolate',
+          ['linear'],
+          ['coalesce', ['get', 'mobility_intensity_norm'], 0],
+          0,
+          '#F8FAFC',
+          0.2,
+          '#FEE2E2',
+          0.45,
+          '#FCA5A5',
+          0.7,
+          '#EF4444',
+          1,
+          '#991B1B'
+        ];
+  const boundaryFillColor: any = showMobilityIntensity
+    ? intensityColorExpression
+    : [
+        'case',
+        isSelectedExpression,
+        MAP_COLORS.boundaries.selectedFill,
+        isConnectedExpression,
+        MAP_COLORS.boundaries.connectedFill,
+        fillColor
+      ];
+  const boundaryFillOpacity: any = showMobilityIntensity
+    ? 0.72
+    : [
+        'case',
+        isSelectedExpression,
+        MAP_COLORS.boundaries.selectedFillOpacity,
+        isConnectedExpression,
+        MAP_COLORS.boundaries.connectedFillOpacity,
+        isFallbackMsoaExpression,
+        0,
+        fillOpacity
+      ];
 
   return (
     <>
-      <Source id={`${geographyLevel}-boundaries`} type="geojson" data={boundariesData}>
+      <Source id={`${geographyLevel}-boundaries`} type="geojson" data={displayBoundariesData}>
         <Layer
           id={`${geographyLevel}-boundaries-fill`}
           type="fill"
           paint={{
-            'fill-color': [
-              'case',
-              isSelectedExpression,
-              MAP_COLORS.boundaries.selectedFill,
-              isConnectedExpression,
-              MAP_COLORS.boundaries.connectedFill,
-              fillColor
-            ],
-            'fill-opacity': [
-              'case',
-              isSelectedExpression,
-              MAP_COLORS.boundaries.selectedFillOpacity,
-              isConnectedExpression,
-              MAP_COLORS.boundaries.connectedFillOpacity,
-              isFallbackMsoaExpression,
-              0,
-              fillOpacity
-            ]
+            'fill-color': boundaryFillColor,
+            'fill-opacity': boundaryFillOpacity
           }}
         />
 

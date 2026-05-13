@@ -1,7 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Map, Marker } from '@vis.gl/react-maplibre';
 import type { MapRef } from '@vis.gl/react-maplibre';
-import type { DatasetProfile, DemographicFilters, GeographyLevel, Point, ViewState } from '../types';
+import type {
+  DatasetProfile,
+  DemographicFilters,
+  GeographyLevel,
+  MobilityIntensityMetric,
+  Point,
+  ViewState,
+} from '../types';
 import { AnimatedLines } from './AnimatedLines';
 import { CityBoundaries } from './CityBoundaries';
 import { AllAreaPoints } from './AllAreaPoints';
@@ -29,6 +36,8 @@ interface InteractiveMapProps {
   datasetProfile: DatasetProfile;
   demographicFilters?: DemographicFilters;
   includeInternalFlows?: boolean;
+  showMobilityIntensity?: boolean;
+  mobilityIntensityMetric?: MobilityIntensityMetric;
   onIncludeInternalFlowsChange?: (value: boolean) => void;
 }
 
@@ -52,11 +61,21 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   datasetProfile,
   demographicFilters = {},
   includeInternalFlows = false,
+  showMobilityIntensity = false,
+  mobilityIntensityMetric = 'total',
   onIncludeInternalFlowsChange,
 }) => {
   const [activeConnectedAreaCodes, setActiveConnectedAreaCodes] = useState<string[]>([]);
   const selectedBoundaryCode =
     geographyLevel === 'aggregate' ? selectedAggregateAreaCode : selectedBaseAreaCode;
+  const intensityMetricLabel =
+    mobilityIntensityMetric === 'incoming'
+      ? 'Entrada'
+      : mobilityIntensityMetric === 'outgoing'
+        ? 'Saída'
+        : mobilityIntensityMetric === 'balance'
+          ? 'Saldo'
+          : 'Total';
 
   useEffect(() => {
     if (!selectedBoundaryCode) {
@@ -119,6 +138,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           selectedCode={selectedBoundaryCode}
           connectedCodes={activeConnectedAreaCodes}
           geographyLevel={geographyLevel}
+          showMobilityIntensity={showMobilityIntensity}
+          mobilityIntensityMetric={mobilityIntensityMetric}
+          demographicFilters={demographicFilters}
+          includeInternalFlows={includeInternalFlows}
         />
 
         {showAggregateAreas && selectedAggregateAreaCode && (
@@ -171,6 +194,30 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           />
         )}
       </Map>
+
+      {showMobilityIntensity && (
+        <div className="pointer-events-none absolute bottom-4 left-4 z-10 w-52 rounded-lg border border-white/70 bg-white/95 p-3 text-xs shadow-xl backdrop-blur-sm">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="font-bold text-slate-900">Intensidade</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+              {intensityMetricLabel}
+            </span>
+          </div>
+          <div
+            className="h-2.5 rounded-full"
+            style={{
+              background:
+                mobilityIntensityMetric === 'balance'
+                  ? 'linear-gradient(90deg, #B91C1C 0%, #F8FAFC 50%, #15803D 100%)'
+                  : 'linear-gradient(90deg, #F8FAFC 0%, #FCA5A5 45%, #991B1B 100%)',
+            }}
+          />
+          <div className="mt-1.5 flex justify-between text-[10px] font-semibold text-slate-500">
+            <span>{mobilityIntensityMetric === 'balance' ? 'Emissora' : 'Menor'}</span>
+            <span>{mobilityIntensityMetric === 'balance' ? 'Atratora' : 'Maior'}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

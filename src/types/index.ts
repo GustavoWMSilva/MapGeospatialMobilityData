@@ -18,6 +18,7 @@ export interface ViewState {
 
 export type GeographyLevel = 'base' | 'aggregate';
 export type DemographicFilters = Record<string, string>;
+export type MobilityIntensityMetric = 'total' | 'incoming' | 'outgoing' | 'balance';
 export type DimensionMatchMode = 'equals' | 'contains';
 export type DatasetAnalyticsMode = 'uk-legacy' | 'generic';
 export type DatasetChartId =
