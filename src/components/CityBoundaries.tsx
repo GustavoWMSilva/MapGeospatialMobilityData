@@ -33,6 +33,16 @@ const withBoundaryCacheVersion = (path: string): string => {
   return `${path}${separator}v=${BOUNDARY_CACHE_VERSION}`;
 };
 
+const fetchBoundaryGeoJSON = async (path: string): Promise<GeoJSON.FeatureCollection> => {
+  const response = await fetch(withBoundaryCacheVersion(path), { cache: 'no-store' });
+
+  if (!response.ok) {
+    throw new Error(`Falha ao carregar boundaries (${response.status})`);
+  }
+
+  return response.json() as Promise<GeoJSON.FeatureCollection>;
+};
+
 const parseCSVLine = (line: string): string[] => {
   const result: string[] = [];
   let current = '';
@@ -192,12 +202,10 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
       geographyLevel === 'aggregate'
         ? getAggregateBoundariesPath()
         : getBaseBoundariesPath();
-    const versionedBoundaryFile = withBoundaryCacheVersion(boundaryFile);
 
     const loadBoundaries = async () => {
       try {
-        const data = await fetchWithCache(versionedBoundaryFile);
-        let geojson = data as GeoJSON.FeatureCollection;
+        let geojson = await fetchBoundaryGeoJSON(boundaryFile);
 
         if (geographyLevel === 'aggregate') {
           geojson = await augmentMissingLTLABoundaries(geojson);
