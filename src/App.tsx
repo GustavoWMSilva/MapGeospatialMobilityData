@@ -466,7 +466,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => setIsFullscreen(false)}
-            className="fixed right-4 top-4 z-[60] rounded-lg border border-white bg-slate-950 px-5 py-3 text-sm font-bold text-white shadow-2xl transition-colors hover:bg-slate-800"
+            className="fixed right-[19rem] top-4 z-[60] rounded-lg border border-white bg-slate-950 px-5 py-3 text-sm font-bold text-white shadow-2xl transition-colors hover:bg-slate-800"
             title="Sair da tela cheia"
           >
             Sair da tela cheia
@@ -512,7 +512,7 @@ export default function App() {
         </div>
       )}
 
-      <CacheDebugPanel />
+      <CacheDebugPanel isFullscreen={isFullscreen} />
     </main>
   );
 }

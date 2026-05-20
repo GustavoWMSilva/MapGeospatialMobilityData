@@ -1,7 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { cacheService } from '../utils/cacheService';
 
-export const CacheDebugPanel: React.FC = () => {
+interface CacheDebugPanelProps {
+  isFullscreen?: boolean;
+}
+
+export const CacheDebugPanel: React.FC<CacheDebugPanelProps> = ({ isFullscreen = false }) => {
   const [cacheSize, setCacheSize] = useState<number>(0);
   const [cacheKeys, setCacheKeys] = useState<string[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -36,11 +40,27 @@ export const CacheDebugPanel: React.FC = () => {
     maximumFractionDigits: 2,
   });
 
+  const closedButtonClass = useMemo(
+    () =>
+      isFullscreen
+        ? 'fixed bottom-4 left-1/2 z-[70] -translate-x-1/2 rounded-lg bg-gray-800 px-3 py-2 text-sm text-white shadow-lg hover:bg-gray-700'
+        : 'fixed bottom-4 right-4 z-50 rounded-lg bg-gray-800 px-3 py-2 text-sm text-white shadow-lg hover:bg-gray-700',
+    [isFullscreen]
+  );
+
+  const openPanelClass = useMemo(
+    () =>
+      isFullscreen
+        ? 'fixed bottom-4 left-1/2 z-[70] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border-2 border-gray-300 bg-white p-4 shadow-xl'
+        : 'fixed bottom-4 right-4 z-50 max-w-md rounded-lg border-2 border-gray-300 bg-white p-4 shadow-xl',
+    [isFullscreen]
+  );
+
   if (!isOpen) {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-4 right-4 bg-gray-800 text-white px-3 py-2 rounded-lg shadow-lg hover:bg-gray-700 text-sm z-50"
+        className={closedButtonClass}
       >
         Cache: {formattedCacheSize} MB
       </button>
@@ -48,7 +68,7 @@ export const CacheDebugPanel: React.FC = () => {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 bg-white border-2 border-gray-300 rounded-lg shadow-xl p-4 z-50 max-w-md">
+    <div className={openPanelClass}>
       <div className="flex justify-between items-center mb-3">
         <h3 className="font-bold text-lg">Cache do IndexedDB</h3>
         <button

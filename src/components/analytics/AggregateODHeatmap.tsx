@@ -24,7 +24,7 @@ function truncate(value: string, max = 12): string {
 }
 
 function getHeatColor(value: number, max: number): string {
-  if (max <= 0 || value <= 0) return '#F8FAFC';
+  if (max <= 0 || value <= 0) return '#F1F5F9';
   const ratio = value / max;
   if (ratio >= 0.8) return MAP_COLORS.analytics.heatmap.veryHigh;
   if (ratio >= 0.6) return MAP_COLORS.analytics.heatmap.high;
@@ -211,7 +211,7 @@ export function AggregateODHeatmap({
                 {areas.map((dest) => {
                   const value = matrixData.get(origin.code)?.get(dest.code) || 0;
                   const color = getHeatColor(value, maxValue);
-                  const textColor = value > maxValue * 0.6 ? '#FFFFFF' : '#312E81';
+                  const textColor = value > maxValue * 0.6 ? '#FFFFFF' : '#0F172A';
 
                   return (
                     <td

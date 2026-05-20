@@ -3,7 +3,8 @@ import { Layer, Source } from '@vis.gl/react-maplibre';
 import { FlowFilters } from './FlowFilters';
 import { loadFlows, loadFlowsFiltered } from '../utils/dataService';
 import { hasActiveDemographicFilters } from '../constants/datasetProfiles';
-import type { DatasetProfile, DemographicFilters, GeographyLevel } from '../types';
+import { MAP_COLORS } from '../constants/mapColors';
+import type { DatasetProfile, DemographicFilters, GeographyLevel, MobilityIntensityMetric } from '../types';
 
 interface FlowFeature {
   type: 'Feature';
@@ -37,6 +38,8 @@ interface FlowsVisualizationProps {
   datasetProfile: DatasetProfile;
   demographicFilters?: DemographicFilters;
   showInternal?: boolean;
+  showMobilityIntensity?: boolean;
+  mobilityIntensityMetric?: MobilityIntensityMetric;
   onShowInternalChange?: (value: boolean) => void;
   onActiveConnectionsChange?: (codes: string[]) => void;
 }
@@ -71,6 +74,8 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   datasetProfile,
   demographicFilters = {},
   showInternal = false,
+  showMobilityIntensity = false,
+  mobilityIntensityMetric = 'total',
   onActiveConnectionsChange,
 }) => {
   const [flowsData, setFlowsData] = useState<FlowFeature[]>([]);
@@ -235,23 +240,21 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
     return null;
   }
 
-  const intervals = [
-    { value: 0, label: '0', color: '#F8FAFC' },
-    { value: Math.round(stats.max * 0.01), label: Math.round(stats.max * 0.01).toLocaleString('pt-BR'), color: '#EDE9FE' },
-    { value: Math.round(stats.max * 0.05), label: Math.round(stats.max * 0.05).toLocaleString('pt-BR'), color: '#DDD6FE' },
-    { value: Math.round(stats.max * 0.1), label: Math.round(stats.max * 0.1).toLocaleString('pt-BR'), color: '#C4B5FD' },
-    { value: Math.round(stats.max * 0.2), label: Math.round(stats.max * 0.2).toLocaleString('pt-BR'), color: '#A78BFA' },
-    { value: Math.round(stats.max * 0.5), label: Math.round(stats.max * 0.5).toLocaleString('pt-BR'), color: '#8B5CF6' },
-    { value: stats.max, label: stats.max.toLocaleString('pt-BR'), color: '#6D28D9' },
-  ];
-
+  const flowColors = MAP_COLORS.flows.legend;
   const isCompactUI = !isFullscreen;
-  const intensityWidth = isIntensityMinimized
-    ? (isCompactUI ? '132px' : '160px')
-    : (isCompactUI ? '220px' : '260px');
-  const statsWidth = isStatsMinimized
-    ? (isCompactUI ? '128px' : '156px')
-    : (isCompactUI ? '220px' : '250px');
+  const overlayPanelWidth = isCompactUI ? 240 : 280;
+  const bottomOverlayContainerClass = isCompactUI
+    ? 'absolute bottom-4 left-3 right-3 z-10 flex items-end justify-between gap-2'
+    : 'absolute bottom-6 left-4 right-4 z-10 flex items-end justify-between gap-4';
+  const mobilityMetricLabel =
+    mobilityIntensityMetric === 'incoming'
+      ? 'Entrada'
+      : mobilityIntensityMetric === 'outgoing'
+        ? 'Saida'
+        : mobilityIntensityMetric === 'balance'
+          ? 'Saldo'
+          : 'Total';
+  const intensityCardTitle = showMobilityIntensity ? 'Intensidades' : 'Intensidade';
 
   return (
     <>
@@ -268,101 +271,127 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
         datasetProfile={datasetProfile}
         demographicFilters={demographicFilters}
         isCompact={isCompactUI}
+        panelWidth={overlayPanelWidth}
       />
 
-      <div
-        className={`absolute z-10 border border-slate-200 bg-white/92 shadow-lg shadow-slate-950/10 backdrop-blur-md ${
-          isCompactUI ? 'bottom-4 right-3 rounded-lg p-2.5' : 'bottom-6 right-4 rounded-xl p-3'
-        }`}
-        style={{ width: intensityWidth }}
-      >
-        <div className="flex items-center gap-2">
-          <h3 className={`${isCompactUI ? 'text-xs' : 'text-sm'} flex-1 font-semibold text-slate-900`}>
-            Intensidade
-          </h3>
-          <button
-            onClick={() => setIsIntensityMinimized(!isIntensityMinimized)}
-            className={`${isCompactUI ? 'h-6 w-6 text-xs rounded-md' : 'h-7 w-7 rounded-lg'} flex items-center justify-center border border-slate-200 bg-white font-bold text-slate-500 transition-colors hover:bg-slate-100`}
-            title={isIntensityMinimized ? 'Expandir' : 'Minimizar'}
-            type="button"
-          >
-            {isIntensityMinimized ? '+' : '-'}
-          </button>
+      <div className={bottomOverlayContainerClass}>
+        <div
+          className={`border border-slate-200 bg-white/92 shadow-lg shadow-slate-950/10 backdrop-blur-md ${
+            isCompactUI ? 'rounded-lg p-2.5' : 'rounded-xl p-3'
+          }`}
+          style={{ width: overlayPanelWidth }}
+        >
+          <div className="flex items-center gap-2">
+            <h3 className="flex-1 text-xs font-semibold text-slate-900">Resumo</h3>
+            <button
+              onClick={() => setIsStatsMinimized(!isStatsMinimized)}
+              className="flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 bg-white text-xs font-bold text-slate-500 transition-colors hover:bg-slate-100"
+              title={isStatsMinimized ? 'Expandir' : 'Minimizar'}
+              type="button"
+            >
+              {isStatsMinimized ? '+' : '-'}
+            </button>
+          </div>
+
+          {!isStatsMinimized && (
+            <>
+              <div className="mt-2 grid grid-cols-3 gap-1.5">
+                <div className="rounded-md bg-slate-50 px-2 py-1.5">
+                  <span className="block text-[10px] font-medium text-slate-500">Fluxos</span>
+                  <span className="text-xs font-bold text-slate-950">{stats.count.toLocaleString('pt-BR')}</span>
+                </div>
+                <div className="rounded-md bg-slate-50 px-2 py-1.5">
+                  <span className="block text-[10px] font-medium text-slate-500">Pessoas</span>
+                  <span className="text-xs font-bold text-slate-950">{stats.total.toLocaleString('pt-BR')}</span>
+                </div>
+                <div className="rounded-md bg-slate-50 px-2 py-1.5">
+                  <span className="block text-[10px] font-medium text-slate-500">Media</span>
+                  <span className="text-xs font-bold text-slate-950">{Math.round(stats.avg).toLocaleString('pt-BR')}</span>
+                </div>
+              </div>
+
+              <div className="mt-2 border-t border-slate-200 pt-2">
+                <p className="text-[10px] leading-relaxed text-slate-500">
+                  Espessura e cor indicam maior volume de fluxo.
+                </p>
+              </div>
+            </>
+          )}
         </div>
 
-        {!isIntensityMinimized && (
-          <>
-            <div className="mt-2">
-              <div
-                className="h-2.5 overflow-hidden rounded-full border border-slate-200"
-                style={{
-                  background: 'linear-gradient(to right, #F8FAFC 0%, #EDE9FE 25%, #C4B5FD 55%, #8B5CF6 80%, #6D28D9 100%)',
-                }}
-              />
-              <div className="mt-1 flex justify-between px-0.5">
-                <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-medium text-slate-500`}>0</span>
-                <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-medium text-slate-500`}>
-                  {stats.max.toLocaleString('pt-BR')}
-                </span>
-              </div>
-            </div>
+        <div
+          className={`border border-slate-200 bg-white/92 shadow-lg shadow-slate-950/10 backdrop-blur-md ${
+            isCompactUI ? 'rounded-lg p-2.5' : 'ml-auto rounded-xl p-3'
+          }`}
+          style={{ width: overlayPanelWidth }}
+        >
+          <div className="flex items-center gap-2">
+            <h3 className={`${isCompactUI ? 'text-xs' : 'text-sm'} flex-1 font-semibold text-slate-900`}>
+              {intensityCardTitle}
+            </h3>
+            <button
+              onClick={() => setIsIntensityMinimized(!isIntensityMinimized)}
+              className={`${isCompactUI ? 'h-6 w-6 text-xs rounded-md' : 'h-7 w-7 rounded-lg'} flex items-center justify-center border border-slate-200 bg-white font-bold text-slate-500 transition-colors hover:bg-slate-100`}
+              title={isIntensityMinimized ? 'Expandir' : 'Minimizar'}
+              type="button"
+            >
+              {isIntensityMinimized ? '+' : '-'}
+            </button>
+          </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-1.5">
-              {intervals.slice(1).map((interval, index) => (
-                <div key={`${interval.value}-${index}`} className="flex items-center gap-1.5 rounded-md bg-slate-50 px-1.5 py-1">
-                  <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: interval.color }} />
-                  <span className="truncate text-[10px] font-medium text-slate-600">
-                    {index === intervals.length - 2 ? `${interval.label}+` : interval.label}
+          {!isIntensityMinimized && (
+            <>
+              <div className="mt-2">
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                    Fluxos
+                  </span>
+                  <span className="text-[10px] font-medium text-slate-500">Volume</span>
+                </div>
+                <div
+                  className="h-2.5 overflow-hidden rounded-full border border-slate-200"
+                  style={{
+                    background: MAP_COLORS.gradients.flow,
+                  }}
+                />
+                <div className="mt-1 flex justify-between px-0.5">
+                  <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-medium text-slate-500`}>0</span>
+                  <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-medium text-slate-500`}>
+                    {stats.max.toLocaleString('pt-BR')}
                   </span>
                 </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
+              </div>
 
-      <div
-        className={`absolute z-10 border border-slate-200 bg-white/92 shadow-lg shadow-slate-950/10 backdrop-blur-md ${
-          isCompactUI ? 'bottom-4 left-3 rounded-lg p-2.5' : 'bottom-6 left-4 rounded-xl p-3'
-        }`}
-        style={{ width: statsWidth }}
-      >
-        <div className="flex items-center gap-2">
-          <h3 className="flex-1 text-xs font-semibold text-slate-900">Resumo</h3>
-          <button
-            onClick={() => setIsStatsMinimized(!isStatsMinimized)}
-            className="flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 bg-white text-xs font-bold text-slate-500 transition-colors hover:bg-slate-100"
-            title={isStatsMinimized ? 'Expandir' : 'Minimizar'}
-            type="button"
-          >
-            {isStatsMinimized ? '+' : '-'}
-          </button>
+              {showMobilityIntensity && (
+                <div className="mt-3 border-t border-slate-200 pt-3">
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                      Mobilidade
+                    </span>
+                    <span className="text-[10px] font-medium text-slate-500">{mobilityMetricLabel}</span>
+                  </div>
+                  <div
+                    className="h-2.5 overflow-hidden rounded-full border border-slate-200"
+                    style={{
+                      background:
+                        mobilityIntensityMetric === 'balance'
+                          ? MAP_COLORS.gradients.mobilityBalance
+                          : MAP_COLORS.gradients.mobilitySequential,
+                    }}
+                  />
+                  <div className="mt-1 flex justify-between px-0.5">
+                    <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-medium text-slate-500`}>
+                      {mobilityIntensityMetric === 'balance' ? 'Emissora' : 'Menor'}
+                    </span>
+                    <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-medium text-slate-500`}>
+                      {mobilityIntensityMetric === 'balance' ? 'Atratora' : 'Maior'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
-
-        {!isStatsMinimized && (
-          <>
-            <div className="mt-2 grid grid-cols-3 gap-1.5">
-              <div className="rounded-md bg-slate-50 px-2 py-1.5">
-                <span className="block text-[10px] font-medium text-slate-500">Fluxos</span>
-                <span className="text-xs font-bold text-slate-950">{stats.count.toLocaleString('pt-BR')}</span>
-              </div>
-              <div className="rounded-md bg-slate-50 px-2 py-1.5">
-                <span className="block text-[10px] font-medium text-slate-500">Pessoas</span>
-                <span className="text-xs font-bold text-slate-950">{stats.total.toLocaleString('pt-BR')}</span>
-              </div>
-              <div className="rounded-md bg-slate-50 px-2 py-1.5">
-                <span className="block text-[10px] font-medium text-slate-500">Media</span>
-                <span className="text-xs font-bold text-slate-950">{Math.round(stats.avg).toLocaleString('pt-BR')}</span>
-              </div>
-            </div>
-
-            <div className="mt-2 border-t border-slate-200 pt-2">
-              <p className="text-[10px] leading-relaxed text-slate-500">
-                Espessura e cor indicam maior volume de fluxo.
-              </p>
-            </div>
-          </>
-        )}
       </div>
 
       <Source id={`${geographyLevel}-flows`} type="geojson" data={flowsGeoJSON}>
@@ -374,13 +403,13 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
               'interpolate',
               ['linear'],
               ['get', 'count'],
-              0, '#F8FAFC',
-              100, '#EDE9FE',
-              500, '#DDD6FE',
-              1000, '#C4B5FD',
-              2000, '#A78BFA',
-              5000, '#8B5CF6',
-              10000, '#6D28D9',
+              0, flowColors[0],
+              100, flowColors[1],
+              500, flowColors[2],
+              1000, flowColors[3],
+              2000, flowColors[4],
+              5000, flowColors[5],
+              10000, flowColors[6],
             ],
             'line-width': [
               'interpolate',
@@ -392,7 +421,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
               2000, 3.4,
               5000, 5,
             ],
-            'line-opacity': 0.72,
+            'line-opacity': MAP_COLORS.flows.lineOpacity,
           }}
         />
 
@@ -404,11 +433,11 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
               'interpolate',
               ['linear'],
               ['get', 'count'],
-              0, '#EDE9FE',
-              500, '#C4B5FD',
-              1000, '#A78BFA',
-              2000, '#8B5CF6',
-              5000, '#6D28D9',
+              0, flowColors[1],
+              500, flowColors[2],
+              1000, flowColors[3],
+              2000, flowColors[4],
+              5000, flowColors[5],
             ],
             'line-width': [
               'interpolate',
@@ -420,8 +449,8 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
               2000, 6,
               5000, 8,
             ],
-            'line-opacity': 0.18,
-            'line-blur': 5,
+            'line-opacity': MAP_COLORS.flows.glowOpacity,
+            'line-blur': MAP_COLORS.flows.glowBlur,
           }}
         />
       </Source>

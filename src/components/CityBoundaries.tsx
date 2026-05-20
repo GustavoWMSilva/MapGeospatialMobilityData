@@ -505,30 +505,30 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
           ['linear'],
           ['coalesce', ['get', 'mobility_intensity_norm'], 0.5],
           0,
-          '#B91C1C',
-          0.35,
-          '#FCA5A5',
+          MAP_COLORS.mobility.balance[0],
+          0.25,
+          MAP_COLORS.mobility.balance[1],
           0.5,
-          '#F8FAFC',
-          0.65,
-          '#86EFAC',
+          MAP_COLORS.mobility.balance[2],
+          0.75,
+          MAP_COLORS.mobility.balance[3],
           1,
-          '#15803D'
+          MAP_COLORS.mobility.balance[4]
         ]
       : [
           'interpolate',
           ['linear'],
           ['coalesce', ['get', 'mobility_intensity_norm'], 0],
           0,
-          '#F8FAFC',
-          0.2,
-          '#FEE2E2',
-          0.45,
-          '#FCA5A5',
-          0.7,
-          '#EF4444',
+          MAP_COLORS.mobility.sequential[0],
+          0.25,
+          MAP_COLORS.mobility.sequential[1],
+          0.5,
+          MAP_COLORS.mobility.sequential[2],
+          0.75,
+          MAP_COLORS.mobility.sequential[3],
           1,
-          '#991B1B'
+          MAP_COLORS.mobility.sequential[4]
         ];
   const boundaryFillColor: any = showMobilityIntensity
     ? intensityColorExpression
@@ -541,7 +541,7 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
         fillColor
       ];
   const boundaryFillOpacity: any = showMobilityIntensity
-    ? 0.72
+    ? MAP_COLORS.mobility.fillOpacity
     : [
         'case',
         isSelectedExpression,

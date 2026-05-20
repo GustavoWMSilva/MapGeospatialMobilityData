@@ -17,6 +17,7 @@ interface FlowFiltersProps {
   datasetProfile: DatasetProfile;
   demographicFilters?: DemographicFilters;
   isCompact?: boolean;
+  panelWidth?: number;
 }
 
 export const FlowFilters: React.FC<FlowFiltersProps> = ({
@@ -32,6 +33,7 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
   datasetProfile,
   demographicFilters = {},
   isCompact = false,
+  panelWidth,
 }) => {
   const minCountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeBadges = getActiveDemographicBadges(datasetProfile, demographicFilters);
@@ -58,15 +60,15 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
   };
 
   const shellClass = isCompact
-    ? 'absolute top-3 right-3 z-10 w-64 overflow-hidden rounded-lg border border-slate-200 bg-white/92 shadow-lg shadow-slate-950/10 backdrop-blur-md'
-    : 'absolute top-4 right-4 z-10 w-80 overflow-hidden rounded-xl border border-slate-200 bg-white/92 shadow-xl shadow-slate-950/10 backdrop-blur-md';
+    ? 'absolute top-3 right-3 z-10 overflow-hidden rounded-lg border border-slate-200 bg-white/92 shadow-lg shadow-slate-950/10 backdrop-blur-md'
+    : 'absolute top-4 right-4 z-10 overflow-hidden rounded-xl border border-slate-200 bg-white/92 shadow-xl shadow-slate-950/10 backdrop-blur-md';
 
   const headerClass = isCompact
     ? 'flex cursor-pointer items-center justify-between border-b border-slate-200 px-3 py-2 hover:bg-slate-50/80'
     : 'flex cursor-pointer items-center justify-between border-b border-slate-200 px-4 py-3 hover:bg-slate-50/80';
 
   return (
-    <div className={shellClass}>
+    <div className={shellClass} style={panelWidth ? { width: panelWidth } : undefined}>
       <div className={headerClass} onClick={onToggleMinimize}>
         <div className="flex min-w-0 items-center gap-2">
           <h3 className={`font-semibold text-slate-900 ${isCompact ? 'text-xs' : 'text-sm'}`}>

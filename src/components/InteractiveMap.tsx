@@ -68,6 +68,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const [activeConnectedAreaCodes, setActiveConnectedAreaCodes] = useState<string[]>([]);
   const selectedBoundaryCode =
     geographyLevel === 'aggregate' ? selectedAggregateAreaCode : selectedBaseAreaCode;
+  const hasActiveFlowLegend = Boolean(
+    (showAggregateAreas && selectedAggregateAreaCode) || (showBasePoints && selectedBaseAreaCode)
+  );
   const intensityMetricLabel =
     mobilityIntensityMetric === 'incoming'
       ? 'Entrada'
@@ -90,7 +93,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           key={index}
           longitude={point.lng}
           latitude={point.lat}
-          color="blue"
+          color={MAP_COLORS.points.msoa}
           onClick={() => onFlyToPoint(point)}
         />
       )),
@@ -110,13 +113,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         {...viewState}
         onMove={onMove}
         onClick={onClick}
-        mapStyle={
-          typeof window !== 'undefined' &&
-          window.matchMedia &&
-          window.matchMedia('(prefers-color-scheme: dark)').matches
-            ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
-            : 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'
-        }
+        mapStyle="https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
         interactiveLayerIds={[
           'flow-lines',
           'aggregate-boundaries-clickable',
@@ -154,6 +151,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             datasetProfile={datasetProfile}
             demographicFilters={demographicFilters}
             showInternal={includeInternalFlows}
+            showMobilityIntensity={showMobilityIntensity}
+            mobilityIntensityMetric={mobilityIntensityMetric}
             onShowInternalChange={onIncludeInternalFlowsChange}
             onActiveConnectionsChange={setActiveConnectedAreaCodes}
           />
@@ -176,6 +175,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
               datasetProfile={datasetProfile}
               demographicFilters={demographicFilters}
               showInternal={includeInternalFlows}
+              showMobilityIntensity={showMobilityIntensity}
+              mobilityIntensityMetric={mobilityIntensityMetric}
               onShowInternalChange={onIncludeInternalFlowsChange}
               onActiveConnectionsChange={setActiveConnectedAreaCodes}
             />
@@ -195,10 +196,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         )}
       </Map>
 
-      {showMobilityIntensity && (
+      {showMobilityIntensity && !hasActiveFlowLegend && (
         <div className="pointer-events-none absolute bottom-4 left-4 z-10 w-52 rounded-lg border border-white/70 bg-white/95 p-3 text-xs shadow-xl backdrop-blur-sm">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <span className="font-bold text-slate-900">Intensidade</span>
+            <span className="font-bold text-slate-900">Mobilidade</span>
             <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
               {intensityMetricLabel}
             </span>
@@ -208,8 +209,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             style={{
               background:
                 mobilityIntensityMetric === 'balance'
-                  ? 'linear-gradient(90deg, #B91C1C 0%, #F8FAFC 50%, #15803D 100%)'
-                  : 'linear-gradient(90deg, #F8FAFC 0%, #FCA5A5 45%, #991B1B 100%)',
+                  ? MAP_COLORS.gradients.mobilityBalance
+                  : MAP_COLORS.gradients.mobilitySequential,
             }}
           />
           <div className="mt-1.5 flex justify-between text-[10px] font-semibold text-slate-500">
