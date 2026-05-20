@@ -26,6 +26,28 @@ interface Coordinates {
 // Cache de coordenadas
 let coordinatesCache: Coordinates | null = null;
 
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let insideQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+
+    if (char === '"') {
+      insideQuotes = !insideQuotes;
+    } else if (char === ',' && !insideQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+
+  result.push(current.trim());
+  return result;
+}
+
 function nowMs(): number {
   if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
     return performance.now();
@@ -79,27 +101,35 @@ async function loadCoordinates(): Promise<Coordinates> {
     const response = await fetch(getBaseCentroidsPath());
     const text = await response.text();
     const lines = text.split('\n');
-    
+
     const coords: Coordinates = {};
-    
+    let invalidCoordinateRows = 0;
+
     // Pular header
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
-      
-      const parts = line.split(',');
+
+      const parts = parseCSVLine(line);
       if (parts.length >= 4) {
         const code = parts[0].replace(/"/g, '');
         const name = parts[1].replace(/"/g, '');
         const lat = parseFloat(parts[2]);
         const lon = parseFloat(parts[3]);
-        
+
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+          invalidCoordinateRows += 1;
+          continue;
+        }
+
         coords[code] = { lat, lon, name };
       }
     }
-    
+
     coordinatesCache = coords;
-    console.log(`Carregadas ${Object.keys(coords).length} coordenadas do CSV atual`);
+    console.log(
+      `[dataService] Coordenadas base carregadas: ${Object.keys(coords).length} validas, ${invalidCoordinateRows} invalidas`
+    );
     return coords;
   } catch (error) {
     console.error('Erro ao carregar coordenadas:', error);
@@ -225,13 +255,27 @@ export async function loadFlowsFiltered(
 
   // Se o nível for base, usar coordenadas da unidade base normalmente
   const coords = await loadCoordinates();
-  
-  const features = flows
-    .filter(flow => {
-      const originCoord = coords[flow.origin_code];
-      const destCoord = coords[flow.dest_code];
-      return originCoord && destCoord;
-    })
+
+  const missingCoordinateSamples: Array<{ origin: string; dest: string; count: number }> = [];
+  const validFlows = flows.filter(flow => {
+    const originCoord = coords[flow.origin_code];
+    const destCoord = coords[flow.dest_code];
+
+    if (!originCoord || !destCoord) {
+      if (missingCoordinateSamples.length < 5) {
+        missingCoordinateSamples.push({
+          origin: flow.origin_code,
+          dest: flow.dest_code,
+          count: flow.count,
+        });
+      }
+      return false;
+    }
+
+    return true;
+  });
+
+  const features = validFlows
     .map(flow => {
       const originCoord = coords[flow.origin_code];
       const destCoord = coords[flow.dest_code];
@@ -252,10 +296,15 @@ export async function loadFlowsFiltered(
             [destCoord.lon, destCoord.lat],
           ],
         },
-      };
-    });
+        };
+      });
 
-  console.log(`? Criados ${features.length} features GeoJSON MSOA filtrados`);
+  console.log(
+    `[dataService] MSOA filtrado ${areaCode} (${direction}): ${flows.length} flows recebidos, ${features.length} features validas, ${flows.length - features.length} descartados por coordenada`
+  );
+  if (missingCoordinateSamples.length > 0) {
+    console.warn('[dataService] Exemplos de flows descartados (filtros):', missingCoordinateSamples);
+  }
 
   recordLatency({
     startMs: requestStartMs,
@@ -333,14 +382,28 @@ async function loadFlowsFromDuckDB(
     
     // Carregar flows do Parquet
     const flows = await getMSOAFlows(areaCode, direction, limit);
-    
+
+    const missingCoordinateSamples: Array<{ origin: string; dest: string; count: number }> = [];
+    const validFlows = flows.filter(flow => {
+      const originCoord = coords[flow.origin_code];
+      const destCoord = coords[flow.dest_code];
+
+      if (!originCoord || !destCoord) {
+        if (missingCoordinateSamples.length < 5) {
+          missingCoordinateSamples.push({
+            origin: flow.origin_code,
+            dest: flow.dest_code,
+            count: flow.count,
+          });
+        }
+        return false;
+      }
+
+      return true;
+    });
+
     // Converter para GeoJSON
-    const features = flows
-      .filter(flow => {
-        const originCoord = coords[flow.origin_code];
-        const destCoord = coords[flow.dest_code];
-        return originCoord && destCoord;
-      })
+    const features = validFlows
       .map(flow => {
         const originCoord = coords[flow.origin_code];
         const destCoord = coords[flow.dest_code];
@@ -363,8 +426,14 @@ async function loadFlowsFromDuckDB(
           },
         };
       });
-    
-    console.log(`Criados ${features.length} features GeoJSON`);
+
+    const zeroCountFlows = flows.filter((flow) => flow.count <= 0).length;
+    console.log(
+      `[dataService] MSOA base ${areaCode} (${direction}): ${flows.length} flows recebidos, ${features.length} features validas, ${flows.length - features.length} descartados por coordenada, ${zeroCountFlows} com count <= 0`
+    );
+    if (missingCoordinateSamples.length > 0) {
+      console.warn('[dataService] Exemplos de flows descartados (base):', missingCoordinateSamples);
+    }
 
     recordLatency({
       startMs: requestStartMs,

@@ -86,9 +86,8 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   const [maxFlows, setMaxFlows] = useState(geographyLevel === 'aggregate' ? 200 : 500);
   const [minCount, setMinCount] = useState(geographyLevel === 'aggregate' ? 50 : 10);
 
-  const loadingRef = useRef(false);
-  const currentLoadRef = useRef('');
   const previousSelectedCode = useRef<string | null>(null);
+  const latestRequestIdRef = useRef(0);
 
   useEffect(() => {
     if (selectedCode !== previousSelectedCode.current) {
@@ -98,32 +97,19 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   }, [selectedCode]);
 
   useEffect(() => {
-    const filtersKey = JSON.stringify(
-      datasetProfile.demographicDimensions.map((dimension) => ({
-        key: dimension.key,
-        value: demographicFilters[dimension.key] || 'all',
-      }))
-    );
-    const loadKey = `${geographyLevel}|${selectedCode}|${flowDirection}|${filtersKey}`;
-
-    if (loadingRef.current && currentLoadRef.current === loadKey) {
-      return;
-    }
-
     if (!selectedCode) {
       setFlowsData([]);
       setLoading(false);
       return;
     }
 
-    let cancelled = false;
+    const requestId = latestRequestIdRef.current + 1;
+    latestRequestIdRef.current = requestId;
 
     async function loadData() {
       const areaCode = selectedCode;
       if (!areaCode) return;
 
-      loadingRef.current = true;
-      currentLoadRef.current = loadKey;
       setLoading(true);
 
       try {
@@ -135,26 +121,27 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
           ? await loadFlowsFiltered(areaCode, flowDirection, 50000, geographyLevel, demographicFilters)
           : await loadFlows(areaCode, flowDirection, 50000, geographyLevel);
 
-        if (!cancelled) {
+        if (latestRequestIdRef.current === requestId) {
           setFlowsData((data.features as FlowFeature[]) || []);
         }
       } catch (error) {
         console.error('Erro ao carregar fluxos:', error);
-        if (!cancelled) {
+        if (latestRequestIdRef.current === requestId) {
           setFlowsData([]);
         }
       } finally {
-        if (!cancelled) {
+        if (latestRequestIdRef.current === requestId) {
           setLoading(false);
         }
-        loadingRef.current = false;
       }
     }
 
     void loadData();
 
     return () => {
-      cancelled = true;
+      if (latestRequestIdRef.current === requestId) {
+        latestRequestIdRef.current += 1;
+      }
     };
   }, [datasetProfile.demographicDimensions, demographicFilters, flowDirection, geographyLevel, selectedCode]);
 
@@ -220,6 +207,68 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   }, [filteredFlows]);
 
   useEffect(() => {
+    if (!selectedCode) {
+      return;
+    }
+
+    const zeroOrNegativeCount = baseRelevantFlows.filter((feature) => feature.properties.count <= 0).length;
+    const invalidGeometryCount = filteredFlows.filter((feature) => {
+      const [origin, dest] = feature.geometry.coordinates;
+
+      return (
+        !origin ||
+        !dest ||
+        !Number.isFinite(origin[0]) ||
+        !Number.isFinite(origin[1]) ||
+        !Number.isFinite(dest[0]) ||
+        !Number.isFinite(dest[1])
+      );
+    }).length;
+
+    console.log('[FlowsVisualization] Estado dos fluxos:', {
+      geographyLevel,
+      selectedCode,
+      flowDirection,
+      minCount,
+      maxFlows,
+      loading,
+      flowsData: flowsData.length,
+      baseRelevantFlows: baseRelevantFlows.length,
+      filteredFlows: filteredFlows.length,
+      statsCount: stats?.count ?? 0,
+      statsMin: stats?.min ?? null,
+      statsMax: stats?.max ?? null,
+      zeroOrNegativeCount,
+      invalidGeometryCount,
+      hasGeoJSON: Boolean(flowsGeoJSON),
+    });
+
+    if (filteredFlows.length > 0) {
+      console.log(
+        '[FlowsVisualization] Primeiros flows visiveis:',
+        filteredFlows.slice(0, 5).map((feature) => ({
+          origin: feature.properties.origin_code,
+          dest: feature.properties.dest_code,
+          count: feature.properties.count,
+          coordinates: feature.geometry.coordinates,
+        }))
+      );
+    }
+  }, [
+    baseRelevantFlows,
+    filteredFlows,
+    flowDirection,
+    flowsData,
+    flowsGeoJSON,
+    geographyLevel,
+    loading,
+    maxFlows,
+    minCount,
+    selectedCode,
+    stats,
+  ]);
+
+  useEffect(() => {
     if (!onActiveConnectionsChange || !selectedCode || !flowsGeoJSON) {
       onActiveConnectionsChange?.([]);
       return;
@@ -237,6 +286,16 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   }, [onActiveConnectionsChange, selectedCode, flowDirection, flowsGeoJSON]);
 
   if (loading || !isVisible || !selectedCode || !flowsGeoJSON || !stats) {
+    if (selectedCode) {
+      console.log('[FlowsVisualization] Render interrompido:', {
+        selectedCode,
+        loading,
+        isVisible,
+        hasGeoJSON: Boolean(flowsGeoJSON),
+        hasStats: Boolean(stats),
+        filteredFlows: filteredFlows.length,
+      });
+    }
     return null;
   }
 

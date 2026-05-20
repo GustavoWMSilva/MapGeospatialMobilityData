@@ -466,13 +466,13 @@ export default function App() {
           <button
             type="button"
             onClick={() => setIsFullscreen(false)}
-            className="fixed right-[19rem] top-4 z-[60] rounded-lg border border-white bg-slate-950 px-5 py-3 text-sm font-bold text-white shadow-2xl transition-colors hover:bg-slate-800"
+            className="fixed left-4 top-4 z-[60] rounded-lg border border-white bg-slate-950 px-5 py-3 text-sm font-bold text-white shadow-2xl transition-colors hover:bg-slate-800"
             title="Sair da tela cheia"
           >
             Sair da tela cheia
           </button>
 
-          <div className="fixed left-4 top-4 z-[60] flex flex-col gap-3">
+          <div className="fixed left-4 top-20 z-[60] flex flex-col gap-3">
             <button
               type="button"
               onClick={toggleGeographyLevel}
@@ -482,32 +482,6 @@ export default function App() {
                 ? `Modo: ${ACTIVE_DATASET_PROFILE.labels.aggregate.modeLabel}`
                 : `Modo: ${ACTIVE_DATASET_PROFILE.labels.base.modeLabel}`}
             </button>
-
-            <div className="rounded-xl border border-white bg-white/95 p-2 shadow-2xl backdrop-blur-sm">
-              <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                Base de dados
-              </div>
-              <div className="flex gap-2">
-                {DATASET_TOGGLE_OPTIONS.map((option) => {
-                  const isActive = option.id === activeDatasetId;
-
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => handleDatasetChange(option.id)}
-                      className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
-                        isActive
-                          ? 'bg-slate-950 text-white'
-                          : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
           </div>
         </div>
       )}

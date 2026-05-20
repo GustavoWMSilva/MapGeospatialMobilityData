@@ -86,6 +86,27 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
   }, [selectedBoundaryCode]);
 
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) {
+      return;
+    }
+
+    const resizeMap = () => {
+      map.resize();
+      map.triggerRepaint();
+    };
+
+    resizeMap();
+    const animationFrame = window.requestAnimationFrame(resizeMap);
+    const timeoutId = window.setTimeout(resizeMap, 180);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.clearTimeout(timeoutId);
+    };
+  }, [isFullscreen, mapRef]);
+
   const markers = useMemo(
     () =>
       points.map((point, index) => (
