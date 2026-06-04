@@ -10,10 +10,12 @@ import {
 } from 'recharts';
 import {
   clearLatencySamples,
+  getFlowRenderSamples,
   getLatencySamples,
   isLatencyBenchmarkEnabled,
   setLatencyBenchmarkEnabled,
   subscribeLatencySamples,
+  type FlowRenderSample,
   type LatencySample,
   type LatencyScenario,
 } from '../../utils/performanceMetrics';
@@ -71,6 +73,24 @@ function formatMs(value: number): string {
   })}ms`;
 }
 
+function formatNumber(value: number): string {
+  return value.toLocaleString('pt-BR', {
+    maximumFractionDigits: 0,
+  });
+}
+
+function formatPercent(value: number): string {
+  return `${value.toLocaleString('pt-BR', {
+    maximumFractionDigits: 1,
+  })}%`;
+}
+
+function medianLatency(samples: LatencySample[]): number | null {
+  if (samples.length === 0) return null;
+  const values = samples.map((sample) => sample.latencyMs).sort((left, right) => left - right);
+  return quantile(values, 0.5);
+}
+
 function computeScenarioStats(samples: LatencySample[], scenario: LatencyScenario): ScenarioStats | null {
   const values = samples
     .filter((sample) => sample.scenario === scenario)
@@ -92,6 +112,16 @@ function computeScenarioStats(samples: LatencySample[], scenario: LatencyScenari
     max: values[values.length - 1],
     count: values.length,
   };
+}
+
+function renderMetricCard(label: string, value: string, hint: string) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="mt-1 text-lg font-bold text-slate-900">{value}</div>
+      <div className="mt-1 text-[10px] leading-snug text-slate-500">{hint}</div>
+    </div>
+  );
 }
 
 function renderScenarioRow(stats: ScenarioStats, globalMax: number) {
@@ -124,11 +154,13 @@ function renderScenarioRow(stats: ScenarioStats, globalMax: number) {
 export function PerformanceLatencyPanel() {
   const [benchmarkEnabled, setBenchmarkEnabledState] = useState<boolean>(isLatencyBenchmarkEnabled());
   const [samples, setSamples] = useState<LatencySample[]>(getLatencySamples());
+  const [renderSamples, setRenderSamples] = useState<FlowRenderSample[]>(getFlowRenderSamples());
 
   useEffect(() => {
     const unsubscribe = subscribeLatencySamples(() => {
       setBenchmarkEnabledState(isLatencyBenchmarkEnabled());
       setSamples(getLatencySamples());
+      setRenderSamples(getFlowRenderSamples());
     });
     return unsubscribe;
   }, []);
@@ -161,6 +193,40 @@ export function PerformanceLatencyPanel() {
       latest,
     };
   }, [samples]);
+
+  const recommendedStats = useMemo(() => {
+    const firstSamples = samples.filter((sample) => sample.runType === 'first');
+    const repeatSamples = samples.filter((sample) => sample.runType === 'repeat');
+    const switchSamples = samples.filter((sample) => sample.geographySwitchFrom);
+    const firstMedian = medianLatency(firstSamples);
+    const repeatMedian = medianLatency(repeatSamples);
+    const switchMedian = medianLatency(switchSamples);
+    const cacheGainPct =
+      firstMedian !== null && repeatMedian !== null && firstMedian > 0
+        ? ((firstMedian - repeatMedian) * 100) / firstMedian
+        : null;
+    const latestRender = renderSamples[renderSamples.length - 1] ?? null;
+    const averageRenderedCount = renderSamples.length
+      ? renderSamples.reduce((sum, sample) => sum + sample.renderedCount, 0) / renderSamples.length
+      : null;
+    const latestRenderRatio =
+      latestRender && latestRender.availableCount > 0
+        ? (latestRender.renderedCount * 100) / latestRender.availableCount
+        : null;
+
+    return {
+      firstMedian,
+      firstCount: firstSamples.length,
+      repeatMedian,
+      repeatCount: repeatSamples.length,
+      switchMedian,
+      switchCount: switchSamples.length,
+      cacheGainPct,
+      latestRender,
+      averageRenderedCount,
+      latestRenderRatio,
+    };
+  }, [renderSamples, samples]);
 
   const timeSeriesRows = useMemo(() => {
     return samples.slice(-80).map((sample, index) => ({
@@ -237,6 +303,47 @@ export function PerformanceLatencyPanel() {
               </div>
             </div>
           )}
+
+          <div>
+            <h4 className="mb-2 text-xs font-bold text-slate-700">Métricas recomendadas</h4>
+            <div className="grid grid-cols-2 gap-2">
+              {renderMetricCard(
+                'Primeira consulta',
+                recommendedStats.firstMedian === null ? '-' : formatMs(recommendedStats.firstMedian),
+                `${recommendedStats.firstCount} amostras frias/unicas`
+              )}
+              {renderMetricCard(
+                'Consulta repetida',
+                recommendedStats.repeatMedian === null ? '-' : formatMs(recommendedStats.repeatMedian),
+                recommendedStats.cacheGainPct === null
+                  ? `${recommendedStats.repeatCount} repeticoes`
+                  : `ganho mediano ${formatPercent(recommendedStats.cacheGainPct)}`
+              )}
+              {renderMetricCard(
+                'Troca de escala',
+                recommendedStats.switchMedian === null ? '-' : formatMs(recommendedStats.switchMedian),
+                `${recommendedStats.switchCount} alternancias base/agregado`
+              )}
+              {renderMetricCard(
+                'Fluxos visiveis',
+                recommendedStats.latestRender
+                  ? `${formatNumber(recommendedStats.latestRender.renderedCount)} / ${formatNumber(recommendedStats.latestRender.availableCount)}`
+                  : '-',
+                recommendedStats.latestRenderRatio === null
+                  ? 'apos limite maximo e contagem minima'
+                  : `${formatPercent(recommendedStats.latestRenderRatio)} dos fluxos disponiveis`
+              )}
+            </div>
+
+            {recommendedStats.averageRenderedCount !== null && (
+              <div className="mt-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] leading-relaxed text-slate-600">
+                Média renderizada no benchmark: <strong>{formatNumber(recommendedStats.averageRenderedCount)}</strong>{' '}
+                fluxos. Último filtro: min.{' '}
+                <strong>{recommendedStats.latestRender?.minCount.toLocaleString('pt-BR') ?? 0}</strong>, máximo{' '}
+                <strong>{recommendedStats.latestRender?.maxFlows.toLocaleString('pt-BR') ?? 0}</strong>.
+              </div>
+            )}
+          </div>
 
           <div>
             <h4 className="mb-2 text-xs font-bold text-slate-700">Comparacao por caminho</h4>

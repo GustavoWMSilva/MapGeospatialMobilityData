@@ -40,6 +40,7 @@ interface ValidationPoint {
   dynamic: number;
   absDiff: number;
   errorPct: number | null;
+  consistencyPct: number | null;
   isOutlier?: boolean;
   mappedBaseAreaCount: number;
   mismatchType: 'ok' | 'reference_only' | 'dynamic_only' | 'missing_lookup';
@@ -146,6 +147,7 @@ export function AggregationValidationScatter({
           const mappedBaseAreaCount = Number(mappedBaseAreaMap.get(code) || 0);
           const absDiff = Math.abs(dynamic - reference);
           const errorPct = reference > 0 ? (absDiff * 100) / reference : null;
+          const consistencyPct = reference > 0 ? (1 - absDiff / reference) * 100 : null;
           let mismatchType: ValidationPoint['mismatchType'] = 'ok';
 
           if (mappedBaseAreaCount === 0) {
@@ -163,6 +165,7 @@ export function AggregationValidationScatter({
             dynamic,
             absDiff,
             errorPct,
+            consistencyPct,
             mappedBaseAreaCount,
             mismatchType,
           };
@@ -228,7 +231,7 @@ export function AggregationValidationScatter({
 
   const qualityMetrics = useMemo(() => {
     if (evaluationPoints.length === 0) {
-      return { mae: null, mape: null, smape: null, rmse: null, r2: null, r2Log: null };
+      return { mae: null, mape: null, smape: null, rmse: null, r2: null, r2Log: null, consistency: null };
     }
 
     const n = evaluationPoints.length;
@@ -267,8 +270,12 @@ export function AggregationValidationScatter({
     const ssResLog = logs.reduce((sum, p) => sum + (p.dyn - p.ref) ** 2, 0);
     const ssTotLog = logs.reduce((sum, p) => sum + (p.ref - meanLogRef) ** 2, 0);
     const r2Log = ssTotLog > 0 ? 1 - ssResLog / ssTotLog : null;
+    const consistencyBase = evaluationPoints.filter((p) => p.consistencyPct !== null);
+    const consistency = consistencyBase.length
+      ? consistencyBase.reduce((sum, p) => sum + Number(p.consistencyPct), 0) / consistencyBase.length
+      : null;
 
-    return { mae, mape, smape, rmse, r2, r2Log };
+    return { mae, mape, smape, rmse, r2, r2Log, consistency };
   }, [evaluationPoints]);
 
   const topDeviations = useMemo(
@@ -467,7 +474,18 @@ export function AggregationValidationScatter({
         </div>
       )}
 
-      <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-4">
+      <div className="mb-4 rounded-lg border border-purple-100 bg-purple-50 px-3 py-2 text-[11px] leading-relaxed text-purple-900">
+        Consistência por área = <strong>(1 - |total dinâmico - total referência| / total referência) × 100</strong>.
+        Quanto mais perto de 100%, mais a agregação dinâmica reproduz a referência.
+      </div>
+
+      <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-5">
+        <div className="rounded-lg border border-purple-100 bg-purple-50 px-3 py-2">
+          <div className="text-[11px] font-medium text-purple-700">Consistência</div>
+          <div className="text-sm font-semibold text-purple-900">
+            {qualityMetrics.consistency === null ? '-' : `${qualityMetrics.consistency.toFixed(2)}%`}
+          </div>
+        </div>
         <div className="rounded-lg border border-purple-100 bg-purple-50 px-3 py-2">
           <div className="text-[11px] font-medium text-purple-700">
             {metricMode === 'legacy' ? 'R²' : 'R² (log)'}
@@ -552,6 +570,7 @@ export function AggregationValidationScatter({
               <th className="px-3 py-2 text-right">{baseUnitPluralLabel} Lookup</th>
               <th className="px-3 py-2 text-right">Dif. Abs.</th>
               <th className="px-3 py-2 text-right">Erro (%)</th>
+              <th className="px-3 py-2 text-right">Consistência</th>
               <th className="px-3 py-2 text-center">Status</th>
               <th className="px-3 py-2 text-center">Outlier</th>
             </tr>
@@ -572,6 +591,9 @@ export function AggregationValidationScatter({
                 <td className="px-3 py-2 text-right font-semibold">{row.absDiff.toLocaleString('pt-BR')}</td>
                 <td className="px-3 py-2 text-right">
                   {row.errorPct === null ? '-' : `${row.errorPct.toFixed(2)}%`}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  {row.consistencyPct === null ? '-' : `${row.consistencyPct.toFixed(2)}%`}
                 </td>
                 <td className="px-3 py-2 text-center">
                   {row.mismatchType === 'ok' && 'OK'}

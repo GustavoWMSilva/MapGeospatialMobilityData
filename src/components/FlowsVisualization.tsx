@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Layer, Source } from '@vis.gl/react-maplibre';
+import type { ExpressionSpecification } from 'maplibre-gl';
 import { FlowFilters } from './FlowFilters';
 import { loadFlows, loadFlowsFiltered } from '../utils/dataService';
+import { recordFlowRenderSample } from '../utils/performanceMetrics';
 import { hasActiveDemographicFilters } from '../constants/datasetProfiles';
 import { MAP_COLORS } from '../constants/mapColors';
 import type { DatasetProfile, DemographicFilters, GeographyLevel, MobilityIntensityMetric } from '../types';
@@ -27,6 +29,118 @@ interface FlowStats {
   min: number;
   avg: number;
   count: number;
+}
+
+const FLOW_COUNT_STOPS = [
+  { count: 0, colorIndex: 0 },
+  { count: 100, colorIndex: 1 },
+  { count: 500, colorIndex: 2 },
+  { count: 1000, colorIndex: 3 },
+  { count: 2000, colorIndex: 4 },
+  { count: 5000, colorIndex: 5 },
+  { count: 10000, colorIndex: 6 },
+] as const;
+
+const FLOW_ALPHA_PROFILE = {
+  center: 0.1,
+  mid: 0.3,
+  edge: 0.74,
+  glowCenter: 0.015,
+  glowMid: 0.06,
+  glowEdge: 0.14,
+} as const;
+
+const FLOW_SEGMENT_COUNT = 7;
+const FLOW_ALPHA_MIDPOINT = 0.45;
+
+function buildCountColorExpression(colors: readonly string[]): ExpressionSpecification {
+  return [
+    'interpolate',
+    ['linear'],
+    ['get', 'count'],
+    ...FLOW_COUNT_STOPS.flatMap(({ count, colorIndex }) => [count, colors[colorIndex]]),
+  ] as ExpressionSpecification;
+}
+
+function interpolateValue(start: number, end: number, progress: number): number {
+  return start + (end - start) * progress;
+}
+
+function getDirectionalOpacity(
+  flowDirection: 'incoming' | 'outgoing',
+  segmentMidpoint: number,
+  alphaStops: { center: number; mid: number; edge: number }
+): number {
+  const distanceFromSelected = flowDirection === 'outgoing' ? segmentMidpoint : 1 - segmentMidpoint;
+
+  if (distanceFromSelected <= FLOW_ALPHA_MIDPOINT) {
+    return interpolateValue(
+      alphaStops.center,
+      alphaStops.mid,
+      distanceFromSelected / FLOW_ALPHA_MIDPOINT
+    );
+  }
+
+  return interpolateValue(
+    alphaStops.mid,
+    alphaStops.edge,
+    (distanceFromSelected - FLOW_ALPHA_MIDPOINT) / (1 - FLOW_ALPHA_MIDPOINT)
+  );
+}
+
+function interpolateCoordinate(
+  start: [number, number],
+  end: [number, number],
+  progress: number
+): [number, number] {
+  return [
+    interpolateValue(start[0], end[0], progress),
+    interpolateValue(start[1], end[1], progress),
+  ];
+}
+
+function buildSegmentedFlowFeatures(
+  features: FlowFeature[],
+  flowDirection: 'incoming' | 'outgoing'
+): GeoJSON.Feature<GeoJSON.LineString>[] {
+  return features.flatMap((feature) => {
+    const start = feature.geometry.coordinates[0];
+    const end = feature.geometry.coordinates[feature.geometry.coordinates.length - 1];
+
+    if (!start || !end) {
+      return [];
+    }
+
+    return Array.from({ length: FLOW_SEGMENT_COUNT }, (_, index) => {
+      const segmentStartProgress = index / FLOW_SEGMENT_COUNT;
+      const segmentEndProgress = (index + 1) / FLOW_SEGMENT_COUNT;
+      const segmentMidpoint = (segmentStartProgress + segmentEndProgress) / 2;
+
+      return {
+        type: 'Feature',
+        properties: {
+          ...feature.properties,
+          segment_opacity: getDirectionalOpacity(flowDirection, segmentMidpoint, {
+            center: FLOW_ALPHA_PROFILE.center,
+            mid: FLOW_ALPHA_PROFILE.mid,
+            edge: FLOW_ALPHA_PROFILE.edge,
+          }),
+          segment_glow_opacity: getDirectionalOpacity(flowDirection, segmentMidpoint, {
+            center: FLOW_ALPHA_PROFILE.glowCenter,
+            mid: FLOW_ALPHA_PROFILE.glowMid,
+            edge: FLOW_ALPHA_PROFILE.glowEdge,
+          }),
+        },
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            interpolateCoordinate(start, end, segmentStartProgress),
+            interpolateCoordinate(start, end, segmentEndProgress),
+          ],
+        },
+      };
+    });
+  });
 }
 
 interface FlowsVisualizationProps {
@@ -88,6 +202,12 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
 
   const previousSelectedCode = useRef<string | null>(null);
   const latestRequestIdRef = useRef(0);
+  const latestRenderMetricKeyRef = useRef<string | null>(null);
+
+  const filtersActive = useMemo(
+    () => hasActiveDemographicFilters(demographicFilters, datasetProfile.demographicDimensions),
+    [demographicFilters, datasetProfile.demographicDimensions]
+  );
 
   useEffect(() => {
     if (selectedCode !== previousSelectedCode.current) {
@@ -113,11 +233,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       setLoading(true);
 
       try {
-        const hasFilters = hasActiveDemographicFilters(
-          demographicFilters,
-          datasetProfile.demographicDimensions
-        );
-        const data = hasFilters
+        const data = filtersActive
           ? await loadFlowsFiltered(areaCode, flowDirection, 50000, geographyLevel, demographicFilters)
           : await loadFlows(areaCode, flowDirection, 50000, geographyLevel);
 
@@ -143,7 +259,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
         latestRequestIdRef.current += 1;
       }
     };
-  }, [datasetProfile.demographicDimensions, demographicFilters, flowDirection, geographyLevel, selectedCode]);
+  }, [demographicFilters, filtersActive, flowDirection, geographyLevel, selectedCode]);
 
   const baseRelevantFlows = useMemo(() => {
     if (!selectedCode || flowsData.length === 0) return [];
@@ -186,6 +302,54 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
     };
   }, [filteredFlows]);
 
+  useEffect(() => {
+    if (!selectedCode || loading) {
+      return;
+    }
+
+    const renderedTotal = stats?.total ?? 0;
+    const renderMetricKey = [
+      selectedCode,
+      geographyLevel,
+      flowDirection,
+      filtersActive ? 'filters' : 'nofilters',
+      minCount,
+      maxFlows,
+      totalAvailableFlows,
+      filteredFlows.length,
+      renderedTotal,
+    ].join('|');
+
+    if (latestRenderMetricKeyRef.current === renderMetricKey) {
+      return;
+    }
+
+    latestRenderMetricKeyRef.current = renderMetricKey;
+
+    recordFlowRenderSample({
+      areaCode: selectedCode,
+      dataSource: geographyLevel,
+      direction: flowDirection,
+      filtersActive,
+      minCount,
+      maxFlows,
+      availableCount: totalAvailableFlows,
+      renderedCount: filteredFlows.length,
+      renderedTotal,
+    });
+  }, [
+    filteredFlows.length,
+    filtersActive,
+    flowDirection,
+    geographyLevel,
+    loading,
+    maxFlows,
+    minCount,
+    selectedCode,
+    stats,
+    totalAvailableFlows,
+  ]);
+
   const maxPeopleCount = useMemo(() => {
     const topFlows = baseRelevantFlows.slice(0, maxFlows);
     return topFlows.length > 0
@@ -198,13 +362,9 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
 
     return {
       type: 'FeatureCollection',
-      features: filteredFlows.map((feature) => ({
-        type: 'Feature',
-        properties: feature.properties,
-        geometry: feature.geometry,
-      })),
+      features: buildSegmentedFlowFeatures(filteredFlows, flowDirection),
     };
-  }, [filteredFlows]);
+  }, [filteredFlows, flowDirection]);
 
   useEffect(() => {
     if (!selectedCode) {
@@ -269,37 +429,25 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   ]);
 
   useEffect(() => {
-    if (!onActiveConnectionsChange || !selectedCode || !flowsGeoJSON) {
+    if (!onActiveConnectionsChange || !selectedCode || filteredFlows.length === 0) {
       onActiveConnectionsChange?.([]);
       return;
     }
 
     const connectedCodes = Array.from(
       new Set(
-        flowsGeoJSON.features
-          .map((feature) => getConnectedAreaCode(feature as FlowFeature, selectedCode, flowDirection))
+        filteredFlows
+          .map((feature) => getConnectedAreaCode(feature, selectedCode, flowDirection))
           .filter((code): code is string => Boolean(code))
       )
     );
 
     onActiveConnectionsChange(connectedCodes);
-  }, [onActiveConnectionsChange, selectedCode, flowDirection, flowsGeoJSON]);
-
-  if (loading || !isVisible || !selectedCode || !flowsGeoJSON || !stats) {
-    if (selectedCode) {
-      console.log('[FlowsVisualization] Render interrompido:', {
-        selectedCode,
-        loading,
-        isVisible,
-        hasGeoJSON: Boolean(flowsGeoJSON),
-        hasStats: Boolean(stats),
-        filteredFlows: filteredFlows.length,
-      });
-    }
-    return null;
-  }
+  }, [filteredFlows, onActiveConnectionsChange, selectedCode, flowDirection]);
 
   const flowColors = MAP_COLORS.flows.legend;
+  const lineColorExpression = useMemo(() => buildCountColorExpression(flowColors), [flowColors]);
+  const glowColorExpression = useMemo(() => buildCountColorExpression(flowColors), [flowColors]);
   const isCompactUI = !isFullscreen;
   const overlayPanelWidth = isCompactUI ? 240 : 280;
   const bottomOverlayContainerClass = isCompactUI
@@ -314,6 +462,20 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
           ? 'Saldo'
           : 'Total';
   const intensityCardTitle = showMobilityIntensity ? 'Intensidades' : 'Intensidade';
+
+  if (loading || !isVisible || !selectedCode || !flowsGeoJSON || !stats) {
+    if (selectedCode) {
+      console.log('[FlowsVisualization] Render interrompido:', {
+        selectedCode,
+        loading,
+        isVisible,
+        hasGeoJSON: Boolean(flowsGeoJSON),
+        hasStats: Boolean(stats),
+        filteredFlows: filteredFlows.length,
+      });
+    }
+    return null;
+  }
 
   return (
     <>
@@ -458,18 +620,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
           id={`${geographyLevel}-flow-lines`}
           type="line"
           paint={{
-            'line-color': [
-              'interpolate',
-              ['linear'],
-              ['get', 'count'],
-              0, flowColors[0],
-              100, flowColors[1],
-              500, flowColors[2],
-              1000, flowColors[3],
-              2000, flowColors[4],
-              5000, flowColors[5],
-              10000, flowColors[6],
-            ],
+            'line-color': lineColorExpression,
             'line-width': [
               'interpolate',
               ['linear'],
@@ -480,7 +631,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
               2000, 3.4,
               5000, 5,
             ],
-            'line-opacity': MAP_COLORS.flows.lineOpacity,
+            'line-opacity': ['get', 'segment_opacity'],
           }}
         />
 
@@ -488,16 +639,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
           id={`${geographyLevel}-flow-glow`}
           type="line"
           paint={{
-            'line-color': [
-              'interpolate',
-              ['linear'],
-              ['get', 'count'],
-              0, flowColors[1],
-              500, flowColors[2],
-              1000, flowColors[3],
-              2000, flowColors[4],
-              5000, flowColors[5],
-            ],
+            'line-color': glowColorExpression,
             'line-width': [
               'interpolate',
               ['linear'],
@@ -508,8 +650,8 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
               2000, 6,
               5000, 8,
             ],
-            'line-opacity': MAP_COLORS.flows.glowOpacity,
-            'line-blur': MAP_COLORS.flows.glowBlur,
+            'line-opacity': ['get', 'segment_glow_opacity'],
+            'line-blur': 3.5,
           }}
         />
       </Source>
