@@ -451,8 +451,8 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   const isCompactUI = !isFullscreen;
   const overlayPanelWidth = isCompactUI ? 240 : 280;
   const bottomOverlayContainerClass = isCompactUI
-    ? 'absolute bottom-4 left-3 right-3 z-10 flex items-end justify-between gap-2'
-    : 'absolute bottom-6 left-4 right-4 z-10 flex items-end justify-between gap-4';
+    ? 'pointer-events-none absolute bottom-4 left-3 right-3 z-10 flex items-end justify-between gap-2'
+    : 'pointer-events-none absolute bottom-6 left-4 right-4 z-10 flex items-end justify-between gap-4';
   const mobilityMetricLabel =
     mobilityIntensityMetric === 'incoming'
       ? 'Entrada'
@@ -497,7 +497,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
 
       <div className={bottomOverlayContainerClass}>
         <div
-          className={`border border-slate-200 bg-white/92 shadow-lg shadow-slate-950/10 backdrop-blur-md ${
+          className={`pointer-events-auto border border-slate-200 bg-white/92 shadow-lg shadow-slate-950/10 backdrop-blur-md ${
             isCompactUI ? 'rounded-lg p-2.5' : 'rounded-xl p-3'
           }`}
           style={{ width: overlayPanelWidth }}
@@ -541,7 +541,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
         </div>
 
         <div
-          className={`border border-slate-200 bg-white/92 shadow-lg shadow-slate-950/10 backdrop-blur-md ${
+          className={`pointer-events-auto border border-slate-200 bg-white/92 shadow-lg shadow-slate-950/10 backdrop-blur-md ${
             isCompactUI ? 'rounded-lg p-2.5' : 'ml-auto rounded-xl p-3'
           }`}
           style={{ width: overlayPanelWidth }}
