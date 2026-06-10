@@ -404,7 +404,7 @@ const importedDatasetProfilesById = Object.values(datasetProfileModules).reduce(
   {} as Record<string, DatasetProfileSource>
 );
 
-if (Object.keys(importedDatasetProfilesById).length === 0 && typeof console !== 'undefined') {
+if (import.meta.env.DEV && Object.keys(importedDatasetProfilesById).length === 0 && typeof console !== 'undefined') {
   console.warn(
     '[datasetProfiles] Nenhum perfil JSON foi carregado em src/dataset-configs. Usando perfis embutidos; verifique se os arquivos foram commitados antes do deploy.'
   );

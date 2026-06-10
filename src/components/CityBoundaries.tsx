@@ -168,9 +168,11 @@ const augmentMissingLTLABoundaries = async (
     return ltlaBoundaries;
   }
 
-  console.warn(
-    `LTLA boundaries faltantes detectadas: adicionando ${fallbackFeatures.length} features de fallback MSOA`
-  );
+  if (import.meta.env.DEV) {
+    console.warn(
+      `LTLA boundaries faltantes detectadas: adicionando ${fallbackFeatures.length} features de fallback MSOA`
+    );
+  }
 
   return {
     ...ltlaBoundaries,
