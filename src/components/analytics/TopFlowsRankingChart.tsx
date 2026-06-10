@@ -207,9 +207,23 @@ export function TopFlowsRankingChart({
       </div>
 
       <ResponsiveContainer width="100%" height={chartHeight}>
-        <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 0, left: 0, bottom: 4 }}>
+        <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 0, left: 0, bottom: 28 }}>
           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
-          <XAxis type="number" hide />
+          <XAxis
+            type="number"
+            tickFormatter={(value) => Number(value).toLocaleString('pt-BR')}
+            tick={{ fill: '#64748B', fontSize: 11 }}
+            tickLine={false}
+            axisLine={{ stroke: '#CBD5E1' }}
+            label={{
+              value: 'Pessoas',
+              position: 'insideBottom',
+              offset: -18,
+              fill: '#475569',
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          />
           <YAxis
             type="category"
             dataKey="routeLabel"
