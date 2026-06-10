@@ -38,7 +38,6 @@ export const LTLAIncomingFlows: React.FC<LTLAIncomingFlowsProps> = ({
       .then(data => {
         setFlowsData(data.features || []);
         setLoading(false);
-        console.log('✅ Fluxos LTLA carregados:', data.features?.length || 0);
       })
       .catch(err => {
         console.error('❌ Erro ao carregar fluxos LTLA:', err);
@@ -74,12 +73,6 @@ export const LTLAIncomingFlows: React.FC<LTLAIncomingFlowsProps> = ({
     const minFlow = Math.min(...counts);
     const avgFlow = totalFlow / counts.length;
     
-    const directionText = flowDirection === 'incoming' ? 'chegando em' : 'saindo de';
-    console.log(`✅ ${filteredFlows.length} fluxos ${directionText} ${selectedLTLA}`);
-    console.log(`📊 Total de pessoas: ${totalFlow.toLocaleString('pt-BR')}`);
-    console.log(`📈 Fluxo máximo: ${maxFlow.toLocaleString('pt-BR')}`);
-    console.log(`📉 Fluxo mínimo: ${minFlow.toLocaleString('pt-BR')}`);
-
     return {
       incomingFlowsGeoJSON: {
         type: 'FeatureCollection' as const,

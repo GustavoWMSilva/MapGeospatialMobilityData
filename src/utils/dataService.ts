@@ -103,7 +103,6 @@ async function loadCoordinates(): Promise<Coordinates> {
     const lines = text.split('\n');
 
     const coords: Coordinates = {};
-    let invalidCoordinateRows = 0;
 
     // Pular header
     for (let i = 1; i < lines.length; i++) {
@@ -118,7 +117,6 @@ async function loadCoordinates(): Promise<Coordinates> {
         const lon = parseFloat(parts[3]);
 
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-          invalidCoordinateRows += 1;
           continue;
         }
 
@@ -127,9 +125,6 @@ async function loadCoordinates(): Promise<Coordinates> {
     }
 
     coordinatesCache = coords;
-    console.log(
-      `[dataService] Coordenadas base carregadas: ${Object.keys(coords).length} validas, ${invalidCoordinateRows} invalidas`
-    );
     return coords;
   } catch (error) {
     console.error('Erro ao carregar coordenadas:', error);
@@ -175,14 +170,9 @@ export async function loadFlowsFiltered(
     return loadFlows(areaCode, direction, limit, geographyLevel);
   }
 
-  console.log(`?? Carregando flows filtrados - filtros:`, filters, `GeographyLevel: ${geographyLevel}`);
-
   const flows: FlowResult[] = await getMSOAFlowsByDemographicFilters(areaCode, filters, direction, limit);
 
-  console.log(`?? Flows MSOA carregados: ${flows.length}`);
-
   if (geographyLevel === 'aggregate') {
-    console.log(`?? Agregando ${flows.length} flows MSOA para LTLA...`);
     
     const lookup = await loadLTLALookup();
     const ltlaCoords = await loadLTLACoordinates();
@@ -200,8 +190,6 @@ export async function loadFlowsFiltered(
       const currentCount = aggregation.get(key) || 0;
       aggregation.set(key, currentCount + flow.count);
     });
-
-    console.log(`Agregados ${flows.length} flows MSOA -> ${aggregation.size} flows LTLA únicos`);
 
     // Converter agregação para features GeoJSON
     const features = Array.from(aggregation.entries())
@@ -232,9 +220,7 @@ export async function loadFlowsFiltered(
       })
       .filter((f): f is NonNullable<typeof f> => f !== null)
       .sort((a, b) => b.properties.count - a.properties.count)
-      .slice(0, limit); // Aplicar limite após agregação
-
-    console.log(`? Criados ${features.length} features GeoJSON LTLA filtrados`);
+      .slice(0, limit);
 
     recordLatency({
       startMs: requestStartMs,
@@ -298,10 +284,6 @@ export async function loadFlowsFiltered(
         },
         };
       });
-
-  console.log(
-    `[dataService] MSOA filtrado ${areaCode} (${direction}): ${flows.length} flows recebidos, ${features.length} features validas, ${flows.length - features.length} descartados por coordenada`
-  );
   if (missingCoordinateSamples.length > 0) {
     console.warn('[dataService] Exemplos de flows descartados (filtros):', missingCoordinateSamples);
   }
@@ -335,7 +317,6 @@ async function loadFlowsFromAPI(
 
   try {
     const url = `http://localhost:5000/api/flows/${areaCode}?direction=${direction}&limit=${limit}`;
-    console.log(`?? Carregando da API: ${url}`);
     
     const response = await fetch(url);
     if (!response.ok) {
@@ -343,7 +324,6 @@ async function loadFlowsFromAPI(
     }
     
     const data = await response.json();
-    console.log(`Carregados ${data.features?.length || 0} flows da API`);
 
     recordLatency({
       startMs: requestStartMs,
@@ -375,7 +355,6 @@ async function loadFlowsFromDuckDB(
   const requestStartMs = nowMs();
 
   try {
-    console.log(`?? Carregando com DuckDB-WASM...`);
     
     // Carregar coordenadas
     const coords = await loadCoordinates();
@@ -427,10 +406,6 @@ async function loadFlowsFromDuckDB(
         };
       });
 
-    const zeroCountFlows = flows.filter((flow) => flow.count <= 0).length;
-    console.log(
-      `[dataService] MSOA base ${areaCode} (${direction}): ${flows.length} flows recebidos, ${features.length} features validas, ${flows.length - features.length} descartados por coordenada, ${zeroCountFlows} com count <= 0`
-    );
     if (missingCoordinateSamples.length > 0) {
       console.warn('[dataService] Exemplos de flows descartados (base):', missingCoordinateSamples);
     }
@@ -472,7 +447,6 @@ async function loadLTLALookup(): Promise<Map<string, string>> {
     const cached = await cacheService.get(cacheKey) as Record<string, string> | null;
     if (cached) {
       ltlaLookupCache = new Map(Object.entries(cached));
-      console.log(`Lookup MSOA->LTLA carregado do cache (${ltlaLookupCache.size} entradas)`);
       return ltlaLookupCache;
     }
 
@@ -501,7 +475,6 @@ async function loadLTLALookup(): Promise<Map<string, string>> {
     await cacheService.set(cacheKey, lookupObj);
     
     ltlaLookupCache = lookup;
-    console.log(`Carregado lookup MSOA->LTLA: ${lookup.size} entradas`);
     return lookup;
   } catch (error) {
     console.error('Erro ao carregar LTLA lookup:', error);
@@ -566,7 +539,6 @@ async function loadLTLACoordinates(): Promise<Coordinates> {
     }
     
     ltlaCoordsCache = coords;
-    console.log(`Carregadas ${Object.keys(coords).length} coordenadas LTLA do CSV atual`);
     return coords;
   } catch (error) {
     console.error('Erro ao carregar coordenadas LTLA:', error);
@@ -585,7 +557,6 @@ async function loadLTLAFlowsAggregated(
   const requestStartMs = nowMs();
 
   try {
-    console.log(`Agregando MSOA->LTLA para ${ltlaCode}...`);
     
     // Carregar lookup e coordenadas em paralelo
     const [lookup, ltlaCoords] = await Promise.all([
@@ -601,8 +572,6 @@ async function loadLTLAFlowsAggregated(
       }
     });
     
-    console.log(`Encontrados ${msoasInLTLA.length} MSOAs no LTLA ${ltlaCode}`);
-    
     if (msoasInLTLA.length === 0) {
       return { type: 'FeatureCollection', features: [] };
     }
@@ -614,8 +583,6 @@ async function loadLTLAFlowsAggregated(
       direction,
       lookup
     );
-    
-    console.log(`Agregações LTLA criadas: ${aggregatedFlows.length}`);
     
     // Converter para GeoJSON
     interface FlowFeature {
@@ -663,8 +630,6 @@ async function loadLTLAFlowsAggregated(
     // Ordenar por contagem e limitar
     features.sort((a, b) => b.properties.count - a.properties.count);
     const limitedFeatures = features.slice(0, limit);
-    
-    console.log(`Retornando ${limitedFeatures.length} flows LTLA agregados`);
     
     const result = {
       type: 'FeatureCollection',

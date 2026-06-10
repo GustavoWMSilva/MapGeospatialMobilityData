@@ -50,7 +50,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   onFlyToPoint,
   linesGeoJSON,
   animatedPointsGeoJSON,
-  mobilityDataSource = 'general',
   selectedBaseAreaCode = null,
   showBasePoints = false,
   showAggregateAreas = false,
@@ -180,28 +179,20 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         )}
 
         {showBasePoints && selectedBaseAreaCode && (
-          <>
-            {console.log('Renderizando FlowsVisualization base:', {
-              showBasePoints,
-              selectedBaseAreaCode,
-              mobilityDataSource,
-              flowDirection,
-            })}
-            <FlowsVisualization
-              selectedCode={selectedBaseAreaCode}
-              isVisible
-              flowDirection={flowDirection}
-              geographyLevel="base"
-              isFullscreen={isFullscreen}
-              datasetProfile={datasetProfile}
-              demographicFilters={demographicFilters}
-              showInternal={includeInternalFlows}
-              showMobilityIntensity={showMobilityIntensity}
-              mobilityIntensityMetric={mobilityIntensityMetric}
-              onShowInternalChange={onIncludeInternalFlowsChange}
-              onActiveConnectionsChange={setActiveConnectedAreaCodes}
-            />
-          </>
+          <FlowsVisualization
+            selectedCode={selectedBaseAreaCode}
+            isVisible
+            flowDirection={flowDirection}
+            geographyLevel="base"
+            isFullscreen={isFullscreen}
+            datasetProfile={datasetProfile}
+            demographicFilters={demographicFilters}
+            showInternal={includeInternalFlows}
+            showMobilityIntensity={showMobilityIntensity}
+            mobilityIntensityMetric={mobilityIntensityMetric}
+            onShowInternalChange={onIncludeInternalFlowsChange}
+            onActiveConnectionsChange={setActiveConnectedAreaCodes}
+          />
         )}
 
         {showAggregateAreas && (

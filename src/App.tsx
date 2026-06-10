@@ -88,11 +88,8 @@ export default function App() {
     const preinitDB = async () => {
       try {
         const { initDuckDB, warmUpDuckDB } = await import('./utils/duckdb');
-        console.log('Pre-inicializando DuckDB...');
         await initDuckDB();
-        console.log('Aquecendo DuckDB...');
         await warmUpDuckDB();
-        console.log('DuckDB pre-inicializado e aquecido!');
       } catch (err) {
         console.warn('Erro ao pre-inicializar DuckDB:', err);
       }
@@ -264,8 +261,6 @@ export default function App() {
   ]);
 
   const handleMapClick = useCallback((event: MapClickEvent) => {
-    const { lng, lat } = event.lngLat;
-
     if (mapRef.current && event.features && event.features.length > 0) {
       const feature = event.features[0];
 
@@ -276,7 +271,6 @@ export default function App() {
       ) {
         const aggregateAreaCode = String(feature.properties.code || '');
         const aggregateAreaName = String(feature.properties.name || '');
-        console.log(`${ACTIVE_DATASET_PROFILE.labels.aggregate.singular} selecionado:`, aggregateAreaName, aggregateAreaCode);
         setSelectedAggregateAreaCode(aggregateAreaCode);
         setSelectedAggregateAreaName(aggregateAreaName);
         selectBaseArea(null);
@@ -287,7 +281,6 @@ export default function App() {
       if (feature.layer.id === 'aggregate-boundaries-clickable') {
         const aggregateAreaCode = String(feature.properties.ltla_code || feature.properties.code || '');
         const aggregateAreaName = String(feature.properties.ltla_name || feature.properties.name || '');
-        console.log(`Limite de ${ACTIVE_DATASET_PROFILE.labels.aggregate.singular} clicado:`, aggregateAreaName, aggregateAreaCode);
         setSelectedAggregateAreaCode(aggregateAreaCode);
         setSelectedAggregateAreaName(aggregateAreaName);
         selectBaseArea(null);
@@ -298,7 +291,6 @@ export default function App() {
       if (feature.layer.id === 'all-area-points-layer') {
         const baseAreaCode = String(feature.properties.code || '');
         const baseAreaName = String(feature.properties.name || '');
-        console.log(`${ACTIVE_DATASET_PROFILE.labels.base.singular} selecionada:`, baseAreaName, baseAreaCode);
         selectBaseArea(baseAreaCode);
         setSelectedBaseAreaName(baseAreaName);
         setSelectedAggregateAreaCode(null);
@@ -314,7 +306,6 @@ export default function App() {
           ''
         );
         const baseAreaName = String(feature.properties.MSOA21NM || feature.properties.name || '');
-        console.log(`Limite de ${ACTIVE_DATASET_PROFILE.labels.base.singular} clicado:`, baseAreaName, baseAreaCode);
         selectBaseArea(baseAreaCode);
         setSelectedBaseAreaName(baseAreaName);
         setSelectedAggregateAreaCode(null);
@@ -322,8 +313,6 @@ export default function App() {
         return;
       }
     }
-
-    console.log('Clicou em:', { longitude: lng, latitude: lat });
   }, [selectBaseArea]);
 
   const selectedArea =

@@ -28,7 +28,6 @@ class CacheService {
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         this.db = request.result;
-        console.log('Cache DB inicializado');
         resolve();
       };
 
@@ -66,7 +65,6 @@ class CacheService {
       const request = store.put(entry);
 
       request.onsuccess = () => {
-        console.log(`Cache salvo: ${key} (${(entry.size / 1024).toFixed(2)} KB)`);
         resolve();
       };
       request.onerror = () => reject(request.error);
@@ -88,10 +86,8 @@ class CacheService {
       request.onsuccess = () => {
         const entry = request.result as CacheEntry | undefined;
         if (entry) {
-          console.log(`Cache hit: ${key} (${(entry.size / 1024).toFixed(2)} KB)`);
           resolve(entry.data);
         } else {
-          console.log(`Cache miss: ${key}`);
           resolve(null);
         }
       };
@@ -120,7 +116,6 @@ class CacheService {
       const request = store.delete(key);
 
       request.onsuccess = () => {
-        console.log(`Cache removido: ${key}`);
         resolve();
       };
       request.onerror = () => reject(request.error);
@@ -140,7 +135,6 @@ class CacheService {
       const request = store.clear();
 
       request.onsuccess = () => {
-        console.log('Cache limpo');
         resolve();
       };
       request.onerror = () => reject(request.error);
@@ -206,9 +200,6 @@ export async function fetchWithCache(
     const cached = await cacheService.get(cacheKey);
     if (cached) return cached;
   }
-
-  // Fazer fetch
-  console.log(`Baixando: ${url}`);
   const response = await fetch(url);
   
   if (!response.ok) {

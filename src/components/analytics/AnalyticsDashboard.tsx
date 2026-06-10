@@ -113,6 +113,10 @@ export function AnalyticsDashboard({
     datasetProfile.demographicDimensions
   );
   const supportsLegacyAnalytics = datasetProfile.analyticsMode === 'uk-legacy';
+  const isLocalRuntime =
+    import.meta.env.DEV ||
+    (typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'));
   const activeLevelLabels = getDataSourceUnitLabels(geographyLevel, datasetProfile);
   const activeUnitLabel = activeLevelLabels.singular;
   const getLevelAwareChartTitle = (title: string) => {
@@ -157,7 +161,11 @@ export function AnalyticsDashboard({
     }
 
     if (chartId === 'aggregationScatter') {
-      return geographyLevel === 'aggregate' && (supportsLegacyAnalytics || Boolean(chartConfig.params?.referencePath));
+      return (
+        isLocalRuntime &&
+        geographyLevel === 'aggregate' &&
+        (supportsLegacyAnalytics || Boolean(chartConfig.params?.referencePath))
+      );
     }
 
     return supportsLegacyAnalytics && geographyLevel === 'aggregate';

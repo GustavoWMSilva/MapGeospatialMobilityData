@@ -37,10 +37,6 @@ export const MobilityFlows: React.FC<MobilityFlowsProps> = ({
           return start[0] !== end[0] || start[1] !== end[1];
         });
         
-        console.log('📊 Total de features:', data.features.length);
-        console.log('📍 Features com origem≠destino:', filteredFeatures.length);
-        console.log('🗑️ Features filtradas (mesmo local):', data.features.length - filteredFeatures.length);
-        
         const filteredData = {
           ...data,
           features: filteredFeatures
@@ -48,7 +44,6 @@ export const MobilityFlows: React.FC<MobilityFlowsProps> = ({
         
         setFlowsData(filteredData);
         setLoading(false);
-        console.log('✅ Fluxos de mobilidade carregados:', filteredFeatures.length, 'linhas visíveis');
       })
       .catch(err => {
         console.error('❌ Erro ao carregar fluxos:', err);
@@ -58,10 +53,6 @@ export const MobilityFlows: React.FC<MobilityFlowsProps> = ({
   }, [dataSource]);
 
   if (loading || error || !flowsData || !isVisible) {
-    if (loading) console.log('⏳ Carregando dados de mobilidade...');
-    if (error) console.log('❌ Erro:', error);
-    if (!flowsData) console.log('⚠️ Sem dados de fluxo');
-    if (!isVisible) console.log('👁️ Camada invisível');
     return null;
   }
 

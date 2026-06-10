@@ -379,68 +379,6 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   }, [filteredFlows, flowDirection]);
 
   useEffect(() => {
-    if (!selectedCode) {
-      return;
-    }
-
-    const zeroOrNegativeCount = baseRelevantFlows.filter((feature) => feature.properties.count <= 0).length;
-    const invalidGeometryCount = filteredFlows.filter((feature) => {
-      const [origin, dest] = feature.geometry.coordinates;
-
-      return (
-        !origin ||
-        !dest ||
-        !Number.isFinite(origin[0]) ||
-        !Number.isFinite(origin[1]) ||
-        !Number.isFinite(dest[0]) ||
-        !Number.isFinite(dest[1])
-      );
-    }).length;
-
-    console.log('[FlowsVisualization] Estado dos fluxos:', {
-      geographyLevel,
-      selectedCode,
-      flowDirection,
-      minCount,
-      maxFlows,
-      loading,
-      flowsData: flowsData.length,
-      baseRelevantFlows: baseRelevantFlows.length,
-      filteredFlows: filteredFlows.length,
-      statsCount: stats?.count ?? 0,
-      statsMin: stats?.min ?? null,
-      statsMax: stats?.max ?? null,
-      zeroOrNegativeCount,
-      invalidGeometryCount,
-      hasGeoJSON: Boolean(flowsGeoJSON),
-    });
-
-    if (filteredFlows.length > 0) {
-      console.log(
-        '[FlowsVisualization] Primeiros flows visiveis:',
-        filteredFlows.slice(0, 5).map((feature) => ({
-          origin: feature.properties.origin_code,
-          dest: feature.properties.dest_code,
-          count: feature.properties.count,
-          coordinates: feature.geometry.coordinates,
-        }))
-      );
-    }
-  }, [
-    baseRelevantFlows,
-    filteredFlows,
-    flowDirection,
-    flowsData,
-    flowsGeoJSON,
-    geographyLevel,
-    loading,
-    maxFlows,
-    minCount,
-    selectedCode,
-    stats,
-  ]);
-
-  useEffect(() => {
     if (!onActiveConnectionsChange || !selectedCode || filteredFlows.length === 0) {
       onActiveConnectionsChange?.([]);
       return;
@@ -476,16 +414,6 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   const intensityCardTitle = showMobilityIntensity ? 'Intensidades' : 'Intensidade';
 
   if (loading || !isVisible || !selectedCode || !flowsGeoJSON || !stats) {
-    if (selectedCode) {
-      console.log('[FlowsVisualization] Render interrompido:', {
-        selectedCode,
-        loading,
-        isVisible,
-        hasGeoJSON: Boolean(flowsGeoJSON),
-        hasStats: Boolean(stats),
-        filteredFlows: filteredFlows.length,
-      });
-    }
     return null;
   }
 

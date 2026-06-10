@@ -29,10 +29,8 @@ let ltlaLookupTableReady = false;
 let baseLookupTableReady = false;
 const isDevMode = import.meta.env.DEV;
 
-function debugLog(...args: unknown[]) {
-  if (isDevMode) {
-    console.log(...args);
-  }
+function debugLog(..._args: unknown[]) {
+  return;
 }
 
 function debugWarn(...args: unknown[]) {
@@ -85,7 +83,6 @@ export async function initDuckDB(): Promise<void> {
 
   initPromise = (async () => {
     try {
-      console.log('?? Inicializando DuckDB-WASM...');
 
       // Buscar bundles do CDN
       const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
@@ -117,16 +114,9 @@ export async function initDuckDB(): Promise<void> {
         ? ACTIVE_DATASET_PROFILE.storage.remoteBaseUrl
         : ACTIVE_DATASET_PROFILE.storage.localProcessedBasePath;
 
-      console.log(
-        remoteDatasetReady
-          ? `?? Usando fonte remota do dataset ${ACTIVE_DATASET_PROFILE.label}`
-          : `?? Usando fallback local do dataset ${ACTIVE_DATASET_PROFILE.label}`
-      );
-
       // Função auxiliar para carregar dataset
       async function loadDataset(filename: string, tableName: string, optional: boolean = false) {
         const url = baseUrl + filename;
-        console.log(`?? Baixando ${filename}...`);
         
         try {
           const response = await fetch(url);
@@ -140,8 +130,6 @@ export async function initDuckDB(): Promise<void> {
 
           const arrayBuffer = await response.arrayBuffer();
           const uint8Array = new Uint8Array(arrayBuffer);
-          
-          console.log(`   ? ${filename}: ${(uint8Array.length / 1024 / 1024).toFixed(1)} MB`);
 
           await db!.registerFileBuffer(filename, uint8Array);
           await conn!.query(`
@@ -149,9 +137,6 @@ export async function initDuckDB(): Promise<void> {
             SELECT * FROM read_parquet('${filename}')
           `);
 
-          const count = await conn!.query(`SELECT COUNT(*) as total FROM ${tableName}`);
-          const total = count.toArray()[0].total;
-          console.log(`   ? Tabela ${tableName}: ${total.toLocaleString('pt-BR')} registros`);
           return true;
         } catch (error) {
           if (optional) {
@@ -161,28 +146,19 @@ export async function initDuckDB(): Promise<void> {
           throw error;
         }
       }
-
-      // Carregar todos os datasets
-      console.log('\n?? Carregando datasets...');
       await loadDataset(
         ACTIVE_DATASET_PROFILE.baseFlowDataset.fileName,
         ACTIVE_DATASET_PROFILE.baseFlowDataset.tableName,
         !ACTIVE_DATASET_PROFILE.baseFlowDataset.required
       );
 
-      let loadedCount = 1;
       for (const dimension of ACTIVE_DATASET_PROFILE.demographicDimensions) {
-        const loaded = await loadDataset(
+        await loadDataset(
           dimension.dataset.fileName,
           dimension.dataset.tableName,
           !dimension.dataset.required
         );
-        if (loaded) {
-          loadedCount += 1;
-        }
       }
-
-      console.log(`\n? DuckDB-WASM inicializado com ${loadedCount} dataset(s)!`);
       initialized = true;
     } catch (error) {
       console.error('Erro ao inicializar DuckDB:', error);
@@ -579,8 +555,6 @@ export async function getMSOAFlows(
 
   const filterCol = direction === 'incoming' ? 'dest_code' : 'origin_code';
 
-  console.log(`Carregando ${limit} flows ${direction} para ${areaCode}...`);
-
   try {
     // Query SQL na tabela já carregada em memória
     const query = `
@@ -600,8 +574,6 @@ export async function getMSOAFlows(
       dest_code: row.dest_code,
       count: Number(row.count),
     }));
-
-    console.log(`Carregados ${data.length} flows`);
     return data;
   } catch (error) {
     console.error('Erro ao carregar flows:', error);
@@ -728,8 +700,6 @@ export async function aggregateMSOAToLTLAFlows(
   const msoaList = msoaCodes.map(code => `'${code}'`).join(',');
   const internalFlowCondition = getInternalFlowCondition(includeInternalFlows);
 
-  console.log(`?? Agregando ${msoaCodes.length} MSOAs para LTLA (SEM LIMIT - métricas precisas)...`);
-
   try {
     // Query única que pega TODOS os flows dos MSOAs de interesse (sem limit)
     const query = `
@@ -745,8 +715,6 @@ export async function aggregateMSOAToLTLAFlows(
 
     const result = await conn.query(query);
     const flows = result.toArray();
-
-    console.log(`Query retornou ${flows.length} flows MSOA`);
 
     // Agregar por LTLA em memória (rápido)
     const ltlaAggregation = new Map<string, number>();
@@ -768,8 +736,6 @@ export async function aggregateMSOAToLTLAFlows(
         return { originLTLA, destLTLA, count };
       })
       .sort((a, b) => b.count - a.count);
-
-    console.log(`Agregados ${aggregated.length} flows LTLA únicos`);
 
     return aggregated;
   } catch (error) {
@@ -2442,5 +2408,4 @@ export async function closeDuckDB(): Promise<void> {
   initPromise = null;
   warmupPromise = null;
   ltlaLookupTableReady = false;
-  console.log('DuckDB fechado');
 }

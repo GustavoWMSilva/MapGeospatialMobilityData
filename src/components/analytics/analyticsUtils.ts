@@ -1,9 +1,7 @@
 export const isDevMode = import.meta.env.DEV;
 
-export function debugLog(...args: unknown[]) {
-  if (isDevMode) {
-    console.log(...args);
-  }
+export function debugLog(..._args: unknown[]) {
+  return;
 }
 
 export function debugWarn(...args: unknown[]) {

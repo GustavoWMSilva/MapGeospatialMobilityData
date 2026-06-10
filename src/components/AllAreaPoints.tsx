@@ -85,7 +85,6 @@ export const AllAreaPoints: React.FC<AllAreaPointsProps> = ({
 
         setCentroidsGeoJSON(geojson);
         setLoading(false);
-        console.log('✅ Pontos de áreas carregados:', features.length);
       })
       .catch(err => {
         console.error('❌ Erro ao carregar pontos:', err);

@@ -398,11 +398,6 @@ export const CityBoundaries: React.FC<CityBoundariesProps> = ({
         }
 
         setBoundariesData(geojson);
-        console.log(
-          `Boundaries ${geographyLevel.toUpperCase()} carregadas:`,
-          geojson.features?.length || 0,
-          'áreas'
-        );
       } catch {
         // Falha silenciosa - boundaries são opcionais
       } finally {

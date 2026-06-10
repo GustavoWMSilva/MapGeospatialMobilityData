@@ -2,8 +2,6 @@ const fs = require('fs');
 const csvText = fs.readFileSync('public/data/lookup/ltla_centroids.csv', 'utf8');
 const lines = csvText.split('\n');
 
-console.log('Total de linhas (incluindo header):', lines.length);
-
 const problematicas = [];
 lines.slice(1).forEach((line, idx) => {
   if (!line.trim()) return;
@@ -26,6 +24,3 @@ lines.slice(1).forEach((line, idx) => {
     });
   }
 });
-
-console.log('\nLinhas problemáticas:', problematicas.length);
-console.log(JSON.stringify(problematicas, null, 2));

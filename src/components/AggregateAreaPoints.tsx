@@ -91,7 +91,6 @@ export const AggregateAreaPoints: React.FC<AggregateAreaPointsProps> = ({
           features,
         });
         setLoading(false);
-        console.log('Pontos agregados carregados:', features.length);
       })
       .catch((error) => {
         console.error('Erro ao carregar areas agregadas:', error);
