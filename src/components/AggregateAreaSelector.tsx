@@ -11,12 +11,14 @@ interface AggregateAreaSelectorProps {
   selectedAggregateAreaCode: string | null;
   onSelectAggregateArea: (areaCode: string, areaName: string) => void;
   onClearSelection: () => void;
+  searchInputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
 export const AggregateAreaSelector: React.FC<AggregateAreaSelectorProps> = ({
   selectedAggregateAreaCode,
   onSelectAggregateArea,
-  onClearSelection
+  onClearSelection,
+  searchInputRef,
 }) => {
   const [aggregateAreas, setAggregateAreas] = useState<LTLAOption[]>([]);
   const [filteredAggregateAreas, setFilteredAggregateAreas] = useState<LTLAOption[]>([]);
@@ -118,6 +120,7 @@ export const AggregateAreaSelector: React.FC<AggregateAreaSelectorProps> = ({
         <div className="relative">
           <div className="relative">
             <input
+              ref={searchInputRef}
               type="text"
               placeholder={aggregateLabels.searchPlaceholder}
               className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-9 text-sm text-slate-800 placeholder-slate-400 transition-all focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"

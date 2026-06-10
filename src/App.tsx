@@ -26,6 +26,31 @@ const DEFAULT_VIEW_STATE: ViewState = {
 };
 
 const DATASET_TOGGLE_OPTIONS = getDatasetToggleOptions();
+const SHORTCUTS = [
+  { key: 'S', description: 'Focar busca/selecionar area' },
+  { key: 'G', description: 'Alternar nivel geografico' },
+  { key: 'D', description: 'Alternar direcao entrada/saida' },
+  { key: 'I', description: 'Incluir/remover fluxos internos' },
+  { key: 'H', description: 'Ativar/desativar mapa de calor' },
+  { key: 'M', description: 'Alternar tela cheia do mapa' },
+  { key: 'C', description: 'Limpar selecao atual' },
+  { key: 'F', description: 'Minimizar/expandir painel de fluxos' },
+  { key: 'R', description: 'Resetar filtros demograficos' },
+  { key: '?', description: 'Mostrar/ocultar esta ajuda' },
+] as const;
+
+function isEditableShortcutTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return (
+    target.isContentEditable ||
+    target.tagName === 'INPUT' ||
+    target.tagName === 'SELECT' ||
+    target.tagName === 'TEXTAREA'
+  );
+}
 
 interface MapClickEvent {
   lngLat: { lng: number; lat: number };
@@ -50,11 +75,14 @@ export default function App() {
   const [includeInternalFlows, setIncludeInternalFlows] = React.useState(false);
   const [showMobilityIntensity, setShowMobilityIntensity] = React.useState(false);
   const [mobilityIntensityMetric, setMobilityIntensityMetric] = React.useState<MobilityIntensityMetric>('total');
+  const [showShortcutsHelp, setShowShortcutsHelp] = React.useState(false);
   const [demographicFilters, setDemographicFilters] = React.useState<DemographicFilters>(() =>
     createInitialDemographicFilters(ACTIVE_DATASET_PROFILE)
   );
 
   const mapRef = useRef<MapRef>(null);
+  const aggregateAreaSearchRef = useRef<HTMLInputElement | null>(null);
+  const baseAreaSearchRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const preinitDB = async () => {
@@ -118,6 +146,120 @@ export default function App() {
 
     activateAggregateLevel();
   }, [activateAggregateLevel, activateBaseLevel, geographyLevel]);
+
+  const focusCurrentAreaSearch = useCallback(() => {
+    const focusInput = () => {
+      const input = geographyLevel === 'aggregate'
+        ? aggregateAreaSearchRef.current
+        : baseAreaSearchRef.current;
+
+      input?.focus();
+      input?.select();
+    };
+
+    if (isFullscreen) {
+      setIsFullscreen(false);
+      window.setTimeout(focusInput, 50);
+      return;
+    }
+
+    focusInput();
+  }, [geographyLevel, isFullscreen]);
+
+  const clearCurrentSelection = useCallback(() => {
+    if (geographyLevel === 'aggregate') {
+      setSelectedAggregateAreaCode(null);
+      setSelectedAggregateAreaName('');
+      return;
+    }
+
+    clearBaseSelection();
+    setSelectedBaseAreaName('');
+  }, [clearBaseSelection, geographyLevel]);
+
+  const resetDemographicFilters = useCallback(() => {
+    setDemographicFilters(createInitialDemographicFilters(ACTIVE_DATASET_PROFILE));
+  }, []);
+
+  useEffect(() => {
+    const handleGlobalShortcut = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) {
+        return;
+      }
+
+      if (isEditableShortcutTarget(event.target)) {
+        return;
+      }
+
+      const key = event.key === '?' ? '?' : event.key.toLowerCase();
+      let handled = true;
+
+      if (event.repeat && key !== '?') {
+        return;
+      }
+
+      switch (key) {
+        case 's':
+          focusCurrentAreaSearch();
+          break;
+        case 'g':
+          toggleGeographyLevel();
+          break;
+        case 'd':
+          setFlowDirection((current) => (current === 'incoming' ? 'outgoing' : 'incoming'));
+          break;
+        case 'i':
+          setIncludeInternalFlows((current) => !current);
+          break;
+        case 'h':
+          setShowMobilityIntensity((current) => !current);
+          break;
+        case 'm':
+          setIsFullscreen((current) => !current);
+          break;
+        case 'c':
+          clearCurrentSelection();
+          break;
+        case 'f':
+          window.dispatchEvent(new Event('mobility:toggle-flow-filters'));
+          break;
+        case 'r':
+          resetDemographicFilters();
+          break;
+        case '?':
+          setShowShortcutsHelp((current) => !current);
+          break;
+        case 'escape':
+          if (showShortcutsHelp) {
+            setShowShortcutsHelp(false);
+          } else if (isFullscreen) {
+            setIsFullscreen(false);
+          } else {
+            handled = false;
+          }
+          break;
+        default:
+          handled = false;
+      }
+
+      if (handled) {
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalShortcut);
+
+    return () => {
+      window.removeEventListener('keydown', handleGlobalShortcut);
+    };
+  }, [
+    clearCurrentSelection,
+    focusCurrentAreaSearch,
+    isFullscreen,
+    resetDemographicFilters,
+    showShortcutsHelp,
+    toggleGeographyLevel,
+  ]);
 
   const handleMapClick = useCallback((event: MapClickEvent) => {
     const { lng, lat } = event.lngLat;
@@ -310,6 +452,7 @@ export default function App() {
                 {geographyLevel === 'aggregate' ? (
                   <AggregateAreaSelector
                     selectedAggregateAreaCode={selectedAggregateAreaCode}
+                    searchInputRef={aggregateAreaSearchRef}
                     onSelectAggregateArea={(aggregateAreaCode, aggregateAreaName) => {
                       setSelectedAggregateAreaCode(aggregateAreaCode);
                       setSelectedAggregateAreaName(aggregateAreaName);
@@ -324,6 +467,7 @@ export default function App() {
                 ) : (
                   <AreaSelectionControls
                     selectedAreaCode={selectedBaseAreaCode}
+                    searchInputRef={baseAreaSearchRef}
                     onSelectArea={(code) => {
                       selectBaseArea(code);
                       setSelectedBaseAreaName('');
@@ -483,6 +627,42 @@ export default function App() {
                 : `Modo: ${ACTIVE_DATASET_PROFILE.labels.base.modeLabel}`}
             </button>
           </div>
+        </div>
+      )}
+
+      {showShortcutsHelp && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/40 px-4 backdrop-blur-sm">
+          <section className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-2xl">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Ajuda</p>
+                <h2 className="text-base font-bold text-slate-950">Atalhos do teclado</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowShortcutsHelp(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white font-bold text-slate-600 transition-colors hover:bg-slate-100"
+                title="Fechar atalhos"
+              >
+                x
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {SHORTCUTS.map((shortcut) => (
+                <div key={shortcut.key} className="flex items-center justify-between gap-4 rounded-lg bg-slate-50 px-3 py-2">
+                  <span className="text-sm font-medium text-slate-700">{shortcut.description}</span>
+                  <kbd className="min-w-8 rounded-md border border-slate-200 bg-white px-2 py-1 text-center font-mono text-xs font-bold text-slate-900 shadow-sm">
+                    {shortcut.key}
+                  </kbd>
+                </div>
+              ))}
+            </div>
+
+            <p className="mt-3 text-[11px] leading-4 text-slate-500">
+              Os atalhos ficam pausados enquanto voce digita em campos, selects ou textareas. Use Esc para fechar esta ajuda ou sair da tela cheia.
+            </p>
+          </section>
         </div>
       )}
 

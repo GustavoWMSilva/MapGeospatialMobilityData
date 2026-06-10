@@ -5,12 +5,14 @@ interface AreaSelectionControlsProps {
   selectedAreaCode: string | null;
   onSelectArea: (areaCode: string) => void;
   onClearSelection: () => void;
+  searchInputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
 export const AreaSelectionControls: React.FC<AreaSelectionControlsProps> = ({
   selectedAreaCode,
   onSelectArea,
-  onClearSelection
+  onClearSelection,
+  searchInputRef,
 }) => {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3">
@@ -23,6 +25,7 @@ export const AreaSelectionControls: React.FC<AreaSelectionControlsProps> = ({
       <div>
         <div className="flex items-center gap-2.5">
           <input
+            ref={searchInputRef}
             type="text"
             placeholder={ACTIVE_DATASET_PROFILE.labels.base.inputPlaceholder}
             className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 transition-all focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"

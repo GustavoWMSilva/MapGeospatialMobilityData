@@ -217,6 +217,18 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   }, [selectedCode]);
 
   useEffect(() => {
+    const handleToggleFlowFilters = () => {
+      setIsFiltersMinimized((current) => !current);
+    };
+
+    window.addEventListener('mobility:toggle-flow-filters', handleToggleFlowFilters);
+
+    return () => {
+      window.removeEventListener('mobility:toggle-flow-filters', handleToggleFlowFilters);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!selectedCode) {
       setFlowsData([]);
       setLoading(false);
