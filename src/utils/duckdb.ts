@@ -24,6 +24,7 @@ let db: duckdb.AsyncDuckDB | null = null;
 let conn: duckdb.AsyncDuckDBConnection | null = null;
 let initialized = false;
 let initPromise: Promise<void> | null = null;
+let warmupPromise: Promise<void> | null = null;
 let ltlaLookupTableReady = false;
 let baseLookupTableReady = false;
 const isDevMode = import.meta.env.DEV;
@@ -2399,6 +2400,33 @@ export async function executeQuery(query: string): Promise<unknown[]> {
 }
 
 /**
+ * Executa uma consulta mínima para aquecer o engine após a inicialização.
+ * Isso reduz o custo percebido da primeira interação real com o mapa.
+ */
+export async function warmUpDuckDB(): Promise<void> {
+  if (warmupPromise) {
+    return warmupPromise;
+  }
+
+  warmupPromise = (async () => {
+    await initDuckDB();
+
+    if (!conn) {
+      throw new Error('DuckDB não inicializado');
+    }
+
+    const tableName = ACTIVE_DATASET_PROFILE.baseFlowDataset.tableName;
+    await conn.query(`
+      SELECT origin_code, dest_code, count
+      FROM ${tableName}
+      LIMIT 1
+    `);
+  })();
+
+  return warmupPromise;
+}
+
+/**
  * Fechar conexão (cleanup)
  */
 export async function closeDuckDB(): Promise<void> {
@@ -2412,6 +2440,7 @@ export async function closeDuckDB(): Promise<void> {
   }
   initialized = false;
   initPromise = null;
+  warmupPromise = null;
   ltlaLookupTableReady = false;
   console.log('DuckDB fechado');
 }

@@ -87,10 +87,12 @@ export default function App() {
   useEffect(() => {
     const preinitDB = async () => {
       try {
-        const { initDuckDB } = await import('./utils/duckdb');
+        const { initDuckDB, warmUpDuckDB } = await import('./utils/duckdb');
         console.log('Pre-inicializando DuckDB...');
         await initDuckDB();
-        console.log('DuckDB pre-inicializado!');
+        console.log('Aquecendo DuckDB...');
+        await warmUpDuckDB();
+        console.log('DuckDB pre-inicializado e aquecido!');
       } catch (err) {
         console.warn('Erro ao pre-inicializar DuckDB:', err);
       }
