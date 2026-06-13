@@ -28,6 +28,52 @@ let warmupPromise: Promise<void> | null = null;
 let ltlaLookupTableReady = false;
 let baseLookupTableReady = false;
 const isDevMode = import.meta.env.DEV;
+const BASE_FLOWS_BACKUP_TABLE = '__base_flows_backup';
+let activeODSimulation: ODSimulationApplyResult | null = null;
+
+export interface ODSimulationColumnMapping {
+  originColumn: string;
+  destinationColumn: string;
+  countColumn: string;
+}
+
+export interface ODSimulationFileProfile {
+  columns: string[];
+  fileKind: 'csv' | 'parquet';
+}
+
+export interface ODSimulationApplyResult {
+  fileName: string;
+  totalRows: number;
+  loadedRows: number;
+  droppedRows: number;
+  duplicatePairsAggregated: number;
+  unmappedCodeCount: number;
+  unmappedCodeSample: string[];
+  dimensionResults?: ODSimulationDimensionApplyResult[];
+}
+
+export interface ODSimulationDimensionMapping extends ODSimulationColumnMapping {
+  categoryColumn: string;
+}
+
+export interface ODSimulationDimensionFile {
+  dimensionKey: string;
+  label: string;
+  tableName: string;
+  targetCategoryColumn: string;
+  file: File;
+  mapping: ODSimulationDimensionMapping;
+}
+
+export interface ODSimulationDimensionApplyResult {
+  dimensionKey: string;
+  label: string;
+  fileName: string;
+  totalRows: number;
+  loadedRows: number;
+  droppedRows: number;
+}
 
 function debugLog(..._args: unknown[]) {
   return;
@@ -37,6 +83,104 @@ function debugWarn(...args: unknown[]) {
   if (isDevMode) {
     console.warn(...args);
   }
+}
+
+function escapeSqlLiteral(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
+function quoteIdentifier(identifier: string): string {
+  return `"${identifier.replace(/"/g, '""')}"`;
+}
+
+function getSimulationFileKind(fileName: string): 'csv' | 'parquet' {
+  const normalizedName = fileName.toLowerCase();
+  if (normalizedName.endsWith('.parquet')) {
+    return 'parquet';
+  }
+  return 'csv';
+}
+
+function buildSimulationReadSql(fileName: string, fileKind: 'csv' | 'parquet'): string {
+  const safeFileName = escapeSqlLiteral(fileName);
+  if (fileKind === 'parquet') {
+    return `read_parquet('${safeFileName}')`;
+  }
+
+  return `read_csv_auto('${safeFileName}', HEADER = TRUE, ALL_VARCHAR = TRUE)`;
+}
+
+function buildSimulationFileName(file: File): string {
+  const safeName = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_');
+  return `od_simulation_${Date.now()}_${safeName}`;
+}
+
+async function registerSimulationFile(file: File): Promise<{ registeredFileName: string; fileKind: 'csv' | 'parquet' }> {
+  await initDuckDB();
+
+  if (!db || !conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  const registeredFileName = buildSimulationFileName(file);
+  const fileKind = getSimulationFileKind(file.name);
+  const arrayBuffer = await file.arrayBuffer();
+  await db.registerFileBuffer(registeredFileName, new Uint8Array(arrayBuffer));
+
+  return { registeredFileName, fileKind };
+}
+
+async function ensureBaseFlowsBackup(): Promise<void> {
+  if (!conn) {
+    await initDuckDB();
+  }
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  if (await tableExists(BASE_FLOWS_BACKUP_TABLE)) {
+    return;
+  }
+
+  await conn.query(`
+    CREATE TABLE ${BASE_FLOWS_BACKUP_TABLE} AS
+    SELECT
+      TRIM(CAST(origin_code AS VARCHAR)) AS origin_code,
+      TRIM(CAST(dest_code AS VARCHAR)) AS dest_code,
+      CAST(count AS DOUBLE) AS count
+    FROM flows
+  `);
+}
+
+function getTableBackupName(tableName: string): string {
+  return `__backup_${tableName.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+}
+
+async function ensureTableBackup(tableName: string): Promise<boolean> {
+  if (!conn) {
+    await initDuckDB();
+  }
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  if (!(await tableExists(tableName))) {
+    return false;
+  }
+
+  const backupTableName = getTableBackupName(tableName);
+  if (await tableExists(backupTableName)) {
+    return true;
+  }
+
+  await conn.query(`
+    CREATE TABLE ${quoteIdentifier(backupTableName)} AS
+    SELECT * FROM ${quoteIdentifier(tableName)}
+  `);
+
+  return true;
 }
 
 /**
@@ -151,6 +295,7 @@ export async function initDuckDB(): Promise<void> {
         ACTIVE_DATASET_PROFILE.baseFlowDataset.tableName,
         !ACTIVE_DATASET_PROFILE.baseFlowDataset.required
       );
+      await ensureBaseFlowsBackup();
 
       for (const dimension of ACTIVE_DATASET_PROFILE.demographicDimensions) {
         await loadDataset(
@@ -350,10 +495,6 @@ export interface MobilityIntensityRow {
   value: number;
 }
 
-function escapeSqlLiteral(value: string): string {
-  return value.replace(/'/g, "''");
-}
-
 function normalizeDimensionText(value: string): string {
   return value
     .trim()
@@ -394,12 +535,13 @@ async function tableExists(tableName: string): Promise<boolean> {
     throw new Error('DuckDB não inicializado');
   }
 
-  try {
-    await conn.query(`SELECT 1 FROM ${tableName} LIMIT 1`);
-    return true;
-  } catch {
-    return false;
-  }
+  const result = await conn.query(`
+    SELECT COUNT(*) AS table_count
+    FROM information_schema.tables
+    WHERE table_name = '${escapeSqlLiteral(tableName)}'
+  `);
+
+  return Number(result.toArray()[0]?.table_count ?? 0) > 0;
 }
 
 async function ensureLTLALookupTable(): Promise<void> {
@@ -2365,6 +2507,287 @@ export async function executeQuery(query: string): Promise<unknown[]> {
   }
 }
 
+export async function inspectODSimulationFile(file: File): Promise<ODSimulationFileProfile> {
+  const { registeredFileName, fileKind } = await registerSimulationFile(file);
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  const readSql = buildSimulationReadSql(registeredFileName, fileKind);
+  const result = await conn.query(`DESCRIBE SELECT * FROM ${readSql}`);
+  const columns = result
+    .toArray()
+    .map((row) => String(row.column_name ?? row.columnName ?? ''))
+    .filter(Boolean);
+
+  if (columns.length === 0) {
+    throw new Error('Nao foi possivel identificar colunas no arquivo enviado.');
+  }
+
+  return { columns, fileKind };
+}
+
+export async function applyODSimulationFile(
+  file: File,
+  mapping: ODSimulationColumnMapping,
+  dimensionFiles: ODSimulationDimensionFile[] = []
+): Promise<ODSimulationApplyResult> {
+  const { registeredFileName, fileKind } = await registerSimulationFile(file);
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  await ensureBaseFlowsBackup();
+
+  const readSql = buildSimulationReadSql(registeredFileName, fileKind);
+  const originColumn = quoteIdentifier(mapping.originColumn);
+  const destinationColumn = quoteIdentifier(mapping.destinationColumn);
+  const countColumn = quoteIdentifier(mapping.countColumn);
+
+  await conn.query('DROP TABLE IF EXISTS od_simulation_raw');
+  await conn.query('DROP TABLE IF EXISTS od_simulation_normalized');
+
+  await conn.query(`
+    CREATE TABLE od_simulation_raw AS
+    SELECT * FROM ${readSql}
+  `);
+
+  const rawCountResult = await conn.query('SELECT COUNT(*) AS total_rows FROM od_simulation_raw');
+  const totalRows = Number(rawCountResult.toArray()[0]?.total_rows ?? 0);
+
+  await conn.query(`
+    CREATE TABLE od_simulation_normalized AS
+    SELECT
+      TRIM(CAST(${originColumn} AS VARCHAR)) AS origin_code,
+      TRIM(CAST(${destinationColumn} AS VARCHAR)) AS dest_code,
+      TRY_CAST(REPLACE(TRIM(CAST(${countColumn} AS VARCHAR)), ',', '.') AS DOUBLE) AS count
+    FROM od_simulation_raw
+  `);
+
+  const validRowsResult = await conn.query(`
+    SELECT COUNT(*) AS valid_rows
+    FROM od_simulation_normalized
+    WHERE origin_code IS NOT NULL
+      AND dest_code IS NOT NULL
+      AND origin_code <> ''
+      AND dest_code <> ''
+      AND count IS NOT NULL
+      AND count > 0
+  `);
+  const validRows = Number(validRowsResult.toArray()[0]?.valid_rows ?? 0);
+
+  const duplicatePairsResult = await conn.query(`
+    SELECT COUNT(*) AS duplicate_pair_count
+    FROM (
+      SELECT origin_code, dest_code
+      FROM od_simulation_normalized
+      WHERE origin_code IS NOT NULL
+        AND dest_code IS NOT NULL
+        AND origin_code <> ''
+        AND dest_code <> ''
+        AND count IS NOT NULL
+        AND count > 0
+      GROUP BY origin_code, dest_code
+      HAVING COUNT(*) > 1
+    ) duplicates
+  `);
+  const duplicatePairsAggregated = Number(duplicatePairsResult.toArray()[0]?.duplicate_pair_count ?? 0);
+
+  await conn.query(`
+    CREATE OR REPLACE TABLE flows AS
+    SELECT
+      origin_code,
+      dest_code,
+      SUM(count) AS count
+    FROM od_simulation_normalized
+    WHERE origin_code IS NOT NULL
+      AND dest_code IS NOT NULL
+      AND origin_code <> ''
+      AND dest_code <> ''
+      AND count IS NOT NULL
+      AND count > 0
+    GROUP BY origin_code, dest_code
+  `);
+
+  const loadedRowsResult = await conn.query('SELECT COUNT(*) AS loaded_rows FROM flows');
+  const loadedRows = Number(loadedRowsResult.toArray()[0]?.loaded_rows ?? 0);
+
+  await ensureBaseLookupTable();
+  const unmappedCodesResult = await conn.query(`
+    WITH flow_codes AS (
+      SELECT origin_code AS code FROM flows
+      UNION
+      SELECT dest_code AS code FROM flows
+    )
+    SELECT flow_codes.code
+    FROM flow_codes
+    LEFT JOIN base_lookup
+      ON flow_codes.code = base_lookup.code
+    WHERE base_lookup.code IS NULL
+    ORDER BY flow_codes.code
+    LIMIT 10
+  `);
+  const unmappedCodeSample = unmappedCodesResult.toArray().map((row) => String(row.code));
+
+  const unmappedCountResult = await conn.query(`
+    WITH flow_codes AS (
+      SELECT origin_code AS code FROM flows
+      UNION
+      SELECT dest_code AS code FROM flows
+    )
+    SELECT COUNT(*) AS unmapped_code_count
+    FROM flow_codes
+    LEFT JOIN base_lookup
+      ON flow_codes.code = base_lookup.code
+    WHERE base_lookup.code IS NULL
+  `);
+  const unmappedCodeCount = Number(unmappedCountResult.toArray()[0]?.unmapped_code_count ?? 0);
+
+  const dimensionResults: ODSimulationDimensionApplyResult[] = [];
+
+  for (const dimensionFile of dimensionFiles) {
+    const dimensionResult = await applyODSimulationDimensionFile(dimensionFile);
+    dimensionResults.push(dimensionResult);
+  }
+
+  activeODSimulation = {
+    fileName: file.name,
+    totalRows,
+    loadedRows,
+    droppedRows: Math.max(0, totalRows - validRows),
+    duplicatePairsAggregated,
+    unmappedCodeCount,
+    unmappedCodeSample,
+    dimensionResults,
+  };
+
+  return activeODSimulation;
+}
+
+async function applyODSimulationDimensionFile(
+  dimensionFile: ODSimulationDimensionFile
+): Promise<ODSimulationDimensionApplyResult> {
+  const { registeredFileName, fileKind } = await registerSimulationFile(dimensionFile.file);
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  await ensureTableBackup(dimensionFile.tableName);
+
+  const readSql = buildSimulationReadSql(registeredFileName, fileKind);
+  const rawTableName = `od_simulation_${dimensionFile.dimensionKey}_raw`;
+  const normalizedTableName = `od_simulation_${dimensionFile.dimensionKey}_normalized`;
+  const originColumn = quoteIdentifier(dimensionFile.mapping.originColumn);
+  const destinationColumn = quoteIdentifier(dimensionFile.mapping.destinationColumn);
+  const countColumn = quoteIdentifier(dimensionFile.mapping.countColumn);
+  const categoryColumn = quoteIdentifier(dimensionFile.mapping.categoryColumn);
+  const targetCategoryColumn = quoteIdentifier(dimensionFile.targetCategoryColumn);
+
+  await conn.query(`DROP TABLE IF EXISTS ${quoteIdentifier(rawTableName)}`);
+  await conn.query(`DROP TABLE IF EXISTS ${quoteIdentifier(normalizedTableName)}`);
+
+  await conn.query(`
+    CREATE TABLE ${quoteIdentifier(rawTableName)} AS
+    SELECT * FROM ${readSql}
+  `);
+
+  const rawCountResult = await conn.query(`SELECT COUNT(*) AS total_rows FROM ${quoteIdentifier(rawTableName)}`);
+  const totalRows = Number(rawCountResult.toArray()[0]?.total_rows ?? 0);
+
+  await conn.query(`
+    CREATE TABLE ${quoteIdentifier(normalizedTableName)} AS
+    SELECT
+      TRIM(CAST(${originColumn} AS VARCHAR)) AS origin_code,
+      TRIM(CAST(${destinationColumn} AS VARCHAR)) AS dest_code,
+      TRY_CAST(REPLACE(TRIM(CAST(${countColumn} AS VARCHAR)), ',', '.') AS DOUBLE) AS count,
+      TRIM(CAST(${categoryColumn} AS VARCHAR)) AS ${targetCategoryColumn}
+    FROM ${quoteIdentifier(rawTableName)}
+  `);
+
+  const validRowsResult = await conn.query(`
+    SELECT COUNT(*) AS valid_rows
+    FROM ${quoteIdentifier(normalizedTableName)}
+    WHERE origin_code IS NOT NULL
+      AND dest_code IS NOT NULL
+      AND origin_code <> ''
+      AND dest_code <> ''
+      AND count IS NOT NULL
+      AND count > 0
+      AND ${targetCategoryColumn} IS NOT NULL
+      AND ${targetCategoryColumn} <> ''
+  `);
+  const validRows = Number(validRowsResult.toArray()[0]?.valid_rows ?? 0);
+
+  await conn.query(`
+    CREATE OR REPLACE TABLE ${quoteIdentifier(dimensionFile.tableName)} AS
+    SELECT
+      origin_code,
+      dest_code,
+      SUM(count) AS count,
+      ${targetCategoryColumn}
+    FROM ${quoteIdentifier(normalizedTableName)}
+    WHERE origin_code IS NOT NULL
+      AND dest_code IS NOT NULL
+      AND origin_code <> ''
+      AND dest_code <> ''
+      AND count IS NOT NULL
+      AND count > 0
+      AND ${targetCategoryColumn} IS NOT NULL
+      AND ${targetCategoryColumn} <> ''
+    GROUP BY origin_code, dest_code, ${targetCategoryColumn}
+  `);
+
+  const loadedRowsResult = await conn.query(`
+    SELECT COUNT(*) AS loaded_rows
+    FROM ${quoteIdentifier(dimensionFile.tableName)}
+  `);
+  const loadedRows = Number(loadedRowsResult.toArray()[0]?.loaded_rows ?? 0);
+
+  return {
+    dimensionKey: dimensionFile.dimensionKey,
+    label: dimensionFile.label,
+    fileName: dimensionFile.file.name,
+    totalRows,
+    loadedRows,
+    droppedRows: Math.max(0, totalRows - validRows),
+  };
+}
+
+export async function restoreBaseODDataset(): Promise<void> {
+  await ensureBaseFlowsBackup();
+
+  if (!conn) {
+    throw new Error('DuckDB não inicializado');
+  }
+
+  await conn.query(`
+    CREATE OR REPLACE TABLE flows AS
+    SELECT origin_code, dest_code, count
+    FROM ${BASE_FLOWS_BACKUP_TABLE}
+  `);
+
+  for (const dimension of ACTIVE_DATASET_PROFILE.demographicDimensions) {
+    const backupTableName = getTableBackupName(dimension.dataset.tableName);
+    if (!(await tableExists(backupTableName))) {
+      continue;
+    }
+
+    await conn.query(`
+      CREATE OR REPLACE TABLE ${quoteIdentifier(dimension.dataset.tableName)} AS
+      SELECT * FROM ${quoteIdentifier(backupTableName)}
+    `);
+  }
+
+  activeODSimulation = null;
+}
+
+export function getActiveODSimulation(): ODSimulationApplyResult | null {
+  return activeODSimulation;
+}
+
 /**
  * Executa uma consulta mínima para aquecer o engine após a inicialização.
  * Isso reduz o custo percebido da primeira interação real com o mapa.
@@ -2408,4 +2831,6 @@ export async function closeDuckDB(): Promise<void> {
   initPromise = null;
   warmupPromise = null;
   ltlaLookupTableReady = false;
+  baseLookupTableReady = false;
+  activeODSimulation = null;
 }

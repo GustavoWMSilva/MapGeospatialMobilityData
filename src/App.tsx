@@ -7,6 +7,7 @@ import { AreaSelectionControls } from './components/AreaSelectionControls';
 import { AggregateAreaSelector } from './components/AggregateAreaSelector';
 import { CacheDebugPanel } from './components/CacheDebugPanel';
 import { DatasetProfileBuilder } from './components/DatasetProfileBuilder';
+import { ODSimulationUploader } from './components/ODSimulationUploader';
 import { AnalyticsDashboard } from './components/analytics';
 import { AnalyticsFilters } from './components/analytics/AnalyticsFilters';
 import { useSelectedArea } from './hooks/useSelectedArea';
@@ -19,6 +20,7 @@ import {
   persistActiveDataset,
 } from './constants/datasetProfiles';
 import type { DemographicFilters, GeographyLevel, MobilityIntensityMetric, ViewState } from './types';
+import type { ODSimulationApplyResult } from './utils/duckdb';
 
 const DEFAULT_VIEW_STATE: ViewState = {
   longitude: ACTIVE_DATASET_PROFILE.mapView.longitude,
@@ -78,6 +80,10 @@ export default function App() {
   const [mobilityIntensityMetric, setMobilityIntensityMetric] = React.useState<MobilityIntensityMetric>('total');
   const [showShortcutsHelp, setShowShortcutsHelp] = React.useState(false);
   const [showDatasetBuilder, setShowDatasetBuilder] = React.useState(false);
+  const [showToolsMenu, setShowToolsMenu] = React.useState(false);
+  const [showSimulationUploader, setShowSimulationUploader] = React.useState(false);
+  const [simulationVersion, setSimulationVersion] = React.useState(0);
+  const [activeSimulation, setActiveSimulation] = React.useState<ODSimulationApplyResult | null>(null);
   const [demographicFilters, setDemographicFilters] = React.useState<DemographicFilters>(() =>
     createInitialDemographicFilters(ACTIVE_DATASET_PROFILE)
   );
@@ -179,6 +185,12 @@ export default function App() {
   }, [clearBaseSelection, geographyLevel]);
 
   const resetDemographicFilters = useCallback(() => {
+    setDemographicFilters(createInitialDemographicFilters(ACTIVE_DATASET_PROFILE));
+  }, []);
+
+  const refreshAfterODSimulationChange = useCallback((simulation: ODSimulationApplyResult | null) => {
+    setActiveSimulation(simulation);
+    setSimulationVersion((current) => current + 1);
     setDemographicFilters(createInitialDemographicFilters(ACTIVE_DATASET_PROFILE));
   }, []);
 
@@ -332,6 +344,7 @@ export default function App() {
 
   const map = (
     <InteractiveMap
+      key={`map-${simulationVersion}`}
       mapRef={mapRef}
       viewState={viewState}
       points={[]}
@@ -365,7 +378,9 @@ export default function App() {
                 Visualizacao de Mobilidade Geoespacial
               </h1>
               <p className="mt-1 max-w-3xl text-xs text-slate-500">
-                {ACTIVE_DATASET_PROFILE.description}
+                {activeSimulation
+                  ? `${ACTIVE_DATASET_PROFILE.description} Simulacao ativa: ${activeSimulation.fileName}.`
+                  : ACTIVE_DATASET_PROFILE.description}
               </p>
             </div>
 
@@ -398,13 +413,47 @@ export default function App() {
                 })}
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowDatasetBuilder(true)}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-950"
-              >
-                Configurar dataset
-              </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowToolsMenu((current) => !current)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-950"
+                  aria-expanded={showToolsMenu}
+                  aria-haspopup="menu"
+                >
+                  Ferramentas
+                </button>
+
+                {showToolsMenu && (
+                  <div
+                    className="absolute right-0 top-11 z-[65] w-56 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl"
+                    role="menu"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowToolsMenu(false);
+                        setShowDatasetBuilder(true);
+                      }}
+                      className="w-full rounded-md px-3 py-2 text-left text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-950"
+                      role="menuitem"
+                    >
+                      Configurar dataset
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowToolsMenu(false);
+                        setShowSimulationUploader(true);
+                      }}
+                      className="w-full rounded-md px-3 py-2 text-left text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-950"
+                      role="menuitem"
+                    >
+                      Adicionar simulacao OD
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <button
                 type="button"
@@ -597,6 +646,7 @@ export default function App() {
               </div>
 
               <AnalyticsDashboard
+                key={`analytics-${simulationVersion}`}
                 selectedArea={selectedArea}
                 areaName={selectedAreaName}
                 geographyLevel={geographyLevel}
@@ -678,6 +728,35 @@ export default function App() {
       )}
 
       {showDatasetBuilder && <DatasetProfileBuilder onClose={() => setShowDatasetBuilder(false)} />}
+
+      {showSimulationUploader && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
+          <div className="flex max-h-full w-full max-w-md flex-col">
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-xl">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Ferramentas</p>
+                <h2 className="text-base font-bold text-slate-950">Adicionar simulacao OD</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSimulationUploader(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white font-bold text-slate-600 transition-colors hover:bg-slate-100"
+                title="Fechar simulacao"
+              >
+                x
+              </button>
+            </div>
+
+            <div className="min-h-0 overflow-y-auto rounded-xl shadow-xl">
+              <ODSimulationUploader
+                datasetProfile={ACTIVE_DATASET_PROFILE}
+                onSimulationApplied={refreshAfterODSimulationChange}
+                onSimulationCleared={() => refreshAfterODSimulationChange(null)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <CacheDebugPanel isFullscreen={isFullscreen} />
     </main>

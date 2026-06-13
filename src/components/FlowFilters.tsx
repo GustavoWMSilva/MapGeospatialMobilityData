@@ -77,11 +77,7 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
             {totalFiltered.toLocaleString('pt-BR')} visiveis
           </span>
-          {hasDemographicFilters && (
-            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-              filtros ativos
-            </span>
-          )}
+         
         </div>
         <button
           className={`flex items-center justify-center border border-slate-200 bg-white font-bold text-slate-500 transition-colors hover:bg-slate-100 ${
