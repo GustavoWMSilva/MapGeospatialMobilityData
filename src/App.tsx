@@ -6,6 +6,7 @@ import { InteractiveMap } from './components/InteractiveMap';
 import { AreaSelectionControls } from './components/AreaSelectionControls';
 import { AggregateAreaSelector } from './components/AggregateAreaSelector';
 import { CacheDebugPanel } from './components/CacheDebugPanel';
+import { DatasetProfileBuilder } from './components/DatasetProfileBuilder';
 import { AnalyticsDashboard } from './components/analytics';
 import { AnalyticsFilters } from './components/analytics/AnalyticsFilters';
 import { useSelectedArea } from './hooks/useSelectedArea';
@@ -76,6 +77,7 @@ export default function App() {
   const [showMobilityIntensity, setShowMobilityIntensity] = React.useState(false);
   const [mobilityIntensityMetric, setMobilityIntensityMetric] = React.useState<MobilityIntensityMetric>('total');
   const [showShortcutsHelp, setShowShortcutsHelp] = React.useState(false);
+  const [showDatasetBuilder, setShowDatasetBuilder] = React.useState(false);
   const [demographicFilters, setDemographicFilters] = React.useState<DemographicFilters>(() =>
     createInitialDemographicFilters(ACTIVE_DATASET_PROFILE)
   );
@@ -395,6 +397,24 @@ export default function App() {
                   );
                 })}
               </div>
+
+              <button
+                type="button"
+                onClick={() => setShowDatasetBuilder(true)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-950"
+              >
+                Configurar dataset
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowShortcutsHelp(true)}
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-950"
+                title="Ver atalhos"
+                aria-label="Ver atalhos"
+              >
+                ?
+              </button>
             </div>
           </header>
 
@@ -656,6 +676,8 @@ export default function App() {
           </section>
         </div>
       )}
+
+      {showDatasetBuilder && <DatasetProfileBuilder onClose={() => setShowDatasetBuilder(false)} />}
 
       <CacheDebugPanel isFullscreen={isFullscreen} />
     </main>
