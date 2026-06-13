@@ -7,10 +7,11 @@ import type {
   DemographicDimensionConfig,
   GeographyLevel,
 } from '../types';
+import { cacheService } from '../utils/cacheService';
 
 const DEFAULT_FILTER_VALUE = 'all';
 
-type DatasetProfileSource = Omit<DatasetProfile, 'dashboard'> & {
+export type DatasetProfileSource = Omit<DatasetProfile, 'dashboard'> & {
   dashboard?: Partial<Omit<DatasetDashboardConfig, 'charts'>> & {
     charts?: Partial<Record<DatasetChartId, Partial<DatasetChartConfig>>>;
   };
@@ -396,6 +397,84 @@ const datasetProfileModules = import.meta.glob('../dataset-configs/*.json', {
   import: 'default',
 }) as Record<string, DatasetProfileSource>;
 
+export const LOCAL_DATASET_PROFILES_STORAGE_KEY = 'map-geospatial-local-dataset-profiles';
+const LOCAL_DATASET_PROFILE_CACHE_PREFIX = 'dataset-profile:';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isDatasetProfileSource(value: unknown): value is DatasetProfileSource {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.id === 'string' &&
+    typeof value.label === 'string' &&
+    typeof value.description === 'string' &&
+    isRecord(value.geography) &&
+    isRecord(value.labels) &&
+    isRecord(value.mapView) &&
+    isRecord(value.lookup) &&
+    isRecord(value.storage) &&
+    isRecord(value.baseFlowDataset) &&
+    Array.isArray(value.demographicDimensions)
+  );
+}
+
+function readLocalDatasetProfileSources(): Record<string, DatasetProfileSource> {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+
+  try {
+    const rawProfiles = window.localStorage.getItem(LOCAL_DATASET_PROFILES_STORAGE_KEY);
+    if (!rawProfiles) {
+      return {};
+    }
+
+    const parsedProfiles = JSON.parse(rawProfiles);
+    if (!isRecord(parsedProfiles)) {
+      return {};
+    }
+
+    const profiles: Record<string, DatasetProfileSource> = {};
+    for (const profile of Object.values(parsedProfiles)) {
+      if (isDatasetProfileSource(profile)) {
+        profiles[profile.id] = profile;
+      }
+    }
+
+    return profiles;
+  } catch {
+    return {};
+  }
+}
+
+export function getLocalDatasetProfileCacheKey(datasetId: string): string {
+  return `${LOCAL_DATASET_PROFILE_CACHE_PREFIX}${datasetId}`;
+}
+
+export async function saveLocalDatasetProfile(profile: DatasetProfileSource): Promise<void> {
+  if (typeof window === 'undefined') {
+    throw new Error('Perfis locais so podem ser salvos no navegador.');
+  }
+
+  if (!isDatasetProfileSource(profile)) {
+    throw new Error('Perfil de dataset invalido.');
+  }
+
+  const currentProfiles = readLocalDatasetProfileSources();
+  const nextProfiles = {
+    ...currentProfiles,
+    [profile.id]: profile,
+  };
+
+  await cacheService.set(getLocalDatasetProfileCacheKey(profile.id), profile);
+  window.localStorage.setItem(LOCAL_DATASET_PROFILES_STORAGE_KEY, JSON.stringify(nextProfiles));
+}
+
 const importedDatasetProfilesById = Object.values(datasetProfileModules).reduce(
   (accumulator, profile) => {
     accumulator[profile.id] = profile;
@@ -403,6 +482,8 @@ const importedDatasetProfilesById = Object.values(datasetProfileModules).reduce(
   },
   {} as Record<string, DatasetProfileSource>
 );
+
+const localDatasetProfilesById = readLocalDatasetProfileSources();
 
 if (import.meta.env.DEV && Object.keys(importedDatasetProfilesById).length === 0 && typeof console !== 'undefined') {
   console.warn(
@@ -448,6 +529,7 @@ function normalizeDatasetProfile(profile: DatasetProfileSource): DatasetProfile 
 export const DATASET_PROFILES: Record<string, DatasetProfile> = Object.values({
   ...BUILTIN_DATASET_PROFILES,
   ...importedDatasetProfilesById,
+  ...localDatasetProfilesById,
 }).reduce(
   (accumulator, profile) => {
     const normalizedProfile = normalizeDatasetProfile(profile);

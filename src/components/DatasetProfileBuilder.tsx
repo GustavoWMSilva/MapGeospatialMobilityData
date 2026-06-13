@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Copy, Download, Link, Plus, Trash2, Upload, X } from 'lucide-react';
+import { Copy, Database, Download, Link, Plus, Trash2, Upload, X } from 'lucide-react';
+import {
+  buildDatasetSwitchUrl,
+  persistActiveDataset,
+  saveLocalDatasetProfile,
+  type DatasetProfileSource,
+} from '../constants/datasetProfiles';
+import type { DatasetChartId } from '../types';
 
 type LinkCheckStatus = 'checking' | 'ok' | 'error';
 type LinkCheckSource = 'remote' | 'local';
@@ -86,7 +93,7 @@ const initialForm: FormState = {
   dimensions: [],
 };
 
-const chartOrder = [
+const chartOrder: DatasetChartId[] = [
   'topFlows',
   'odHeatmap',
   'directionalBalance',
@@ -258,7 +265,7 @@ function buildFormFromProfile(profile: unknown, currentForm: FormState): FormSta
   };
 }
 
-function buildProfile(form: FormState) {
+function buildProfile(form: FormState): DatasetProfileSource {
   const datasetId = form.id.trim();
   const aggregateSingular = form.aggregateSingular.trim();
   const aggregatePlural = form.aggregatePlural.trim() || `${aggregateSingular}s`;
@@ -551,6 +558,8 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
   const [pastedJson, setPastedJson] = useState('');
   const [importMessage, setImportMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [localSaveState, setLocalSaveState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+  const [localSaveMessage, setLocalSaveMessage] = useState('');
   const [linkStatuses, setLinkStatuses] = useState<Record<string, LinkCheckResult>>({});
   const copyResetTimeoutRef = useRef<number | null>(null);
   const profile = useMemo(() => buildProfile(form), [form]);
@@ -661,6 +670,31 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
     anchor.download = suggestedFileName;
     anchor.click();
     URL.revokeObjectURL(url);
+  };
+
+  const saveProfileLocally = async () => {
+    if (validation.errors.length > 0) {
+      setLocalSaveState('failed');
+      setLocalSaveMessage('Corrija os erros obrigatorios antes de salvar o dataset local.');
+      return;
+    }
+
+    setLocalSaveState('saving');
+    setLocalSaveMessage('');
+
+    try {
+      await saveLocalDatasetProfile(profile);
+      persistActiveDataset(profile.id);
+      setLocalSaveState('saved');
+      setLocalSaveMessage('Dataset salvo no navegador. Abrindo o dataset salvo...');
+
+      window.setTimeout(() => {
+        window.location.assign(buildDatasetSwitchUrl(profile.id));
+      }, 450);
+    } catch (error) {
+      setLocalSaveState('failed');
+      setLocalSaveMessage(error instanceof Error ? error.message : 'Nao foi possivel salvar o dataset local.');
+    }
   };
 
   const checkLinks = async () => {
@@ -1083,6 +1117,15 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
                 <div className="flex gap-2">
                   <button
                     type="button"
+                    onClick={() => void saveProfileLocally()}
+                    disabled={validation.errors.length > 0 || localSaveState === 'saving'}
+                    className="inline-flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Database className="h-3.5 w-3.5" />
+                    {localSaveState === 'saving' ? 'Salvando' : 'Salvar local'}
+                  </button>
+                  <button
+                    type="button"
                     onClick={copyJson}
                     className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                   >
@@ -1099,6 +1142,18 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
                   </button>
                 </div>
               </div>
+
+              {localSaveMessage && (
+                <p
+                  className={`mb-3 rounded-md px-3 py-2 text-xs font-semibold ${
+                    localSaveState === 'failed'
+                      ? 'bg-red-50 text-red-700'
+                      : 'bg-emerald-50 text-emerald-700'
+                  }`}
+                >
+                  {localSaveMessage}
+                </p>
+              )}
 
               <textarea
                 readOnly
