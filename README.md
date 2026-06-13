@@ -53,6 +53,59 @@ Perfis de exemplo:
 - `src/dataset-configs/uk_commuting_ons.json`
 - `src/dataset-configs/porto_alegre.json`
 
+## Como os dados sao servidos em producao
+
+A aplicacao funciona como um app estatico na Vercel. Nao existe um servidor DuckDB externo: os arquivos Parquet sao baixados pelo navegador, registrados no DuckDB-WASM e consultados localmente como tabelas SQL.
+
+O caminho usado para baixar os Parquets e definido no perfil JSON de cada dataset:
+
+```json
+"storage": {
+  "remoteBaseUrl": "...",
+  "localProcessedBasePath": "..."
+}
+```
+
+No dataset do Reino Unido, os Parquets sao carregados pelo jsDelivr a partir do repositorio GitHub:
+
+```text
+https://cdn.jsdelivr.net/gh/GustavoWMSilva/MapGeospatialMobilityData@main/
+```
+
+Essa URL segue o formato:
+
+```text
+https://cdn.jsdelivr.net/gh/<usuario>/<repositorio>@<branch-ou-tag>/<arquivo>
+```
+
+Assim, por exemplo, o arquivo principal do UK e acessado em:
+
+```text
+https://cdn.jsdelivr.net/gh/GustavoWMSilva/MapGeospatialMobilityData@main/ODWP01EW_MSOA.parquet
+```
+
+O codigo verifica primeiro se o arquivo remoto existe. Se existir, usa `remoteBaseUrl`; se nao existir, usa o fallback local em `localProcessedBasePath`, como `/data/processed/`.
+
+Fluxo simplificado:
+
+```text
+jsDelivr/GitHub ou Vercel public/ -> navegador -> DuckDB-WASM -> consultas SQL locais
+```
+
+Os arquivos de lookup e GeoJSON normalmente ficam no proprio deploy da Vercel, dentro de `public/data/...`, e sao acessados por caminhos como:
+
+```text
+/data/lookup/areas_centroids.csv
+/data/lookup/ltla_lookup.csv
+/data/lookup/boundaries.geojson
+```
+
+Para datasets pequenos, como `br_air_od_2022`, basta commitar os artefatos em `public/data/<dataset-id>/`. Para datasets maiores, pode ser melhor subir os Parquets para o GitHub e usar uma URL jsDelivr no `remoteBaseUrl`. Para reprodutibilidade, prefira uma tag ou release em vez de `@main`, por exemplo:
+
+```text
+https://cdn.jsdelivr.net/gh/GustavoWMSilva/MapGeospatialMobilityData@v1.0.0-data/public/data/br_air_od_2022/processed/
+```
+
 ## O que o JSON controla
 
 O perfil JSON controla:
@@ -74,17 +127,17 @@ Importante: o JSON ativa ou desativa componentes que ja existem. Se voce quiser 
 
 Use estes valores em `dashboard.chartOrder` e em `dashboard.charts`:
 
-| `chartId` | Grafico | Modo | Secao sugerida | Parametros |
-| --- | --- | --- | --- | --- |
-| `topFlows` | Ranking dos principais fluxos | generico e UK legado | `main` | `params.topN` |
-| `socialPie` | Distribuicao por uma dimensao categorica | generico e UK legado | `main` | `params.dimensionKey` |
-| `ageBar` | Barras por uma dimensao categorica | generico e UK legado | `main` | `params.dimensionKey` |
-| `performance` | Performance e latencia | UK legado | `advanced` | nenhum |
-| `odHeatmap` | Mapa de calor origem-destino agregado | generico em geografia agregada | `advanced` | `params.initialTopN` |
-| `socialMultiples` | Multiplos paineis por categoria | generico em geografia agregada | `advanced` | `params.dimensionKey`, `params.topN` |
-| `aggregateStacked` | Composicao categorica empilhada 100% | generico em geografia agregada | `advanced` | `params.dimensionKey`, `params.initialTopN` (`12` ou `20`) |
-| `aggregationScatter` | Validacao da agregacao | UK legado em geografia agregada | `advanced` | nenhum |
-| `directionalBalance` | Saldo direcional por area agregada | generico em geografia agregada | `advanced` | `params.topN` |
+| `chartId`            | Grafico                                  | Modo                            | Secao sugerida | Parametros                                                 |
+| -------------------- | ---------------------------------------- | ------------------------------- | -------------- | ---------------------------------------------------------- |
+| `topFlows`           | Ranking dos principais fluxos            | generico e UK legado            | `main`         | `params.topN`                                              |
+| `socialPie`          | Distribuicao por uma dimensao categorica | generico e UK legado            | `main`         | `params.dimensionKey`                                      |
+| `ageBar`             | Barras por uma dimensao categorica       | generico e UK legado            | `main`         | `params.dimensionKey`                                      |
+| `performance`        | Performance e latencia                   | UK legado                       | `advanced`     | nenhum                                                     |
+| `odHeatmap`          | Mapa de calor origem-destino agregado    | generico em geografia agregada  | `advanced`     | `params.initialTopN`                                       |
+| `socialMultiples`    | Multiplos paineis por categoria          | generico em geografia agregada  | `advanced`     | `params.dimensionKey`, `params.topN`                       |
+| `aggregateStacked`   | Composicao categorica empilhada 100%     | generico em geografia agregada  | `advanced`     | `params.dimensionKey`, `params.initialTopN` (`12` ou `20`) |
+| `aggregationScatter` | Validacao da agregacao                   | UK legado em geografia agregada | `advanced`     | nenhum                                                     |
+| `directionalBalance` | Saldo direcional por area agregada       | generico em geografia agregada  | `advanced`     | `params.topN`                                              |
 
 Exemplo:
 
