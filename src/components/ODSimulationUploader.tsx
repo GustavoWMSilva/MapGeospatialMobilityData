@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Database, RotateCcw, Trash2, Upload } from 'lucide-react';
 import {
   applyODSimulationFile,
@@ -168,6 +168,7 @@ export function ODSimulationUploader({
   const [savedSimulation, setSavedSimulation] = useState<SavedODSimulation | null>(null);
   const [isStorageBusy, setIsStorageBusy] = useState(false);
   const [dimensionUploads, setDimensionUploads] = useState<Record<string, DimensionUploadDraft>>({});
+  const dimensionFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
     let isMounted = true;
@@ -529,17 +530,34 @@ export function ODSimulationUploader({
                   </div>
 
                   <input
+                    ref={(element) => {
+                      dimensionFileInputRefs.current[dimension.key] = element;
+                    }}
                     type="file"
                     accept=".csv,.tsv,.parquet,text/csv"
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      const selectedFile = event.target.files?.[0] ?? null;
+                      event.target.value = '';
                       void handleDimensionFileChange(
                         dimension.key,
                         dimension.categoryColumn,
-                        event.target.files?.[0] ?? null
-                      )
-                    }
-                    className="w-full text-xs"
+                        selectedFile
+                      );
+                    }}
+                    className="hidden"
                   />
+
+                  <button
+                    type="button"
+                    onClick={() => dimensionFileInputRefs.current[dimension.key]?.click()}
+                    disabled={status === 'inspecting' || status === 'applying'}
+                    className="flex w-full items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs text-slate-700 transition-colors hover:border-slate-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span className="min-w-0 truncate">
+                      {draft?.file ? draft.file.name : `Selecionar arquivo de ${dimension.label}`}
+                    </span>
+                    <Upload className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  </button>
 
                   {draft && draft.columns.length > 0 && (
                     <div className="mt-3 grid grid-cols-2 gap-2">
