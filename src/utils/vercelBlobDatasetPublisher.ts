@@ -1,5 +1,4 @@
 import type { PutBlobResult } from '@vercel/blob';
-import { upload } from '@vercel/blob/client';
 import type { DatasetProfileSource } from '../constants/datasetProfiles';
 
 export type DatasetBlobFileKey =
@@ -86,31 +85,43 @@ async function uploadDatasetBlob(
   contentType: string | undefined,
   onProgress?: (progress: DatasetBlobPublishProgress) => void
 ): Promise<PutBlobResult> {
-  try {
-    return await upload(pathname, file, {
-      access: 'public',
-      handleUploadUrl: '/api/blob-upload',
-      multipart: file.size > 100 * 1024 * 1024,
-      contentType,
-      onUploadProgress: (progress) => {
-        onProgress?.({
-          currentFileLabel: label,
-          loaded: progress.loaded,
-          total: progress.total,
-          percentage: progress.percentage,
-        });
-      },
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : '';
-    if (message.includes('Failed to retrieve the client token')) {
+  onProgress?.({
+    currentFileLabel: label,
+    loaded: 0,
+    total: file.size,
+    percentage: 0,
+  });
+
+  const response = await fetch(`/api/blob-upload?pathname=${encodeURIComponent(pathname)}`, {
+    method: 'POST',
+    headers: contentType ? { 'Content-Type': contentType } : undefined,
+    body: file,
+  });
+
+  const result = await response.json() as PutBlobResult | { error?: string };
+
+  if (!response.ok) {
+    const message = 'error' in result && result.error
+      ? result.error
+      : 'Nao foi possivel salvar no Vercel Blob.';
+
+    if (message.includes('BLOB_READ_WRITE_TOKEN')) {
       throw new Error(
-        'Nao foi possivel obter o token do Vercel Blob. Confira se o Blob Store esta conectado ao projeto e se BLOB_READ_WRITE_TOKEN existe no ambiente do Vercel.'
+        'Nao foi possivel salvar no Vercel Blob. Confira se o Blob Store esta conectado ao projeto e se BLOB_READ_WRITE_TOKEN existe no ambiente do Vercel.'
       );
     }
 
-    throw error;
+    throw new Error(message);
   }
+
+  onProgress?.({
+    currentFileLabel: label,
+    loaded: file.size,
+    total: file.size,
+    percentage: 100,
+  });
+
+  return result as PutBlobResult;
 }
 
 export async function publishDatasetProfileToBlob(
