@@ -3,7 +3,6 @@
 **/__pycache__/
 venv/
 requirements.txt
-api/
 scripts/
 
 # Data files

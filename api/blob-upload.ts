@@ -13,11 +13,15 @@ function isAllowedDatasetPath(pathname: string): boolean {
   );
 }
 
-export function GET() {
-  return jsonResponse({ ok: true, route: '/api/blob-upload' });
-}
+export default async function handler(request: Request) {
+  if (request.method === 'GET') {
+    return jsonResponse({ ok: true, route: '/api/blob-upload' });
+  }
 
-export async function POST(request: Request) {
+  if (request.method !== 'POST') {
+    return jsonResponse({ error: 'Metodo nao permitido.' }, 405);
+  }
+
   const blobReadWriteToken = process.env.BLOB_READ_WRITE_TOKEN;
 
   if (!blobReadWriteToken) {
