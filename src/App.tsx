@@ -132,7 +132,7 @@ export default function App() {
   }, [activeDatasetId]);
 
   const handleRemoveLocalDataset = useCallback(async (datasetId: string, label: string) => {
-    const confirmed = window.confirm(`Remover o dataset local "${label}" deste navegador?`);
+    const confirmed = window.confirm(`Remover acesso ao dataset "${label}"?`);
     if (!confirmed) {
       return;
     }
