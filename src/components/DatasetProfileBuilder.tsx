@@ -8,6 +8,12 @@ import {
 } from '../constants/datasetProfiles';
 import type { DatasetChartId } from '../types';
 import { ChartObjectiveHelp } from './analytics/ChartObjectiveHelp';
+import {
+  publishDatasetProfileToBlob,
+  type DatasetBlobFileKey,
+  type DatasetBlobPublishFiles,
+  type DatasetBlobPublishProgress,
+} from '../utils/vercelBlobDatasetPublisher';
 
 type LinkCheckStatus = 'checking' | 'ok' | 'error';
 type LinkCheckSource = 'remote' | 'local';
@@ -75,6 +81,7 @@ type PublishedFileHelpKey =
   | 'aggregateCentroidsPath'
   | 'aggregateLookupPath'
   | 'aggregateBoundariesPath';
+type BlobPublishStatus = 'idle' | 'publishing' | 'published' | 'failed';
 
 const initialForm: FormState = {
   id: 'meu_dataset',
@@ -615,6 +622,10 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
   const [localSaveState, setLocalSaveState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
   const [localSaveMessage, setLocalSaveMessage] = useState('');
   const [linkStatuses, setLinkStatuses] = useState<Record<string, LinkCheckResult>>({});
+  const [blobFiles, setBlobFiles] = useState<DatasetBlobPublishFiles>({});
+  const [blobPublishStatus, setBlobPublishStatus] = useState<BlobPublishStatus>('idle');
+  const [blobPublishProgress, setBlobPublishProgress] = useState<DatasetBlobPublishProgress | null>(null);
+  const [blobPublishMessage, setBlobPublishMessage] = useState('');
   const copyResetTimeoutRef = useRef<number | null>(null);
   const profile = useMemo(() => buildProfile(form), [form]);
   const profileJson = useMemo(() => JSON.stringify(profile, null, 2), [profile]);
@@ -675,6 +686,23 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
     setForm((current) => ({
       ...current,
       dimensions: current.dimensions.filter((_, dimensionIndex) => dimensionIndex !== index),
+    }));
+  };
+
+  const updateBlobFile = (key: DatasetBlobFileKey, file: File | null) => {
+    setBlobFiles((current) => ({
+      ...current,
+      [key]: file ?? undefined,
+    }));
+  };
+
+  const updateBlobDimensionFile = (dimensionKey: string, file: File | null) => {
+    setBlobFiles((current) => ({
+      ...current,
+      dimensions: {
+        ...(current.dimensions ?? {}),
+        [dimensionKey]: file ?? undefined,
+      },
     }));
   };
 
@@ -748,6 +776,30 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
     } catch (error) {
       setLocalSaveState('failed');
       setLocalSaveMessage(error instanceof Error ? error.message : 'Nao foi possivel salvar o dataset local.');
+    }
+  };
+
+  const publishToVercelBlob = async () => {
+    if (validation.errors.length > 0) {
+      setBlobPublishStatus('failed');
+      setBlobPublishMessage('Corrija os erros obrigatorios antes de publicar no Vercel Blob.');
+      return;
+    }
+
+    setBlobPublishStatus('publishing');
+    setBlobPublishMessage('');
+    setBlobPublishProgress(null);
+
+    try {
+      const result = await publishDatasetProfileToBlob(profile, blobFiles, setBlobPublishProgress);
+      setForm((current) => buildFormFromProfile(result.profile, current));
+      await saveLocalDatasetProfile(result.profile);
+      setBlobPublishStatus('published');
+      setBlobPublishMessage(`Publicado no Vercel Blob e salvo localmente. Perfil: ${result.profileUrl}`);
+      setLinkStatuses({});
+    } catch (error) {
+      setBlobPublishStatus('failed');
+      setBlobPublishMessage(error instanceof Error ? error.message : 'Nao foi possivel publicar no Vercel Blob.');
     }
   };
 
@@ -915,6 +967,112 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
               <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-white p-3 font-mono text-[10px] leading-4 text-slate-700">
                 {publishedFilesJsonExample}
               </pre>
+            </details>
+
+            <details className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+              <summary className="cursor-pointer font-semibold">
+                Publicar arquivos no Vercel Blob
+              </summary>
+
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <BlobFilePicker
+                  label="Parquet principal"
+                  file={blobFiles.baseFlow}
+                  accept=".parquet"
+                  disabled={blobPublishStatus === 'publishing'}
+                  onChange={(file) => updateBlobFile('baseFlow', file)}
+                />
+                <BlobFilePicker
+                  label="Centroides base"
+                  file={blobFiles.baseCentroids}
+                  accept=".csv,text/csv"
+                  disabled={blobPublishStatus === 'publishing'}
+                  onChange={(file) => updateBlobFile('baseCentroids', file)}
+                />
+                <BlobFilePicker
+                  label="Fronteiras base"
+                  file={blobFiles.baseBoundaries}
+                  accept=".geojson,.json,application/geo+json,application/json"
+                  disabled={blobPublishStatus === 'publishing'}
+                  onChange={(file) => updateBlobFile('baseBoundaries', file)}
+                />
+                <BlobFilePicker
+                  label="Centroides agregados"
+                  file={blobFiles.aggregateCentroids}
+                  accept=".csv,text/csv"
+                  disabled={blobPublishStatus === 'publishing'}
+                  onChange={(file) => updateBlobFile('aggregateCentroids', file)}
+                />
+                <BlobFilePicker
+                  label="Lookup agregado"
+                  file={blobFiles.aggregateLookup}
+                  accept=".csv,text/csv"
+                  disabled={blobPublishStatus === 'publishing'}
+                  onChange={(file) => updateBlobFile('aggregateLookup', file)}
+                />
+                <BlobFilePicker
+                  label="Fronteiras agregadas"
+                  file={blobFiles.aggregateBoundaries}
+                  accept=".geojson,.json,application/geo+json,application/json"
+                  disabled={blobPublishStatus === 'publishing'}
+                  onChange={(file) => updateBlobFile('aggregateBoundaries', file)}
+                />
+              </div>
+
+              {form.dimensions.length > 0 && (
+                <div className="mt-3 border-t border-emerald-200 pt-3">
+                  <p className="mb-2 font-semibold">Parquets das dimensoes</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {form.dimensions.map((dimension) => (
+                      <BlobFilePicker
+                        key={dimension.key}
+                        label={dimension.label || dimension.key}
+                        file={blobFiles.dimensions?.[dimension.key]}
+                        accept=".parquet"
+                        disabled={blobPublishStatus === 'publishing'}
+                        onChange={(file) => updateBlobDimensionFile(dimension.key, file)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {blobPublishProgress && (
+                <div className="mt-3 rounded-md bg-white p-2 text-emerald-800">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-semibold">{blobPublishProgress.currentFileLabel}</span>
+                    <span>{Math.round(blobPublishProgress.percentage)}%</span>
+                  </div>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-emerald-100">
+                    <div
+                      className="h-full rounded-full bg-emerald-600 transition-all"
+                      style={{ width: `${blobPublishProgress.percentage}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {blobPublishMessage && (
+                <p
+                  className={`mt-3 rounded-md px-3 py-2 font-semibold ${
+                    blobPublishStatus === 'failed'
+                      ? 'bg-red-50 text-red-700'
+                      : 'bg-white text-emerald-800'
+                  }`}
+                >
+                  {blobPublishMessage}
+                </p>
+              )}
+
+              <button
+                type="button"
+                onClick={() => void publishToVercelBlob()}
+                disabled={blobPublishStatus === 'publishing' || validation.errors.length > 0}
+                className="mt-3 inline-flex items-center gap-2 rounded-md bg-emerald-700 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                {blobPublishStatus === 'publishing' ? 'Publicando' : 'Publicar no Blob'}
+              </button>
             </details>
             <div className="space-y-3">
               <Field
@@ -1296,6 +1454,49 @@ function FileHelpButton({ helpKey }: { helpKey: PublishedFileHelpKey }) {
       objective={hint.description}
       bLeft={true}
     />
+  );
+}
+
+function BlobFilePicker({
+  label,
+  file,
+  accept,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  file?: File;
+  accept: string;
+  disabled: boolean;
+  onChange: (file: File | null) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  return (
+    <div className="rounded-md border border-emerald-200 bg-white p-2">
+      <p className="mb-1 text-[11px] font-semibold text-emerald-900">{label}</p>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        disabled={disabled}
+        className="hidden"
+        onChange={(event) => {
+          const selectedFile = event.target.files?.[0] ?? null;
+          event.target.value = '';
+          onChange(selectedFile);
+        }}
+      />
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => inputRef.current?.click()}
+        className="flex w-full items-center justify-between gap-2 rounded border border-emerald-100 px-2 py-1.5 text-left text-[11px] text-emerald-800 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <span className="min-w-0 truncate">{file ? file.name : 'Selecionar arquivo'}</span>
+        <Upload className="h-3.5 w-3.5 shrink-0" />
+      </button>
+    </div>
   );
 }
 
