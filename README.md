@@ -209,11 +209,83 @@ Consulte:
 - [COMO_ADICIONAR_NOVOS_DADOS.md](COMO_ADICIONAR_NOVOS_DADOS.md)
 - [ESPECIFICACAO_DE_DADOS_PARA_NOVA_GEOGRAFIA.md](ESPECIFICACAO_DE_DADOS_PARA_NOVA_GEOGRAFIA.md)
 
+## Funcionalidades da aba Ferramentas
+
+A aba **Ferramentas** concentra recursos para testar novos dados sem alterar diretamente o codigo da aplicacao.
+
+### Aplicar matriz OD personalizada
+
+A opcao **Aplicar matriz OD personalizada** permite carregar uma nova matriz origem-destino sobre um dataset que ja existe no app. Esse fluxo e util quando a geografia, centroides, limites e lookup ja estao configurados, como no caso de Porto Alegre, mas o usuario quer testar outra simulacao ou outra matriz OD.
+
+A matriz enviada substitui temporariamente os fluxos carregados no DuckDB-WASM para o dataset ativo. Com isso, o mapa, as linhas, os rankings, os graficos e os filtros passam a consultar a nova matriz aplicada. A matriz original pode ser restaurada pela propria interface.
+
+O arquivo principal precisa conter colunas equivalentes a:
+
+- origem
+- destino
+- volume ou quantidade de pessoas
+
+A interface tenta inferir automaticamente as colunas, mas tambem permite ajustar o mapeamento antes de aplicar. Quando o dataset possui filtros demograficos, como faixa etaria ou ocupacao, tambem e possivel carregar arquivos separados para essas dimensoes. Cada arquivo de filtro deve conter origem, destino, volume e a coluna categorica correspondente.
+
+As simulacoes podem ser salvas localmente no navegador usando IndexedDB. Atualmente, o app guarda uma simulacao por dataset; ao salvar uma nova simulacao para o mesmo dataset, ela substitui a anterior. Esse comportamento evita acumular muitos arquivos grandes no navegador.
+
+Arquivo relacionado: `src/components/ODSimulationUploader.tsx`.
+
+### Assistente de perfil OD
+
+A opcao **Criar dataset por JSON** abre o Assistente de perfil OD. Ele foi criado para facilitar a inclusao de novos datasets por usuarios que nao querem editar manualmente todos os campos do JSON.
+
+O assistente permite:
+
+- preencher de forma guiada os metadados do dataset;
+- configurar nomes da geografia base e agregada;
+- informar caminhos dos arquivos publicados;
+- adicionar dimensoes demograficas e opcoes de filtros;
+- habilitar ou desabilitar graficos existentes;
+- colar um JSON pronto para editar;
+- validar campos obrigatorios;
+- testar links dos arquivos antes de salvar;
+- copiar ou baixar o JSON gerado.
+
+O perfil pode ser salvo localmente no navegador por IndexedDB/localStorage. Assim, o dataset aparece no seletor da interface sem precisar recompilar o projeto. Tambem e possivel remover pela interface datasets adicionados localmente.
+
+Tambem existe a opcao **Salvar JSON online**, que publica o perfil no Vercel Blob e salva a referencia localmente. No fluxo atual, apenas o arquivo JSON e enviado para o Blob. Os Parquets, CSVs e GeoJSONs continuam apontando para URLs publicas ja existentes, como `public/data/...` no deploy ou jsDelivr/GitHub.
+
+Essa escolha foi feita para reduzir uso de armazenamento, transferencia e operacoes no plano gratuito. O Vercel Blob possui limites mensais de armazenamento, transferencia e operacoes; para fins de estudo, publicar apenas os perfis JSON e suficiente e evita consumir recursos com arquivos grandes. A documentacao oficial do Vercel Blob esta em:
+
+```text
+https://vercel.com/docs/vercel-blob
+```
+
+Para usar o salvamento online, o projeto precisa ter um Blob Store conectado e a variavel `BLOB_READ_WRITE_TOKEN` configurada no ambiente da Vercel. O endpoint usado pelo app fica em `api/blob-upload.ts`.
+
+Arquivo relacionado: `src/components/DatasetProfileBuilder.tsx`.
+
 ## Executando o projeto
 
 ```bash
 npm install
 npm run dev
+```
+
+Por padrao, tanto em producao quanto no localhost, o app usa DuckDB-WASM no navegador para consultar os arquivos publicados. Assim, nao e necessario subir a API Flask para usar o mapa localmente.
+
+Se voce quiser testar a API Flask local em `http://localhost:5000`, ative explicitamente:
+
+```bash
+VITE_USE_FLASK_API=true npm run dev
+```
+
+No Windows PowerShell:
+
+```powershell
+$env:VITE_USE_FLASK_API="true"; npm run dev
+```
+
+Sem essa flag, o app nao tenta chamar `localhost:5000`, evitando erros como:
+
+```text
+GET http://localhost:5000/api/flows/... net::ERR_CONNECTION_REFUSED
 ```
 
 Build:

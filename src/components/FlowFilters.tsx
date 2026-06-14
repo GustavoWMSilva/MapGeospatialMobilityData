@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { getActiveDemographicBadges } from '../constants/datasetProfiles';
 import type { DatasetProfile, DemographicFilters } from '../types';
 
@@ -35,26 +35,24 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
   isCompact = false,
   panelWidth,
 }) => {
-  const minCountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeBadges = getActiveDemographicBadges(datasetProfile, demographicFilters);
   const hasDemographicFilters = activeBadges.length > 0;
+  const minCountSliderMax = Math.max(maxPeopleCount, 0);
+  const minCountStep = Math.max(1, Math.floor(Math.max(minCountSliderMax, 1) / 100));
 
   useEffect(() => {
-    return () => {
-      if (minCountTimeoutRef.current) {
-        clearTimeout(minCountTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (minCount > maxPeopleCount && maxPeopleCount > 0) {
+    if (maxPeopleCount <= 0 && minCount !== 0) {
       onMinCountChange(0);
+      return;
+    }
+
+    if (maxPeopleCount > 0 && minCount > maxPeopleCount) {
+      onMinCountChange(maxPeopleCount);
     }
   }, [maxPeopleCount, minCount, onMinCountChange]);
 
   const handleMinCountChange = (value: number) => {
-    const safeMax = Math.max(maxPeopleCount, 100);
+    const safeMax = Math.max(maxPeopleCount, 0);
     const safeValue = Math.max(0, Math.min(value, safeMax));
     onMinCountChange(safeValue);
   };
@@ -145,15 +143,15 @@ export const FlowFilters: React.FC<FlowFiltersProps> = ({
             </div>
             <input
               className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-slate-900"
-              max={Math.max(maxPeopleCount, 100)}
+              max={minCountSliderMax}
               min={0}
               onChange={(e) => {
                 const value = parseInt(e.target.value, 10);
                 if (!Number.isNaN(value) && value >= 0) handleMinCountChange(value);
               }}
-              step={Math.max(1, Math.floor(Math.max(maxPeopleCount, 100) / 100))}
+              step={minCountStep}
               type="range"
-              value={Math.min(minCount, Math.max(maxPeopleCount, 100))}
+              value={Math.min(minCount, minCountSliderMax)}
             />
             <div className={`flex justify-between text-slate-400 ${isCompact ? 'text-[10px]' : 'text-xs'}`}>
               <span>0</span>

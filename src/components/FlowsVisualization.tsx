@@ -412,8 +412,15 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
           ? 'Saldo'
           : 'Total';
   const intensityCardTitle = showMobilityIntensity ? 'Intensidades' : 'Intensidade';
+  const visibleStats: FlowStats = stats ?? {
+    total: 0,
+    max: 0,
+    min: 0,
+    avg: 0,
+    count: 0,
+  };
 
-  if (loading || !isVisible || !selectedCode || !flowsGeoJSON || !stats) {
+  if (loading || !isVisible || !selectedCode) {
     return null;
   }
 
@@ -425,7 +432,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
         minCount={minCount}
         onMinCountChange={setMinCount}
         totalAvailable={totalAvailableFlows}
-        totalFiltered={stats.count}
+        totalFiltered={visibleStats.count}
         maxPeopleCount={maxPeopleCount}
         isMinimized={isFiltersMinimized}
         onToggleMinimize={() => setIsFiltersMinimized(!isFiltersMinimized)}
@@ -459,21 +466,23 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
               <div className="mt-2 grid grid-cols-3 gap-1.5">
                 <div className="rounded-md bg-slate-50 px-2 py-1.5">
                   <span className="block text-[10px] font-medium text-slate-500">Fluxos</span>
-                  <span className="text-xs font-bold text-slate-950">{stats.count.toLocaleString('pt-BR')}</span>
+                  <span className="text-xs font-bold text-slate-950">{visibleStats.count.toLocaleString('pt-BR')}</span>
                 </div>
                 <div className="rounded-md bg-slate-50 px-2 py-1.5">
                   <span className="block text-[10px] font-medium text-slate-500">Pessoas</span>
-                  <span className="text-xs font-bold text-slate-950">{stats.total.toLocaleString('pt-BR')}</span>
+                  <span className="text-xs font-bold text-slate-950">{visibleStats.total.toLocaleString('pt-BR')}</span>
                 </div>
                 <div className="rounded-md bg-slate-50 px-2 py-1.5">
                   <span className="block text-[10px] font-medium text-slate-500">Media</span>
-                  <span className="text-xs font-bold text-slate-950">{Math.round(stats.avg).toLocaleString('pt-BR')}</span>
+                  <span className="text-xs font-bold text-slate-950">{Math.round(visibleStats.avg).toLocaleString('pt-BR')}</span>
                 </div>
               </div>
 
               <div className="mt-2 border-t border-slate-200 pt-2">
                 <p className="text-[10px] leading-relaxed text-slate-500">
-                  Espessura e cor indicam maior volume de fluxo.
+                  {visibleStats.count > 0
+                    ? 'Espessura e cor indicam maior volume de fluxo.'
+                    : 'Nenhum fluxo atende aos filtros atuais.'}
                 </p>
               </div>
             </>
@@ -518,7 +527,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
                 <div className="mt-1 flex justify-between px-0.5">
                   <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-medium text-slate-500`}>0</span>
                   <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-medium text-slate-500`}>
-                    {stats.max.toLocaleString('pt-BR')}
+                    {visibleStats.max.toLocaleString('pt-BR')}
                   </span>
                 </div>
               </div>
@@ -555,46 +564,48 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
         </div>
       </div>
 
-      <Source id={`${geographyLevel}-flows`} type="geojson" data={flowsGeoJSON}>
-        <Layer
-          id={`${geographyLevel}-flow-lines`}
-          type="line"
-          paint={{
-            'line-color': lineColorExpression,
-            'line-width': [
-              'interpolate',
-              ['linear'],
-              ['get', 'count'],
-              0, 0.8,
-              500, 1.6,
-              1000, 2.4,
-              2000, 3.4,
-              5000, 5,
-            ],
-            'line-opacity': ['get', 'segment_opacity'],
-          }}
-        />
+      {flowsGeoJSON && (
+        <Source id={`${geographyLevel}-flows`} type="geojson" data={flowsGeoJSON}>
+          <Layer
+            id={`${geographyLevel}-flow-lines`}
+            type="line"
+            paint={{
+              'line-color': lineColorExpression,
+              'line-width': [
+                'interpolate',
+                ['linear'],
+                ['get', 'count'],
+                0, 0.8,
+                500, 1.6,
+                1000, 2.4,
+                2000, 3.4,
+                5000, 5,
+              ],
+              'line-opacity': ['get', 'segment_opacity'],
+            }}
+          />
 
-        <Layer
-          id={`${geographyLevel}-flow-glow`}
-          type="line"
-          paint={{
-            'line-color': glowColorExpression,
-            'line-width': [
-              'interpolate',
-              ['linear'],
-              ['get', 'count'],
-              0, 2,
-              500, 3,
-              1000, 4,
-              2000, 6,
-              5000, 8,
-            ],
-            'line-opacity': ['get', 'segment_glow_opacity'],
-            'line-blur': 3.5,
-          }}
-        />
-      </Source>
+          <Layer
+            id={`${geographyLevel}-flow-glow`}
+            type="line"
+            paint={{
+              'line-color': glowColorExpression,
+              'line-width': [
+                'interpolate',
+                ['linear'],
+                ['get', 'count'],
+                0, 2,
+                500, 3,
+                1000, 4,
+                2000, 6,
+                5000, 8,
+              ],
+              'line-opacity': ['get', 'segment_glow_opacity'],
+              'line-blur': 3.5,
+            }}
+          />
+        </Source>
+      )}
     </>
   );
 };

@@ -1,7 +1,7 @@
 ﻿/**
  * Serviço de dados que escolhe automaticamente a melhor fonte:
- * - Localhost: API Flask
- * - Produção: DuckDB-WASM + GitHub Releases
+ * - Padrao: DuckDB-WASM + arquivos publicados
+ * - API Flask local: somente com VITE_USE_FLASK_API=true
  */
 import { getMSOAFlows, getMSOAFlowsByDemographicFilters } from './duckdb';
 import {
@@ -83,8 +83,8 @@ function recordLatency(params: {
 /**
  * Detectar se estamos em desenvolvimento
  */
-function isDevelopment(): boolean {
-  return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+function shouldUseLocalFlaskApi(): boolean {
+  return import.meta.env.VITE_USE_FLASK_API === 'true';
 }
 
 /**
@@ -145,12 +145,12 @@ export async function loadFlows(
     return loadLTLAFlowsAggregated(areaCode, direction, limit);
   }
 
-  // MSOA: escolher fonte baseado no ambiente
-  if (isDevelopment()) {
+  // API Flask é opcional no desenvolvimento. Sem a flag, localhost usa DuckDB como produção.
+  if (shouldUseLocalFlaskApi()) {
     return loadFlowsFromAPI(areaCode, direction, limit);
-  } else {
-    return loadFlowsFromDuckDB(areaCode, direction, limit);
   }
+
+  return loadFlowsFromDuckDB(areaCode, direction, limit);
 }
 
 /**
