@@ -1390,50 +1390,55 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
                 )}
               </div>
 
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                    Salvar como src/dataset-configs/{suggestedFileName}
-                  </p>
-                  <h3 className="text-sm font-bold text-slate-950">JSON gerado</h3>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void saveProfileLocally()}
-                    disabled={validation.errors.length > 0 || localSaveState === 'saving'}
-                    className="inline-flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Database className="h-3.5 w-3.5" />
-                    {localSaveState === 'saving' ? 'Salvando' : 'Salvar local'}
-                  </button>
-                  {ENABLE_VERCEL_BLOB_JSON_PUBLISHING && (
+              <div className="mb-3 rounded-lg border border-slate-200 bg-white p-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      Salvar como
+                    </p>
+                    <h3 className="mt-0.5 text-sm font-bold text-slate-950">JSON gerado</h3>
+                    <p className="mt-1 truncate font-mono text-[11px] text-slate-500">
+                      src/dataset-configs/{suggestedFileName}
+                    </p>
+                  </div>
+                  <div className="grid shrink-0 grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => void publishJsonToVercelBlob()}
-                      disabled={validation.errors.length > 0 || blobPublishStatus === 'publishing'}
-                      className="inline-flex w-full items-center gap-2 rounded-md border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => void saveProfileLocally()}
+                      disabled={validation.errors.length > 0 || localSaveState === 'saving'}
+                      className="inline-flex min-w-32 items-center justify-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <Upload className="h-3.5 w-3.5" />
-                      {blobPublishStatus === 'publishing' ? 'Salvando' : 'Salvar JSON online'}
+                      <Database className="h-3.5 w-3.5" />
+                      {localSaveState === 'saving' ? 'Salvando' : 'Salvar local'}
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={copyJson}
-                    className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                    {copyState === 'copied' ? 'Copiado' : copyState === 'failed' ? 'Falhou' : 'Copiar'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={downloadJson}
-                    className="inline-flex items-center gap-2 rounded-md bg-slate-950 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    Baixar
-                  </button>
+                    {ENABLE_VERCEL_BLOB_JSON_PUBLISHING && (
+                      <button
+                        type="button"
+                        onClick={() => void publishJsonToVercelBlob()}
+                        disabled={validation.errors.length > 0 || blobPublishStatus === 'publishing'}
+                        className="inline-flex min-w-32 items-center justify-center gap-2 rounded-md border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Upload className="h-3.5 w-3.5" />
+                        {blobPublishStatus === 'publishing' ? 'Salvando' : 'Salvar JSON online'}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={copyJson}
+                      className="inline-flex min-w-32 items-center justify-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      {copyState === 'copied' ? 'Copiado' : copyState === 'failed' ? 'Falhou' : 'Copiar'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={downloadJson}
+                      className="inline-flex min-w-32 items-center justify-center gap-2 rounded-md bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Baixar
+                    </button>
+                  </div>
                 </div>
               </div>
 
