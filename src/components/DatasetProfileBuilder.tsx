@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Copy, Database, Download, Link, Plus, Trash2, Upload, X } from 'lucide-react';
 import {
   buildDatasetSwitchUrl,
+  getDatasetToggleOptions,
   persistActiveDataset,
   saveLocalDatasetProfile,
   type DatasetProfileSource,
@@ -648,6 +649,20 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
     setForm((current) => ({ ...current, [key]: value }));
   };
 
+  const confirmDatasetOverwriteIfNeeded = (datasetId: string): boolean => {
+    const existingDataset = getDatasetToggleOptions().find((option) => option.id === datasetId);
+
+    if (!existingDataset) {
+      return true;
+    }
+
+    const overwriteMessage = existingDataset.isLocal
+      ? `Ja existe um dataset local com o id "${datasetId}". Salvar novamente vai sobrescrever essa versao. Deseja continuar?`
+      : `Ja existe um dataset do app com o id "${datasetId}". Salvar com esse id vai criar uma versao local que substitui esse dataset neste navegador. Deseja continuar?`;
+
+    return window.confirm(overwriteMessage);
+  };
+
   const importPastedJson = () => {
     try {
       const parsed = JSON.parse(pastedJson);
@@ -765,6 +780,10 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
       return;
     }
 
+    if (!confirmDatasetOverwriteIfNeeded(profile.id)) {
+      return;
+    }
+
     setLocalSaveState('saving');
     setLocalSaveMessage('');
 
@@ -790,6 +809,10 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
       return;
     }
 
+    if (!confirmDatasetOverwriteIfNeeded(profile.id)) {
+      return;
+    }
+
     setBlobPublishStatus('publishing');
     setBlobPublishMessage('');
     setBlobPublishProgress(null);
@@ -811,6 +834,10 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
     if (validation.errors.length > 0) {
       setBlobPublishStatus('failed');
       setBlobPublishMessage('Corrija os erros obrigatorios antes de publicar o JSON no Vercel Blob.');
+      return;
+    }
+
+    if (!confirmDatasetOverwriteIfNeeded(profile.id)) {
       return;
     }
 
