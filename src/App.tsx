@@ -31,6 +31,10 @@ const DEFAULT_VIEW_STATE: ViewState = {
 };
 
 const DATASET_TOGGLE_OPTIONS = getDatasetToggleOptions();
+const HEADER_CONTROL_BOX_CLASS =
+  'flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 p-1 shadow-sm';
+const HEADER_CONTROL_ACTION_CLASS =
+  'flex h-8 items-center justify-center rounded-md px-3 text-xs font-semibold text-slate-700 transition-colors hover:bg-white hover:text-slate-950';
 const SHORTCUTS = [
   { key: 'S', description: 'Focar busca/selecionar area' },
   { key: 'G', description: 'Alternar nivel geografico' },
@@ -407,7 +411,7 @@ export default function App() {
                 <p className="text-sm font-semibold text-slate-900">{ACTIVE_DATASET_PROFILE.label}</p>
               </div>
 
-              <div className="flex gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
+              <div className={`${HEADER_CONTROL_BOX_CLASS} gap-1`}>
                 {DATASET_TOGGLE_OPTIONS.map((option) => {
                   const isActive = option.id === activeDatasetId;
 
@@ -423,7 +427,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => handleDatasetChange(option.id)}
-                        className="px-3 py-2"
+                        className="flex h-8 items-center px-3"
                       >
                         {option.label}
                       </button>
@@ -451,19 +455,21 @@ export default function App() {
               </div>
 
               <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowToolsMenu((current) => !current)}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-950"
-                  aria-expanded={showToolsMenu}
-                  aria-haspopup="menu"
-                >
-                  Ferramentas
-                </button>
+                <div className={HEADER_CONTROL_BOX_CLASS}>
+                  <button
+                    type="button"
+                    onClick={() => setShowToolsMenu((current) => !current)}
+                    className={HEADER_CONTROL_ACTION_CLASS}
+                    aria-expanded={showToolsMenu}
+                    aria-haspopup="menu"
+                  >
+                    Ferramentas
+                  </button>
+                </div>
 
                 {showToolsMenu && (
                   <div
-                    className="absolute right-0 top-11 z-[65] w-56 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl"
+                    className="absolute right-0 top-12 z-[65] w-56 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl"
                     role="menu"
                   >
                     <button
@@ -492,15 +498,17 @@ export default function App() {
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowShortcutsHelp(true)}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-950"
-                title="Ver atalhos"
-                aria-label="Ver atalhos"
-              >
-                ?
-              </button>
+              <div className={HEADER_CONTROL_BOX_CLASS}>
+                <button
+                  type="button"
+                  onClick={() => setShowShortcutsHelp(true)}
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-sm font-bold text-slate-700 transition-colors hover:bg-white hover:text-slate-950"
+                  title="Ver atalhos"
+                  aria-label="Ver atalhos"
+                >
+                  ?
+                </button>
+              </div>
             </div>
           </header>
 
