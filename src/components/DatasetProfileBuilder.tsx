@@ -803,6 +803,28 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
     }
   };
 
+  const publishJsonToVercelBlob = async () => {
+    if (validation.errors.length > 0) {
+      setBlobPublishStatus('failed');
+      setBlobPublishMessage('Corrija os erros obrigatorios antes de publicar o JSON no Vercel Blob.');
+      return;
+    }
+
+    setBlobPublishStatus('publishing');
+    setBlobPublishMessage('');
+    setBlobPublishProgress(null);
+
+    try {
+      const result = await publishDatasetProfileToBlob(profile, {}, setBlobPublishProgress);
+      await saveLocalDatasetProfile(result.profile);
+      setBlobPublishStatus('published');
+      setBlobPublishMessage(`JSON publicado no Vercel Blob: ${result.profileUrl}`);
+    } catch (error) {
+      setBlobPublishStatus('failed');
+      setBlobPublishMessage(error instanceof Error ? error.message : 'Nao foi possivel publicar o JSON no Vercel Blob.');
+    }
+  };
+
   const checkLinks = async () => {
     const urls = getCheckUrls(form);
     setLinkStatuses(Object.fromEntries(urls.map((item) => [item.key, { status: 'checking' }])));
@@ -1381,6 +1403,15 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
                   </button>
                   <button
                     type="button"
+                    onClick={() => void publishJsonToVercelBlob()}
+                    disabled={validation.errors.length > 0 || blobPublishStatus === 'publishing'}
+                    className="inline-flex w-full items-center gap-2 rounded-md border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    {blobPublishStatus === 'publishing' ? 'Publicando' : 'Publicar JSON'}
+                  </button>
+                  <button
+                    type="button"
                     onClick={copyJson}
                     className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                   >
@@ -1407,6 +1438,18 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
                   }`}
                 >
                   {localSaveMessage}
+                </p>
+              )}
+
+              {blobPublishMessage && (
+                <p
+                  className={`mb-3 rounded-md px-3 py-2 text-xs font-semibold ${
+                    blobPublishStatus === 'failed'
+                      ? 'bg-red-50 text-red-700'
+                      : 'bg-emerald-50 text-emerald-700'
+                  }`}
+                >
+                  {blobPublishMessage}
                 </p>
               )}
 
