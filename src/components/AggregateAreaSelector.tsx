@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ACTIVE_DATASET_PROFILE, getAggregateCentroidsPath } from '../constants/datasetProfiles';
+import { X } from 'lucide-react';
 
 interface LTLAOption {
   code: string;
@@ -202,11 +203,12 @@ export const AggregateAreaSelector: React.FC<AggregateAreaSelectorProps> = ({
               </div>
               <button
                 onClick={onClearSelection}
-                className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white font-bold text-slate-600 transition-colors hover:bg-slate-100"
+                className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100"
                 title="Limpar selecao"
                 type="button"
               >
-                x
+                <X className="h-4 w-4" />
+
               </button>
             </div>
           </div>

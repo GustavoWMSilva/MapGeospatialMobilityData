@@ -21,6 +21,7 @@ import {
 } from './constants/datasetProfiles';
 import type { DemographicFilters, GeographyLevel, MobilityIntensityMetric, ViewState } from './types';
 import type { ODSimulationApplyResult } from './utils/duckdb';
+import { X } from 'lucide-react';
 
 const DEFAULT_VIEW_STATE: ViewState = {
   longitude: ACTIVE_DATASET_PROFILE.mapView.longitude,
@@ -438,7 +439,7 @@ export default function App() {
                       className="w-full rounded-md px-3 py-2 text-left text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-950"
                       role="menuitem"
                     >
-                      Configurar dataset
+                      Criar dataset por JSON
                     </button>
                     <button
                       type="button"
@@ -449,7 +450,7 @@ export default function App() {
                       className="w-full rounded-md px-3 py-2 text-left text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-950"
                       role="menuitem"
                     >
-                      Adicionar simulacao OD
+                      Aplicar matriz OD personalizada
                     </button>
                   </div>
                 )}
@@ -702,10 +703,10 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setShowShortcutsHelp(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white font-bold text-slate-600 transition-colors hover:bg-slate-100"
-                title="Fechar atalhos"
+                className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100"
               >
-                x
+                <X className="h-4 w-4" />
+
               </button>
             </div>
 
@@ -740,10 +741,10 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setShowSimulationUploader(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white font-bold text-slate-600 transition-colors hover:bg-slate-100"
+                className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100"
                 title="Fechar simulacao"
               >
-                x
+            <X className="h-4 w-4" />
               </button>
             </div>
 

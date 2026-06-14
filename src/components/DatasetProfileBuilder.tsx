@@ -7,6 +7,7 @@ import {
   type DatasetProfileSource,
 } from '../constants/datasetProfiles';
 import type { DatasetChartId } from '../types';
+import { ChartObjectiveHelp } from './analytics/ChartObjectiveHelp';
 
 type LinkCheckStatus = 'checking' | 'ok' | 'error';
 type LinkCheckSource = 'remote' | 'local';
@@ -66,6 +67,14 @@ interface FormState {
 }
 
 type FieldErrors = Partial<Record<keyof FormState, string>>;
+type PublishedFileHelpKey =
+  | 'remoteBaseUrl'
+  | 'localProcessedBasePath'
+  | 'baseCentroidsPath'
+  | 'baseBoundariesPath'
+  | 'aggregateCentroidsPath'
+  | 'aggregateLookupPath'
+  | 'aggregateBoundariesPath';
 
 const initialForm: FormState = {
   id: 'meu_dataset',
@@ -104,6 +113,51 @@ const chartOrder: DatasetChartId[] = [
   'aggregateStacked',
   'aggregationScatter',
 ];
+
+const publishedFileHints: Record<PublishedFileHelpKey, { title: string; description: string }> = {
+  remoteBaseUrl: {
+    title: 'Pasta remota processed',
+    description: 'Pasta publica dos Parquets. Deve terminar com /.',
+  },
+  localProcessedBasePath: {
+    title: 'Fallback local processed',
+    description: 'Pasta em public/data usada se o remoto falhar.',
+  },
+  baseCentroidsPath: {
+    title: 'Centroides base CSV',
+    description: 'CSV com code, name, lat, lon da unidade base.',
+  },
+  baseBoundariesPath: {
+    title: 'Fronteiras base GeoJSON',
+    description: 'GeoJSON dos poligonos da unidade base.',
+  },
+  aggregateCentroidsPath: {
+    title: 'Centroides agregados CSV',
+    description: 'CSV com code, name, lat, lon da area agregada.',
+  },
+  aggregateLookupPath: {
+    title: 'Lookup agregado CSV',
+    description: 'Liga base -> agregado. Ordem: codigo/nome base, codigo/nome agregado.',
+  },
+  aggregateBoundariesPath: {
+    title: 'Fronteiras agregadas GeoJSON',
+    description: 'GeoJSON dos poligonos das areas agregadas.',
+  },
+};
+
+const publishedFilesJsonExample = `{
+  "lookup": {
+    "baseCentroidsPath": "/data/meu_dataset/lookup/areas_centroids.csv",
+    "baseBoundariesPath": "/data/meu_dataset/lookup/boundaries.geojson",
+    "aggregateCentroidsPath": "/data/meu_dataset/lookup/aggregate_centroids.csv",
+    "aggregateLookupPath": "/data/meu_dataset/lookup/aggregate_lookup.csv",
+    "aggregateBoundariesPath": "/data/meu_dataset/lookup/aggregate_boundaries.geojson"
+  },
+  "storage": {
+    "remoteBaseUrl": "https://cdn.jsdelivr.net/gh/usuario/repositorio@main/public/data/meu_dataset/processed/",
+    "localProcessedBasePath": "/data/meu_dataset/processed/"
+  }
+}`;
 
 function ensureTrailingSlash(value: string): string {
   const trimmed = cleanPastedPath(value);
@@ -854,50 +908,93 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
             </div>
 
             <SectionTitle title="Arquivos publicados" />
+            <details className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+              <summary className="cursor-pointer font-semibold text-slate-800">
+                Ver exemplo no JSON
+              </summary>
+              <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-white p-3 font-mono text-[10px] leading-4 text-slate-700">
+                {publishedFilesJsonExample}
+              </pre>
+            </details>
             <div className="space-y-3">
-              <Field label="URL remota da pasta processed">
+              <Field
+                label="URL remota da pasta processed"
+                hint={
+                  <FileHelpButton helpKey="remoteBaseUrl" />
+                }
+              >
                 <input
                   value={form.remoteBaseUrl}
                   onChange={(event) => updateField('remoteBaseUrl', event.target.value)}
                   className="w-full rounded-md border border-slate-200 px-3 py-2 font-mono text-xs"
                 />
               </Field>
-              <Field label="Fallback local processed">
+              <Field
+                label="Fallback local processed"
+                hint={
+                  <FileHelpButton helpKey="localProcessedBasePath" />
+                }
+              >
                 <input
                   value={form.localProcessedBasePath}
                   onChange={(event) => updateField('localProcessedBasePath', event.target.value)}
                   className="w-full rounded-md border border-slate-200 px-3 py-2 font-mono text-xs"
                 />
               </Field>
-              <Field label="Centroides base CSV">
+              <Field
+                label="Centroides base CSV"
+                hint={
+                  <FileHelpButton helpKey="baseCentroidsPath" />
+                }
+              >
                 <input
                   value={form.baseCentroidsPath}
                   onChange={(event) => updateField('baseCentroidsPath', event.target.value)}
                   className="w-full rounded-md border border-slate-200 px-3 py-2 font-mono text-xs"
                 />
               </Field>
-              <Field label="Fronteiras base GeoJSON">
+              <Field
+                label="Fronteiras base GeoJSON"
+                hint={
+                  <FileHelpButton helpKey="baseBoundariesPath" />
+                }
+              >
                 <input
                   value={form.baseBoundariesPath}
                   onChange={(event) => updateField('baseBoundariesPath', event.target.value)}
                   className="w-full rounded-md border border-slate-200 px-3 py-2 font-mono text-xs"
                 />
               </Field>
-              <Field label="Centroides agregados CSV">
+              <Field
+                label="Centroides agregados CSV"
+                hint={
+                  <FileHelpButton helpKey="aggregateCentroidsPath" />
+                }
+              >
                 <input
                   value={form.aggregateCentroidsPath}
                   onChange={(event) => updateField('aggregateCentroidsPath', event.target.value)}
                   className="w-full rounded-md border border-slate-200 px-3 py-2 font-mono text-xs"
                 />
               </Field>
-              <Field label="Lookup agregado CSV">
+              <Field
+                label="Lookup agregado CSV"
+                hint={
+                  <FileHelpButton helpKey="aggregateLookupPath" />
+                }
+              >
                 <input
                   value={form.aggregateLookupPath}
                   onChange={(event) => updateField('aggregateLookupPath', event.target.value)}
                   className="w-full rounded-md border border-slate-200 px-3 py-2 font-mono text-xs"
                 />
               </Field>
-              <Field label="Fronteiras agregadas GeoJSON">
+              <Field
+                label="Fronteiras agregadas GeoJSON"
+                hint={
+                  <FileHelpButton helpKey="aggregateBoundariesPath" />
+                }
+              >
                 <input
                   value={form.aggregateBoundariesPath}
                   onChange={(event) => updateField('aggregateBoundariesPath', event.target.value)}
@@ -1171,17 +1268,34 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
 function Field({
   label,
   children,
+  hint,
   className = '',
 }: {
   label: string;
   children: ReactNode;
+  hint?: ReactNode;
   className?: string;
 }) {
   return (
-    <label className={`block ${className}`}>
-      <span className="mb-1 block text-[11px] font-semibold text-slate-500">{label}</span>
+    <div className={`block ${className}`}>
+      <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+        <span>{label}</span>
+        {hint}
+      </div>
       {children}
-    </label>
+    </div>
+  );
+}
+
+function FileHelpButton({ helpKey }: { helpKey: PublishedFileHelpKey }) {
+  const hint = publishedFileHints[helpKey];
+
+  return (
+    <ChartObjectiveHelp
+      title={hint.title}
+      objective={hint.description}
+      bLeft={true}
+    />
   );
 }
 
