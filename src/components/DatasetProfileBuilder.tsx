@@ -83,6 +83,10 @@ type PublishedFileHelpKey =
   | 'aggregateBoundariesPath';
 type BlobPublishStatus = 'idle' | 'publishing' | 'published' | 'failed';
 
+// Keep JSON publishing available, but hide large file uploads until that flow is needed again.
+const ENABLE_VERCEL_BLOB_JSON_PUBLISHING = true;
+const ENABLE_VERCEL_BLOB_FILE_PUBLISHING = false;
+
 const initialForm: FormState = {
   id: 'meu_dataset',
   label: 'Meu dataset',
@@ -991,111 +995,113 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
               </pre>
             </details>
 
-            <details className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
-              <summary className="cursor-pointer font-semibold">
-                Publicar arquivos no Vercel Blob
-              </summary>
+            {ENABLE_VERCEL_BLOB_FILE_PUBLISHING && (
+              <details className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+                <summary className="cursor-pointer font-semibold">
+                  Publicar arquivos no Vercel Blob
+                </summary>
 
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <BlobFilePicker
-                  label="Parquet principal"
-                  file={blobFiles.baseFlow}
-                  accept=".parquet"
-                  disabled={blobPublishStatus === 'publishing'}
-                  onChange={(file) => updateBlobFile('baseFlow', file)}
-                />
-                <BlobFilePicker
-                  label="Centroides base"
-                  file={blobFiles.baseCentroids}
-                  accept=".csv,text/csv"
-                  disabled={blobPublishStatus === 'publishing'}
-                  onChange={(file) => updateBlobFile('baseCentroids', file)}
-                />
-                <BlobFilePicker
-                  label="Fronteiras base"
-                  file={blobFiles.baseBoundaries}
-                  accept=".geojson,.json,application/geo+json,application/json"
-                  disabled={blobPublishStatus === 'publishing'}
-                  onChange={(file) => updateBlobFile('baseBoundaries', file)}
-                />
-                <BlobFilePicker
-                  label="Centroides agregados"
-                  file={blobFiles.aggregateCentroids}
-                  accept=".csv,text/csv"
-                  disabled={blobPublishStatus === 'publishing'}
-                  onChange={(file) => updateBlobFile('aggregateCentroids', file)}
-                />
-                <BlobFilePicker
-                  label="Lookup agregado"
-                  file={blobFiles.aggregateLookup}
-                  accept=".csv,text/csv"
-                  disabled={blobPublishStatus === 'publishing'}
-                  onChange={(file) => updateBlobFile('aggregateLookup', file)}
-                />
-                <BlobFilePicker
-                  label="Fronteiras agregadas"
-                  file={blobFiles.aggregateBoundaries}
-                  accept=".geojson,.json,application/geo+json,application/json"
-                  disabled={blobPublishStatus === 'publishing'}
-                  onChange={(file) => updateBlobFile('aggregateBoundaries', file)}
-                />
-              </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <BlobFilePicker
+                    label="Parquet principal"
+                    file={blobFiles.baseFlow}
+                    accept=".parquet"
+                    disabled={blobPublishStatus === 'publishing'}
+                    onChange={(file) => updateBlobFile('baseFlow', file)}
+                  />
+                  <BlobFilePicker
+                    label="Centroides base"
+                    file={blobFiles.baseCentroids}
+                    accept=".csv,text/csv"
+                    disabled={blobPublishStatus === 'publishing'}
+                    onChange={(file) => updateBlobFile('baseCentroids', file)}
+                  />
+                  <BlobFilePicker
+                    label="Fronteiras base"
+                    file={blobFiles.baseBoundaries}
+                    accept=".geojson,.json,application/geo+json,application/json"
+                    disabled={blobPublishStatus === 'publishing'}
+                    onChange={(file) => updateBlobFile('baseBoundaries', file)}
+                  />
+                  <BlobFilePicker
+                    label="Centroides agregados"
+                    file={blobFiles.aggregateCentroids}
+                    accept=".csv,text/csv"
+                    disabled={blobPublishStatus === 'publishing'}
+                    onChange={(file) => updateBlobFile('aggregateCentroids', file)}
+                  />
+                  <BlobFilePicker
+                    label="Lookup agregado"
+                    file={blobFiles.aggregateLookup}
+                    accept=".csv,text/csv"
+                    disabled={blobPublishStatus === 'publishing'}
+                    onChange={(file) => updateBlobFile('aggregateLookup', file)}
+                  />
+                  <BlobFilePicker
+                    label="Fronteiras agregadas"
+                    file={blobFiles.aggregateBoundaries}
+                    accept=".geojson,.json,application/geo+json,application/json"
+                    disabled={blobPublishStatus === 'publishing'}
+                    onChange={(file) => updateBlobFile('aggregateBoundaries', file)}
+                  />
+                </div>
 
-              {form.dimensions.length > 0 && (
-                <div className="mt-3 border-t border-emerald-200 pt-3">
-                  <p className="mb-2 font-semibold">Parquets das dimensoes</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {form.dimensions.map((dimension) => (
-                      <BlobFilePicker
-                        key={dimension.key}
-                        label={dimension.label || dimension.key}
-                        file={blobFiles.dimensions?.[dimension.key]}
-                        accept=".parquet"
-                        disabled={blobPublishStatus === 'publishing'}
-                        onChange={(file) => updateBlobDimensionFile(dimension.key, file)}
+                {form.dimensions.length > 0 && (
+                  <div className="mt-3 border-t border-emerald-200 pt-3">
+                    <p className="mb-2 font-semibold">Parquets das dimensoes</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {form.dimensions.map((dimension) => (
+                        <BlobFilePicker
+                          key={dimension.key}
+                          label={dimension.label || dimension.key}
+                          file={blobFiles.dimensions?.[dimension.key]}
+                          accept=".parquet"
+                          disabled={blobPublishStatus === 'publishing'}
+                          onChange={(file) => updateBlobDimensionFile(dimension.key, file)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {blobPublishProgress && (
+                  <div className="mt-3 rounded-md bg-white p-2 text-emerald-800">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-semibold">{blobPublishProgress.currentFileLabel}</span>
+                      <span>{Math.round(blobPublishProgress.percentage)}%</span>
+                    </div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-emerald-100">
+                      <div
+                        className="h-full rounded-full bg-emerald-600 transition-all"
+                        style={{ width: `${blobPublishProgress.percentage}%` }}
                       />
-                    ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {blobPublishProgress && (
-                <div className="mt-3 rounded-md bg-white p-2 text-emerald-800">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-semibold">{blobPublishProgress.currentFileLabel}</span>
-                    <span>{Math.round(blobPublishProgress.percentage)}%</span>
-                  </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-emerald-100">
-                    <div
-                      className="h-full rounded-full bg-emerald-600 transition-all"
-                      style={{ width: `${blobPublishProgress.percentage}%` }}
-                    />
-                  </div>
-                </div>
-              )}
+                {blobPublishMessage && (
+                  <p
+                    className={`mt-3 rounded-md px-3 py-2 font-semibold ${
+                      blobPublishStatus === 'failed'
+                        ? 'bg-red-50 text-red-700'
+                        : 'bg-white text-emerald-800'
+                    }`}
+                  >
+                    {blobPublishMessage}
+                  </p>
+                )}
 
-              {blobPublishMessage && (
-                <p
-                  className={`mt-3 rounded-md px-3 py-2 font-semibold ${
-                    blobPublishStatus === 'failed'
-                      ? 'bg-red-50 text-red-700'
-                      : 'bg-white text-emerald-800'
-                  }`}
+                <button
+                  type="button"
+                  onClick={() => void publishToVercelBlob()}
+                  disabled={blobPublishStatus === 'publishing' || validation.errors.length > 0}
+                  className="mt-3 inline-flex items-center gap-2 rounded-md bg-emerald-700 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {blobPublishMessage}
-                </p>
-              )}
-
-              <button
-                type="button"
-                onClick={() => void publishToVercelBlob()}
-                disabled={blobPublishStatus === 'publishing' || validation.errors.length > 0}
-                className="mt-3 inline-flex items-center gap-2 rounded-md bg-emerald-700 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Upload className="h-3.5 w-3.5" />
-                {blobPublishStatus === 'publishing' ? 'Publicando' : 'Publicar no Blob'}
-              </button>
-            </details>
+                  <Upload className="h-3.5 w-3.5" />
+                  {blobPublishStatus === 'publishing' ? 'Publicando' : 'Publicar no Blob'}
+                </button>
+              </details>
+            )}
             <div className="space-y-3">
               <Field
                 label="URL remota da pasta processed"
@@ -1401,15 +1407,17 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
                     <Database className="h-3.5 w-3.5" />
                     {localSaveState === 'saving' ? 'Salvando' : 'Salvar local'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => void publishJsonToVercelBlob()}
-                    disabled={validation.errors.length > 0 || blobPublishStatus === 'publishing'}
-                    className="inline-flex w-full items-center gap-2 rounded-md border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Upload className="h-3.5 w-3.5" />
-                    {blobPublishStatus === 'publishing' ? 'Publicando' : 'Publicar JSON'}
-                  </button>
+                  {ENABLE_VERCEL_BLOB_JSON_PUBLISHING && (
+                    <button
+                      type="button"
+                      onClick={() => void publishJsonToVercelBlob()}
+                      disabled={validation.errors.length > 0 || blobPublishStatus === 'publishing'}
+                      className="inline-flex w-full items-center gap-2 rounded-md border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      {blobPublishStatus === 'publishing' ? 'Salvando' : 'Salvar JSON online'}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={copyJson}
@@ -1441,7 +1449,7 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
                 </p>
               )}
 
-              {blobPublishMessage && (
+              {ENABLE_VERCEL_BLOB_JSON_PUBLISHING && blobPublishMessage && (
                 <p
                   className={`mb-3 rounded-md px-3 py-2 text-xs font-semibold ${
                     blobPublishStatus === 'failed'
