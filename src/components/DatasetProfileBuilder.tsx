@@ -819,10 +819,32 @@ export function DatasetProfileBuilder({ onClose }: DatasetProfileBuilderProps) {
     setBlobPublishProgress(null);
 
     try {
+      const linkTargets = getCheckUrls(form);
+      const linkResults = await Promise.all(
+        linkTargets.map(async (item) => [item.key, await checkTargetUrl(item)] as const)
+      );
+      const nextLinkStatuses = Object.fromEntries(linkResults);
+      const failedLinks = linkResults
+        .filter(([, result]) => result.status === 'error')
+        .map(([key]) => linkTargets.find((item) => item.key === key)?.label || key);
+
+      setLinkStatuses(nextLinkStatuses);
+
+      if (failedLinks.length > 0) {
+        throw new Error(
+          `Antes de publicar o JSON, corrija os links que falharam: ${failedLinks.join(', ')}.`
+        );
+      }
+
       const result = await publishDatasetProfileToBlob(profile, {}, setBlobPublishProgress);
       await saveLocalDatasetProfile(result.profile);
+      persistActiveDataset(result.profile.id);
       setBlobPublishStatus('published');
-      setBlobPublishMessage(`JSON publicado no Vercel Blob: ${result.profileUrl}`);
+      setBlobPublishMessage(`JSON publicado no Vercel Blob. Abrindo dataset salvo: ${result.profileUrl}`);
+
+      window.setTimeout(() => {
+        window.location.assign(buildDatasetSwitchUrl(result.profile.id));
+      }, 650);
     } catch (error) {
       setBlobPublishStatus('failed');
       setBlobPublishMessage(error instanceof Error ? error.message : 'Nao foi possivel publicar o JSON no Vercel Blob.');

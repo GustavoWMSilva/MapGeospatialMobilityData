@@ -398,6 +398,7 @@ const datasetProfileModules = import.meta.glob('../dataset-configs/*.json', {
 }) as Record<string, DatasetProfileSource>;
 
 export const LOCAL_DATASET_PROFILES_STORAGE_KEY = 'map-geospatial-local-dataset-profiles';
+export const LOCAL_DATASET_PROFILES_UPDATED_EVENT = 'map-geospatial-local-dataset-profiles-updated';
 const LOCAL_DATASET_PROFILE_CACHE_PREFIX = 'dataset-profile:';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -456,6 +457,10 @@ export function getLocalDatasetProfileCacheKey(datasetId: string): string {
   return `${LOCAL_DATASET_PROFILE_CACHE_PREFIX}${datasetId}`;
 }
 
+function notifyLocalDatasetProfilesUpdated(datasetId: string, action: 'saved' | 'removed'): void {
+  window.dispatchEvent(new CustomEvent(LOCAL_DATASET_PROFILES_UPDATED_EVENT, { detail: { datasetId, action } }));
+}
+
 export async function saveLocalDatasetProfile(profile: DatasetProfileSource): Promise<void> {
   if (typeof window === 'undefined') {
     throw new Error('Perfis locais so podem ser salvos no navegador.');
@@ -473,6 +478,25 @@ export async function saveLocalDatasetProfile(profile: DatasetProfileSource): Pr
 
   await cacheService.set(getLocalDatasetProfileCacheKey(profile.id), profile);
   window.localStorage.setItem(LOCAL_DATASET_PROFILES_STORAGE_KEY, JSON.stringify(nextProfiles));
+  notifyLocalDatasetProfilesUpdated(profile.id, 'saved');
+}
+
+export async function removeLocalDatasetProfile(datasetId: string): Promise<void> {
+  if (typeof window === 'undefined') {
+    throw new Error('Perfis locais so podem ser removidos no navegador.');
+  }
+
+  const currentProfiles = readLocalDatasetProfileSources();
+  if (!(datasetId in currentProfiles)) {
+    return;
+  }
+
+  const nextProfiles = { ...currentProfiles };
+  delete nextProfiles[datasetId];
+
+  await cacheService.delete(getLocalDatasetProfileCacheKey(datasetId));
+  window.localStorage.setItem(LOCAL_DATASET_PROFILES_STORAGE_KEY, JSON.stringify(nextProfiles));
+  notifyLocalDatasetProfilesUpdated(datasetId, 'removed');
 }
 
 const importedDatasetProfilesById = Object.values(datasetProfileModules).reduce(
@@ -590,7 +614,7 @@ export const ACTIVE_DATASET_PROFILE =
   DATASET_PROFILES[getActiveDatasetId()] ||
   DATASET_PROFILES[DEFAULT_DATASET_ID];
 
-export function getDatasetToggleOptions(): Array<{ id: string; label: string; sortOrder: number }> {
+export function getDatasetToggleOptions(): Array<{ id: string; label: string; sortOrder: number; isLocal: boolean }> {
   return Object.values(DATASET_PROFILES)
     .sort((left, right) => {
       const leftSort = left.sortOrder ?? Number.MAX_SAFE_INTEGER;
@@ -606,6 +630,7 @@ export function getDatasetToggleOptions(): Array<{ id: string; label: string; so
       id: profile.id,
       label: profile.label,
       sortOrder: profile.sortOrder ?? Number.MAX_SAFE_INTEGER,
+      isLocal: profile.id in localDatasetProfilesById,
     }));
 }
 

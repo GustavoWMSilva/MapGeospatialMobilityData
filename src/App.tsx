@@ -18,6 +18,7 @@ import {
   getActiveDatasetId,
   getDatasetToggleOptions,
   persistActiveDataset,
+  removeLocalDatasetProfile,
 } from './constants/datasetProfiles';
 import type { DemographicFilters, GeographyLevel, MobilityIntensityMetric, ViewState } from './types';
 import type { ODSimulationApplyResult } from './utils/duckdb';
@@ -128,6 +129,19 @@ export default function App() {
 
     persistActiveDataset(datasetId);
     window.location.assign(buildDatasetSwitchUrl(datasetId));
+  }, [activeDatasetId]);
+
+  const handleRemoveLocalDataset = useCallback(async (datasetId: string, label: string) => {
+    const confirmed = window.confirm(`Remover o dataset local "${label}" deste navegador?`);
+    if (!confirmed) {
+      return;
+    }
+
+    await removeLocalDatasetProfile(datasetId);
+
+    const nextDatasetId = datasetId === activeDatasetId ? 'porto_alegre' : activeDatasetId;
+    persistActiveDataset(nextDatasetId);
+    window.location.assign(buildDatasetSwitchUrl(nextDatasetId));
   }, [activeDatasetId]);
 
   const activateAggregateLevel = useCallback(() => {
@@ -398,18 +412,40 @@ export default function App() {
                   const isActive = option.id === activeDatasetId;
 
                   return (
-                    <button
+                    <span
                       key={option.id}
-                      type="button"
-                      onClick={() => handleDatasetChange(option.id)}
-                      className={`rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
+                      className={`flex items-center rounded-md text-xs font-semibold transition-colors ${
                         isActive
                           ? 'bg-slate-950 text-white shadow-sm'
                           : 'text-slate-600 hover:bg-white hover:text-slate-950'
                       }`}
                     >
-                      {option.label}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDatasetChange(option.id)}
+                        className="px-3 py-2"
+                      >
+                        {option.label}
+                      </button>
+                      {option.isLocal && (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handleRemoveLocalDataset(option.id, option.label);
+                          }}
+                          className={`mr-1 flex h-5 w-5 items-center justify-center rounded text-xs transition-colors ${
+                            isActive
+                              ? 'text-white/70 hover:bg-white/15 hover:text-white'
+                              : 'text-slate-400 hover:bg-red-50 hover:text-red-600'
+                          }`}
+                          aria-label={`Remover dataset ${option.label}`}
+                          title={`Remover ${option.label}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </span>
                   );
                 })}
               </div>
