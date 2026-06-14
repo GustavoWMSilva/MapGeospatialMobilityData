@@ -2,6 +2,7 @@ import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const MAX_UPLOAD_SIZE_BYTES = 1024 * 1024 * 1024;
+const blobReadWriteToken = process.env.BLOB_READ_WRITE_TOKEN;
 
 function readRequestBody(request: IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -49,11 +50,19 @@ export default async function handler(request: IncomingMessage, response: Server
   }
 
   try {
+    if (!blobReadWriteToken) {
+      sendJson(response, 500, {
+        error: 'BLOB_READ_WRITE_TOKEN nao configurado. Conecte um Blob Store no Vercel ou adicione essa variavel de ambiente.',
+      });
+      return;
+    }
+
     const body = await readRequestBody(request) as HandleUploadBody;
 
     const result = await handleUpload({
       body,
       request,
+      token: blobReadWriteToken,
       onBeforeGenerateToken: async (pathname) => {
         if (!isAllowedDatasetPath(pathname)) {
           throw new Error('Caminho de upload invalido.');
