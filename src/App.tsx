@@ -6,6 +6,7 @@ import { InteractiveMap } from './components/InteractiveMap';
 import { AreaSelectionControls } from './components/AreaSelectionControls';
 import { AggregateAreaSelector } from './components/AggregateAreaSelector';
 import { CacheDebugPanel } from './components/CacheDebugPanel';
+import { DatasetDocumentation } from './components/DatasetDocumentation';
 import { DatasetProfileBuilder } from './components/DatasetProfileBuilder';
 import { ODSimulationUploader } from './components/ODSimulationUploader';
 import { AnalyticsDashboard } from './components/analytics';
@@ -85,6 +86,7 @@ export default function App() {
   const [showMobilityIntensity, setShowMobilityIntensity] = React.useState(false);
   const [mobilityIntensityMetric, setMobilityIntensityMetric] = React.useState<MobilityIntensityMetric>('total');
   const [showShortcutsHelp, setShowShortcutsHelp] = React.useState(false);
+  const [showDatasetDocumentation, setShowDatasetDocumentation] = React.useState(false);
   const [showDatasetBuilder, setShowDatasetBuilder] = React.useState(false);
   const [showToolsMenu, setShowToolsMenu] = React.useState(false);
   const [showSimulationUploader, setShowSimulationUploader] = React.useState(false);
@@ -476,6 +478,17 @@ export default function App() {
                       type="button"
                       onClick={() => {
                         setShowToolsMenu(false);
+                        setShowDatasetDocumentation(true);
+                      }}
+                      className="w-full rounded-md px-3 py-2 text-left text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-950"
+                      role="menuitem"
+                    >
+                      Documentacao dos dados
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowToolsMenu(false);
                         setShowDatasetBuilder(true);
                       }}
                       className="w-full rounded-md px-3 py-2 text-left text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-950"
@@ -773,6 +786,10 @@ export default function App() {
       )}
 
       {showDatasetBuilder && <DatasetProfileBuilder onClose={() => setShowDatasetBuilder(false)} />}
+
+      {showDatasetDocumentation && (
+        <DatasetDocumentation onClose={() => setShowDatasetDocumentation(false)} />
+      )}
 
       {showSimulationUploader && (
         <div className="fixed inset-0 z-[75] flex items-center justify-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
