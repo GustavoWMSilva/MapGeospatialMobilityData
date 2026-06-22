@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { getDemographicDimensionStats } from '../../utils/duckdb';
 import { debugLog, debugWarn, getAnalyticsErrorMessage } from './analyticsUtils';
-import type { DemographicDimensionConfig } from '../../types';
+import type { DemographicDimensionConfig, FlowConnectionFilter } from '../../types';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
 import { MAP_COLORS } from '../../constants/mapColors';
 
@@ -10,6 +10,7 @@ interface AgeBarChartProps {
   areaCode: string;
   dimension: DemographicDimensionConfig;
   direction?: 'incoming' | 'outgoing';
+  connectionFilter?: FlowConnectionFilter | null;
   includeInternalFlows?: boolean;
   selectedValue?: string;
   onSelectValue?: (value: string) => void;
@@ -22,6 +23,18 @@ interface CategoryBarDatum {
   total: number;
   percentage: number;
   color: string;
+}
+
+interface CategoryTooltipPayload {
+  payload?: {
+    percentage?: number;
+  };
+}
+
+interface CategoryClickPayload {
+  payload?: {
+    value?: string;
+  };
 }
 
 const CATEGORY_COLORS = [
@@ -56,6 +69,7 @@ export function AgeBarChart({
   areaCode,
   dimension,
   direction = 'incoming',
+  connectionFilter = null,
   includeInternalFlows = false,
   selectedValue = 'all',
   onSelectValue,
@@ -84,7 +98,13 @@ export function AgeBarChart({
         setLoading(true);
         setError(null);
 
-        const stats = await getDemographicDimensionStats(areaCode, dimension, direction, includeInternalFlows);
+        const stats = await getDemographicDimensionStats(
+          areaCode,
+          dimension,
+          direction,
+          includeInternalFlows,
+          connectionFilter?.code
+        );
         debugLog('[AgeBarChart] stats recebidas', stats);
 
         if (stats.length === 0) {
@@ -122,7 +142,7 @@ export function AgeBarChart({
       debugLog(`[AgeBarChart] limpando dados de ${areaCode}`);
       setData([]);
     };
-  }, [areaCode, dimension, direction, includeInternalFlows]);
+  }, [areaCode, dimension, direction, connectionFilter, includeInternalFlows]);
 
   if (loading) {
     return (
@@ -154,7 +174,9 @@ export function AgeBarChart({
       <div className="mb-2">
         <div className="flex items-center gap-1.5">
           <p className="text-xs text-slate-500">
-            {direction === 'incoming' ? 'Entrada' : 'Saida'} por {dimension.label.toLowerCase()}
+            {connectionFilter
+              ? `${connectionFilter.name || connectionFilter.code} por ${dimension.label.toLowerCase()}`
+              : `${direction === 'incoming' ? 'Entrada' : 'Saida'} por ${dimension.label.toLowerCase()}`}
           </p>
           <ChartObjectiveHelp objective={`Evidenciar a distribuicao dos fluxos por ${dimension.label.toLowerCase()}.`} />
         </div>
@@ -174,10 +196,13 @@ export function AgeBarChart({
           />
           <YAxis width={38} tick={{ fontSize: 11, fill: '#64748B' }} axisLine={false} tickLine={false} />
           <Tooltip
-            formatter={(value: number | string | Array<number | string> | undefined, _name: string | undefined, props: any) => [
-              `${Number(value ?? 0).toLocaleString('pt-BR')} (${props.payload.percentage}%)`,
-              'Pessoas',
-            ]}
+            formatter={(value: number | string | Array<number | string> | undefined, _name: string | undefined, props: unknown) => {
+              const payload = (props as CategoryTooltipPayload).payload;
+              return [
+                `${Number(value ?? 0).toLocaleString('pt-BR')} (${payload?.percentage ?? 0}%)`,
+                'Pessoas',
+              ];
+            }}
             labelFormatter={(_label, payload) => {
               const row = payload?.[0]?.payload as CategoryBarDatum | undefined;
               return row?.name ?? '';
@@ -187,8 +212,8 @@ export function AgeBarChart({
             dataKey="total"
             fill="#8884d8"
             radius={[5, 5, 0, 0]}
-            onClick={(entry: any) => {
-              const clickedValue = entry?.payload?.value as string | undefined;
+            onClick={(entry: unknown) => {
+              const clickedValue = (entry as CategoryClickPayload).payload?.value;
               if (!clickedValue || !onSelectValue) return;
               onSelectValue(selectedValue === clickedValue ? 'all' : clickedValue);
             }}

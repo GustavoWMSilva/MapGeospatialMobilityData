@@ -11,7 +11,7 @@ import {
   YAxis,
 } from 'recharts';
 import { loadFlowsFiltered } from '../../utils/dataService';
-import type { DemographicFilters, GeographyLevel } from '../../types';
+import type { DemographicFilters, FlowConnectionFilter, GeographyLevel } from '../../types';
 import { getAnalyticsErrorMessage } from './analyticsUtils';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
 import { MAP_COLORS } from '../../constants/mapColors';
@@ -21,8 +21,10 @@ interface TopFlowsRankingChartProps {
   geographyLevel: GeographyLevel;
   direction?: 'incoming' | 'outgoing';
   demographicFilters?: DemographicFilters;
+  connectionFilter?: FlowConnectionFilter | null;
   includeInternalFlows?: boolean;
   topN?: number;
+  onSelectArea?: (areaCode: string, areaName: string) => void;
 }
 
 interface FlowFeatureProperties {
@@ -41,7 +43,19 @@ interface RankingDatum {
   routeLabel: string;
   fullRouteLabel: string;
   counterpartLabel: string;
+  counterpartCode: string;
   count: number;
+}
+
+interface SingleLineLabelProps {
+  x?: number | string;
+  y?: number | string;
+  height?: number | string;
+  value?: unknown;
+}
+
+interface RankingClickPayload {
+  payload?: RankingDatum;
 }
 
 const BAR_COLORS = MAP_COLORS.analytics.topFlowsBar;
@@ -70,6 +84,10 @@ function getCounterpartLabel(properties: FlowFeatureProperties, direction: 'inco
     : (properties.dest_name || properties.dest_code);
 }
 
+function getCounterpartCode(properties: FlowFeatureProperties, direction: 'incoming' | 'outgoing'): string {
+  return direction === 'incoming' ? properties.origin_code : properties.dest_code;
+}
+
 function shortenRouteLabel(label: string, maxLength = 30): string {
   if (label.length <= maxLength) {
     return label;
@@ -77,7 +95,7 @@ function shortenRouteLabel(label: string, maxLength = 30): string {
   return `${label.slice(0, maxLength - 1)}…`;
 }
 
-function renderSingleLineLabel(props: any) {
+function renderSingleLineLabel(props: SingleLineLabelProps) {
   const x = Number(props.x ?? 0);
   const y = Number(props.y ?? 0);
   const height = Number(props.height ?? 0);
@@ -103,8 +121,10 @@ export function TopFlowsRankingChart({
   geographyLevel,
   direction = 'incoming',
   demographicFilters = {},
+  connectionFilter = null,
   includeInternalFlows = false,
   topN = 10,
+  onSelectArea,
 }: TopFlowsRankingChartProps) {
   const [rows, setRows] = useState<RankingDatum[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,10 +155,16 @@ export function TopFlowsRankingChart({
         const withoutInternal = includeInternalFlows
           ? directional
           : directional.filter((feature) => feature.properties.origin_code !== feature.properties.dest_code);
+        const connectionScoped = connectionFilter
+          ? withoutInternal.filter(
+              (feature) => getCounterpartCode(feature.properties, direction) === connectionFilter.code
+            )
+          : withoutInternal;
 
-        const ranking = withoutInternal
+        const ranking = connectionScoped
           .map((feature) => ({
             fullRouteLabel: getRouteLabel(feature.properties),
+            counterpartCode: getCounterpartCode(feature.properties, direction),
             counterpartLabel: getCounterpartLabel(feature.properties, direction),
             routeLabel: shortenRouteLabel(getCounterpartLabel(feature.properties, direction)),
             count: feature.properties.count,
@@ -166,7 +192,7 @@ export function TopFlowsRankingChart({
     return () => {
       cancelled = true;
     };
-  }, [areaCode, geographyLevel, direction, demographicFilters, includeInternalFlows, topN]);
+  }, [areaCode, geographyLevel, direction, demographicFilters, connectionFilter, includeInternalFlows, topN]);
 
   const chartHeight = useMemo(() => Math.max(240, rows.length * 26 + 58), [rows.length]);
 
@@ -200,7 +226,10 @@ export function TopFlowsRankingChart({
       <div className="mb-2">
         <div className="flex items-center gap-2">
           <p className="text-xs text-slate-500">
-            {direction === 'incoming' ? 'Principais origens' : 'Principais destinos'} por volume, com filtros ativos
+            {connectionFilter
+              ? `Fluxo com ${connectionFilter.name || connectionFilter.code}, com filtros ativos`
+              : `${direction === 'incoming' ? 'Principais origens' : 'Principais destinos'} por volume, com filtros ativos`}
+            {onSelectArea ? '. Clique em uma barra para selecionar a area.' : ''}
           </p>
           <ChartObjectiveHelp objective="Mostrar os 10 maiores fluxos e como os filtros demográficos alteram o ranking entre origem e destino." />
         </div>
@@ -243,7 +272,17 @@ export function TopFlowsRankingChart({
               return row?.fullRouteLabel || '';
             }}
           />
-          <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={14}>
+          <Bar
+            dataKey="count"
+            radius={[0, 4, 4, 0]}
+            barSize={14}
+            cursor={onSelectArea ? 'pointer' : undefined}
+            onClick={(entry: unknown) => {
+              const row = (entry as RankingClickPayload).payload;
+              if (!row || !onSelectArea) return;
+              onSelectArea(row.counterpartCode, row.counterpartLabel);
+            }}
+          >
             <LabelList
               dataKey="routeLabel"
               content={renderSingleLineLabel}

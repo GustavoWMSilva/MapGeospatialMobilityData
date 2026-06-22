@@ -28,6 +28,7 @@ interface AggregateSocialGradeStacked100Props {
   direction?: 'incoming' | 'outgoing';
   includeInternalFlows?: boolean;
   initialTopN?: 12 | 20;
+  onSelectArea?: (areaCode: string, areaName: string) => void;
 }
 
 interface AggregateStackedDatum {
@@ -36,6 +37,10 @@ interface AggregateStackedDatum {
   aggregateAreaLabel: string;
   aggregateAreaTotal: number;
   [categoryValue: string]: string | number;
+}
+
+interface StackedClickPayload {
+  payload?: AggregateStackedDatum;
 }
 
 const CATEGORY_COLORS = [
@@ -95,6 +100,7 @@ export function AggregateSocialGradeStacked100({
   direction = 'incoming',
   includeInternalFlows = false,
   initialTopN = 12,
+  onSelectArea,
 }: AggregateSocialGradeStacked100Props) {
   const [selectedTopN, setSelectedTopN] = useState<12 | 20>(initialTopN);
   const [orderBy, setOrderBy] = useState<string>('total');
@@ -211,6 +217,7 @@ export function AggregateSocialGradeStacked100({
         <div className="flex items-center gap-1.5">
           <p className="text-xs text-slate-500">
             Comparativo proporcional por area ({direction === 'incoming' ? 'entrada' : 'saida'})
+            {onSelectArea ? '. Clique em uma barra para selecionar a area.' : ''}
           </p>
           <ChartObjectiveHelp
             objective={`Comparar proporcionalmente ${dimension.label.toLowerCase()} entre ${activeUnitPluralLabel.toLowerCase()}, independentemente do volume absoluto.`}
@@ -303,6 +310,12 @@ export function AggregateSocialGradeStacked100({
               name={category.label}
               stackId="category"
               fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]}
+              cursor={onSelectArea ? 'pointer' : undefined}
+              onClick={(entry: unknown) => {
+                const row = (entry as StackedClickPayload).payload;
+                if (!row || !onSelectArea) return;
+                onSelectArea(row.aggregateAreaCode, row.aggregateAreaName);
+              }}
             />
           ))}
         </BarChart>

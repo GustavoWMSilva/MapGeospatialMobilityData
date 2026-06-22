@@ -20,6 +20,7 @@ import type {
   DatasetChartId,
   DatasetProfile,
   DemographicFilters,
+  FlowConnectionFilter,
   GeographyLevel,
 } from '../../types';
 import { debugLog, getAnalyticsErrorMessage } from './analyticsUtils';
@@ -29,6 +30,7 @@ interface AnalyticsDashboardProps {
   areaName?: string;
   datasetProfile: DatasetProfile;
   demographicFilters?: DemographicFilters;
+  connectionFilter?: FlowConnectionFilter | null;
   direction?: 'incoming' | 'outgoing';
   geographyLevel?: GeographyLevel;
   includeInternalFlows?: boolean;
@@ -36,6 +38,7 @@ interface AnalyticsDashboardProps {
   onDemographicFiltersChange?: (filters: DemographicFilters) => void;
   onDirectionChange?: (direction: 'incoming' | 'outgoing') => void;
   onIncludeInternalFlowsChange?: (value: boolean) => void;
+  onSelectArea?: (areaCode: string, areaName: string) => void;
 }
 
 function ChartCard({
@@ -73,6 +76,7 @@ export function AnalyticsDashboard({
   areaName,
   datasetProfile,
   demographicFilters = {},
+  connectionFilter = null,
   direction = 'incoming',
   geographyLevel = 'base',
   includeInternalFlows = false,
@@ -80,6 +84,7 @@ export function AnalyticsDashboard({
   onDemographicFiltersChange,
   onDirectionChange,
   onIncludeInternalFlowsChange,
+  onSelectArea,
 }: AnalyticsDashboardProps) {
   const [flowCountError, setFlowCountError] = useState<string | null>(null);
   const [showResearchCharts, setShowResearchCharts] = useState(false);
@@ -208,6 +213,7 @@ export function AnalyticsDashboard({
               areaCode={areaCode}
               dimension={pieDimension}
               direction={direction}
+              connectionFilter={connectionFilter}
               includeInternalFlows={includeInternalFlows}
               selectedValue={demographicFilters[pieDimension.key] ?? 'all'}
               onSelectValue={(value) =>
@@ -237,6 +243,7 @@ export function AnalyticsDashboard({
               areaCode={areaCode}
               dimension={barDimension}
               direction={direction}
+              connectionFilter={connectionFilter}
               includeInternalFlows={includeInternalFlows}
               selectedValue={demographicFilters[barDimension.key] ?? 'all'}
               onSelectValue={(value) =>
@@ -263,8 +270,10 @@ export function AnalyticsDashboard({
               geographyLevel={geographyLevel}
               direction={direction}
               demographicFilters={demographicFilters}
+              connectionFilter={connectionFilter}
               includeInternalFlows={includeInternalFlows}
               topN={params.topN ?? 10}
+              onSelectArea={onSelectArea}
             />
           </ChartCard>
         );
@@ -282,6 +291,7 @@ export function AnalyticsDashboard({
               geographyLevel={geographyLevel}
               includeInternalFlows={includeInternalFlows}
               initialTopN={params.initialTopN ?? params.topN ?? 10}
+              onSelectArea={onSelectArea}
             />
           </ChartCard>
         );
@@ -297,6 +307,7 @@ export function AnalyticsDashboard({
               geographyLevel={geographyLevel}
               includeInternalFlows={includeInternalFlows}
               topN={params.topN ?? 6}
+              onSelectArea={onSelectArea}
             />
           </ChartCard>
         );
@@ -314,6 +325,7 @@ export function AnalyticsDashboard({
               direction={direction}
               includeInternalFlows={includeInternalFlows}
               initialTopN={stackedTopN}
+              onSelectArea={onSelectArea}
             />
           </ChartCard>
         );
@@ -342,6 +354,7 @@ export function AnalyticsDashboard({
               geographyLevel={geographyLevel}
               includeInternalFlows={includeInternalFlows}
               topN={params.topN ?? 15}
+              onSelectArea={onSelectArea}
             />
           </ChartCard>
         );
@@ -425,6 +438,11 @@ export function AnalyticsDashboard({
                     ? datasetProfile.dashboard.directionValues.incoming
                     : datasetProfile.dashboard.directionValues.outgoing}
                 </span>
+                {connectionFilter && (
+                  <span className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-1 font-medium text-purple-800">
+                    Conexao: {connectionFilter.name || connectionFilter.code}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -478,6 +496,11 @@ export function AnalyticsDashboard({
                 ? datasetProfile.dashboard.directionValues.incoming
                 : datasetProfile.dashboard.directionValues.outgoing}
             </span>
+            {connectionFilter && (
+              <span className="inline-flex items-center rounded-full bg-white px-2 py-0.5 font-medium text-slate-600">
+                Conexao: {connectionFilter.name || connectionFilter.code}
+              </span>
+            )}
           </div>
         </div>
       </div>

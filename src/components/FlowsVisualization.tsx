@@ -6,7 +6,13 @@ import { loadFlows, loadFlowsFiltered } from '../utils/dataService';
 import { recordFlowRenderSample } from '../utils/performanceMetrics';
 import { hasActiveDemographicFilters } from '../constants/datasetProfiles';
 import { MAP_COLORS } from '../constants/mapColors';
-import type { DatasetProfile, DemographicFilters, GeographyLevel, MobilityIntensityMetric } from '../types';
+import type {
+  DatasetProfile,
+  DemographicFilters,
+  FlowConnectionFilter,
+  GeographyLevel,
+  MobilityIntensityMetric,
+} from '../types';
 
 interface FlowFeature {
   type: 'Feature';
@@ -52,6 +58,8 @@ const FLOW_ALPHA_PROFILE = {
 
 const FLOW_SEGMENT_COUNT = 7;
 const FLOW_ALPHA_MIDPOINT = 0.45;
+const FLOW_ARROW_SPACING = 72;
+const FLOW_ARROW_MAX_FEATURES = 220;
 
 function buildCountColorExpression(colors: readonly string[]): ExpressionSpecification {
   return [
@@ -151,6 +159,7 @@ interface FlowsVisualizationProps {
   geographyLevel: GeographyLevel;
   datasetProfile: DatasetProfile;
   demographicFilters?: DemographicFilters;
+  connectionFilter?: FlowConnectionFilter | null;
   showInternal?: boolean;
   showMobilityIntensity?: boolean;
   mobilityIntensityMetric?: MobilityIntensityMetric;
@@ -187,6 +196,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   geographyLevel,
   datasetProfile,
   demographicFilters = {},
+  connectionFilter = null,
   showInternal = false,
   showMobilityIntensity = false,
   mobilityIntensityMetric = 'total',
@@ -287,17 +297,30 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
     return relevantFlows.sort((left, right) => right.properties.count - left.properties.count);
   }, [selectedCode, flowsData, flowDirection, showInternal]);
 
-  const totalAvailableFlows = baseRelevantFlows.length;
+  const connectionFilteredFlows = useMemo(() => {
+    if (!selectedCode || baseRelevantFlows.length === 0) return [];
+
+    if (connectionFilter) {
+      return baseRelevantFlows.filter(
+        (feature) => getConnectedAreaCode(feature, selectedCode, flowDirection) === connectionFilter.code
+      );
+    }
+
+    return baseRelevantFlows;
+  }, [baseRelevantFlows, connectionFilter, flowDirection, selectedCode]);
+
+  const activeConnectionLabel = connectionFilter?.name || connectionFilter?.code || null;
+  const totalAvailableFlows = connectionFilteredFlows.length;
 
   const filteredFlows = useMemo(() => {
-    let nextFlows = baseRelevantFlows;
+    let nextFlows = connectionFilteredFlows;
 
     if (minCount > 0) {
       nextFlows = nextFlows.filter((feature) => feature.properties.count >= minCount);
     }
 
     return nextFlows.slice(0, maxFlows);
-  }, [baseRelevantFlows, maxFlows, minCount]);
+  }, [connectionFilteredFlows, maxFlows, minCount]);
 
   const stats = useMemo<FlowStats | null>(() => {
     if (filteredFlows.length === 0) return null;
@@ -325,6 +348,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       geographyLevel,
       flowDirection,
       filtersActive ? 'filters' : 'nofilters',
+      connectionFilter?.code ?? 'all',
       minCount,
       maxFlows,
       totalAvailableFlows,
@@ -357,17 +381,18 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
     loading,
     maxFlows,
     minCount,
+    connectionFilter,
     selectedCode,
     stats,
     totalAvailableFlows,
   ]);
 
   const maxPeopleCount = useMemo(() => {
-    const topFlows = baseRelevantFlows.slice(0, maxFlows);
+    const topFlows = connectionFilteredFlows.slice(0, maxFlows);
     return topFlows.length > 0
       ? Math.max(...topFlows.map((feature) => feature.properties.count))
       : 0;
-  }, [baseRelevantFlows, maxFlows]);
+  }, [connectionFilteredFlows, maxFlows]);
 
   const flowsGeoJSON = useMemo<GeoJSON.FeatureCollection<GeoJSON.LineString> | null>(() => {
     if (filteredFlows.length === 0) return null;
@@ -377,6 +402,15 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       features: buildSegmentedFlowFeatures(filteredFlows, flowDirection),
     };
   }, [filteredFlows, flowDirection]);
+
+  const flowArrowsGeoJSON = useMemo<GeoJSON.FeatureCollection<GeoJSON.LineString> | null>(() => {
+    if (filteredFlows.length === 0) return null;
+
+    return {
+      type: 'FeatureCollection',
+      features: filteredFlows.slice(0, FLOW_ARROW_MAX_FEATURES),
+    };
+  }, [filteredFlows]);
 
   useEffect(() => {
     if (!onActiveConnectionsChange || !selectedCode || filteredFlows.length === 0) {
@@ -481,10 +515,19 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
               <div className="mt-2 border-t border-slate-200 pt-2">
                 <p className="text-[10px] leading-relaxed text-slate-500">
                   {visibleStats.count > 0
-                    ? 'Espessura e cor indicam maior volume de fluxo.'
+                    ? 'Tamanho, cor e opacidade das setas indicam volume e direcao do fluxo.'
                     : 'Nenhum fluxo atende aos filtros atuais.'}
                 </p>
               </div>
+
+              {activeConnectionLabel && (
+                <div className="mt-2 rounded-md bg-slate-50 px-2 py-1.5 text-[10px] leading-4 text-slate-600">
+                  <span className="font-semibold text-slate-700">Conexao: </span>
+                  {flowDirection === 'incoming'
+                    ? `${activeConnectionLabel} -> area selecionada`
+                    : `area selecionada -> ${activeConnectionLabel}`}
+                </div>
+              )}
             </>
           )}
         </div>
@@ -567,6 +610,26 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       {flowsGeoJSON && (
         <Source id={`${geographyLevel}-flows`} type="geojson" data={flowsGeoJSON}>
           <Layer
+            id={`${geographyLevel}-flow-glow`}
+            type="line"
+            paint={{
+              'line-color': glowColorExpression,
+              'line-width': [
+                'interpolate',
+                ['linear'],
+                ['get', 'count'],
+                0, 2,
+                500, 3,
+                1000, 4,
+                2000, 6,
+                5000, 8,
+              ],
+              'line-opacity': ['get', 'segment_glow_opacity'],
+              'line-blur': 3.5,
+            }}
+          />
+
+          <Layer
             id={`${geographyLevel}-flow-lines`}
             type="line"
             paint={{
@@ -584,24 +647,39 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
               'line-opacity': ['get', 'segment_opacity'],
             }}
           />
+        </Source>
+      )}
 
+      {flowArrowsGeoJSON && (
+        <Source id={`${geographyLevel}-flow-arrows`} type="geojson" data={flowArrowsGeoJSON}>
           <Layer
-            id={`${geographyLevel}-flow-glow`}
-            type="line"
-            paint={{
-              'line-color': glowColorExpression,
-              'line-width': [
+            id={`${geographyLevel}-flow-arrowheads`}
+            type="symbol"
+            layout={{
+              'symbol-placement': 'line',
+              'symbol-spacing': FLOW_ARROW_SPACING,
+              'text-field': '>',
+              'text-size': [
                 'interpolate',
                 ['linear'],
                 ['get', 'count'],
-                0, 2,
-                500, 3,
-                1000, 4,
-                2000, 6,
-                5000, 8,
+                0, 12,
+                500, 14,
+                1000, 17,
+                2000, 21,
+                5000, 26,
               ],
-              'line-opacity': ['get', 'segment_glow_opacity'],
-              'line-blur': 3.5,
+              'text-allow-overlap': true,
+              'text-ignore-placement': true,
+              'text-keep-upright': false,
+              'text-pitch-alignment': 'map',
+              'text-rotation-alignment': 'map',
+            }}
+            paint={{
+              'text-color': lineColorExpression,
+              'text-halo-color': '#FFFFFF',
+              'text-halo-width': 1,
+              'text-opacity': 0.72,
             }}
           />
         </Source>

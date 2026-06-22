@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { getDemographicDimensionStats } from '../../utils/duckdb';
 import { debugLog, debugWarn, getAnalyticsErrorMessage } from './analyticsUtils';
-import type { DemographicDimensionConfig } from '../../types';
+import type { DemographicDimensionConfig, FlowConnectionFilter } from '../../types';
 import { ChartObjectiveHelp } from './ChartObjectiveHelp';
 import { MAP_COLORS } from '../../constants/mapColors';
 
@@ -10,6 +10,7 @@ interface SocialGradePieChartProps {
   areaCode: string;
   dimension: DemographicDimensionConfig;
   direction?: 'incoming' | 'outgoing';
+  connectionFilter?: FlowConnectionFilter | null;
   includeInternalFlows?: boolean;
   selectedValue?: string;
   onSelectValue?: (value: string) => void;
@@ -21,6 +22,21 @@ interface CategoryChartDatum {
   value: number;
   percentage: number;
   color: string;
+}
+
+interface PieLabelProps {
+  cx?: number | string;
+  cy?: number | string;
+  midAngle?: number | string;
+  innerRadius?: number | string;
+  outerRadius?: number | string;
+  percentage?: number;
+}
+
+interface CategoryTooltipPayload {
+  payload?: {
+    percentage?: number;
+  };
 }
 
 const CATEGORY_COLORS = [
@@ -36,6 +52,7 @@ export function SocialGradePieChart({
   areaCode,
   dimension,
   direction = 'incoming',
+  connectionFilter = null,
   includeInternalFlows = false,
   selectedValue = 'all',
   onSelectValue,
@@ -64,7 +81,13 @@ export function SocialGradePieChart({
         setLoading(true);
         setError(null);
 
-        const stats = await getDemographicDimensionStats(areaCode, dimension, direction, includeInternalFlows);
+        const stats = await getDemographicDimensionStats(
+          areaCode,
+          dimension,
+          direction,
+          includeInternalFlows,
+          connectionFilter?.code
+        );
         debugLog('[SocialGradePieChart] stats recebidas', stats);
 
         if (stats.length === 0) {
@@ -100,7 +123,7 @@ export function SocialGradePieChart({
       debugLog(`[SocialGradePieChart] limpando dados de ${areaCode}`);
       setData([]);
     };
-  }, [areaCode, dimension, direction, includeInternalFlows]);
+  }, [areaCode, dimension, direction, connectionFilter, includeInternalFlows]);
 
   if (loading) {
     return (
@@ -127,20 +150,25 @@ export function SocialGradePieChart({
     );
   }
 
-  const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percentage }: any) => {
+  const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percentage = 0 }: PieLabelProps) => {
     if (percentage < 7) return null;
 
     const RADIAN = Math.PI / 180;
-    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-    const x = cx + radius * Math.cos(-midAngle * RADIAN);
-    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+    const centerX = Number(cx ?? 0);
+    const centerY = Number(cy ?? 0);
+    const startRadius = Number(innerRadius ?? 0);
+    const endRadius = Number(outerRadius ?? 0);
+    const angle = Number(midAngle ?? 0);
+    const radius = startRadius + (endRadius - startRadius) * 0.5;
+    const x = centerX + radius * Math.cos(-angle * RADIAN);
+    const y = centerY + radius * Math.sin(-angle * RADIAN);
 
     return (
       <text
         x={x}
         y={y}
         fill="black"
-        textAnchor={x > cx ? 'start' : 'end'}
+        textAnchor={x > centerX ? 'start' : 'end'}
         dominantBaseline="central"
         className="font-semibold text-sm"
       >
@@ -154,7 +182,9 @@ export function SocialGradePieChart({
       <div className="mb-2">
         <div className="flex items-center gap-1.5">
           <p className="text-xs text-slate-500">
-            {direction === 'incoming' ? 'Entrada' : 'Saida'} por {dimension.label.toLowerCase()}
+            {connectionFilter
+              ? `${connectionFilter.name || connectionFilter.code} por ${dimension.label.toLowerCase()}`
+              : `${direction === 'incoming' ? 'Entrada' : 'Saida'} por ${dimension.label.toLowerCase()}`}
           </p>
           <ChartObjectiveHelp objective={`Mostrar a composicao dos fluxos por ${dimension.label.toLowerCase()} na area selecionada.`} />
         </div>
@@ -191,10 +221,13 @@ export function SocialGradePieChart({
             ))}
           </Pie>
           <Tooltip
-            formatter={(value: number | string | Array<number | string> | undefined, name: string | undefined, props: any) => [
-              `${Number(value ?? 0).toLocaleString('pt-BR')} (${props.payload.percentage}%)`,
-              name ?? 'Pessoas',
-            ]}
+            formatter={(value: number | string | Array<number | string> | undefined, name: string | undefined, props: unknown) => {
+              const payload = (props as CategoryTooltipPayload).payload;
+              return [
+                `${Number(value ?? 0).toLocaleString('pt-BR')} (${payload?.percentage ?? 0}%)`,
+                name ?? 'Pessoas',
+              ];
+            }}
           />
         </PieChart>
       </ResponsiveContainer>

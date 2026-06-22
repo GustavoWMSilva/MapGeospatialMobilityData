@@ -8,6 +8,7 @@ import { AggregateAreaSelector } from './components/AggregateAreaSelector';
 import { CacheDebugPanel } from './components/CacheDebugPanel';
 import { DatasetDocumentation } from './components/DatasetDocumentation';
 import { DatasetProfileBuilder } from './components/DatasetProfileBuilder';
+import { FlowConnectionSelector } from './components/FlowConnectionSelector';
 import { ODSimulationUploader } from './components/ODSimulationUploader';
 import { AnalyticsDashboard } from './components/analytics';
 import { AnalyticsFilters } from './components/analytics/AnalyticsFilters';
@@ -21,7 +22,13 @@ import {
   persistActiveDataset,
   removeLocalDatasetProfile,
 } from './constants/datasetProfiles';
-import type { DemographicFilters, GeographyLevel, MobilityIntensityMetric, ViewState } from './types';
+import type {
+  DemographicFilters,
+  FlowConnectionFilter,
+  GeographyLevel,
+  MobilityIntensityMetric,
+  ViewState,
+} from './types';
 import type { ODSimulationApplyResult } from './utils/duckdb';
 import { X } from 'lucide-react';
 
@@ -85,6 +92,7 @@ export default function App() {
   const [includeInternalFlows, setIncludeInternalFlows] = React.useState(false);
   const [showMobilityIntensity, setShowMobilityIntensity] = React.useState(false);
   const [mobilityIntensityMetric, setMobilityIntensityMetric] = React.useState<MobilityIntensityMetric>('total');
+  const [flowConnectionFilter, setFlowConnectionFilter] = React.useState<FlowConnectionFilter | null>(null);
   const [showShortcutsHelp, setShowShortcutsHelp] = React.useState(false);
   const [showDatasetDocumentation, setShowDatasetDocumentation] = React.useState(false);
   const [showDatasetBuilder, setShowDatasetBuilder] = React.useState(false);
@@ -214,6 +222,25 @@ export default function App() {
     setSimulationVersion((current) => current + 1);
     setDemographicFilters(createInitialDemographicFilters(ACTIVE_DATASET_PROFILE));
   }, []);
+
+  const handleSelectAreaFromChart = useCallback((areaCode: string, areaName: string) => {
+    if (!areaCode) {
+      return;
+    }
+
+    if (geographyLevel === 'aggregate') {
+      setSelectedAggregateAreaCode(areaCode);
+      setSelectedAggregateAreaName(areaName);
+      selectBaseArea(null);
+      setSelectedBaseAreaName('');
+      return;
+    }
+
+    selectBaseArea(areaCode);
+    setSelectedBaseAreaName(areaName);
+    setSelectedAggregateAreaCode(null);
+    setSelectedAggregateAreaName('');
+  }, [geographyLevel, selectBaseArea]);
 
   useEffect(() => {
     const handleGlobalShortcut = (event: KeyboardEvent) => {
@@ -363,6 +390,10 @@ export default function App() {
       ? ACTIVE_DATASET_PROFILE.labels.aggregate.singular
       : ACTIVE_DATASET_PROFILE.labels.base.singular;
 
+  useEffect(() => {
+    setFlowConnectionFilter(null);
+  }, [selectedArea, geographyLevel, flowDirection]);
+
   const map = (
     <InteractiveMap
       key={`map-${simulationVersion}`}
@@ -382,6 +413,7 @@ export default function App() {
       geographyLevel={geographyLevel}
       datasetProfile={ACTIVE_DATASET_PROFILE}
       demographicFilters={demographicFilters}
+      connectionFilter={flowConnectionFilter}
       includeInternalFlows={includeInternalFlows}
       showMobilityIntensity={showMobilityIntensity}
       mobilityIntensityMetric={mobilityIntensityMetric}
@@ -614,6 +646,18 @@ export default function App() {
                     onDirectionChange={setFlowDirection}
                   />
 
+                  <div className="mt-3">
+                    <FlowConnectionSelector
+                      selectedAreaCode={selectedArea}
+                      direction={flowDirection}
+                      geographyLevel={geographyLevel}
+                      demographicFilters={demographicFilters}
+                      includeInternalFlows={includeInternalFlows}
+                      value={flowConnectionFilter}
+                      onChange={setFlowConnectionFilter}
+                    />
+                  </div>
+
                   <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
                     <input
                       type="checkbox"
@@ -710,12 +754,14 @@ export default function App() {
                 geographyLevel={geographyLevel}
                 datasetProfile={ACTIVE_DATASET_PROFILE}
                 demographicFilters={demographicFilters}
+                connectionFilter={flowConnectionFilter}
                 direction={flowDirection}
                 includeInternalFlows={includeInternalFlows}
                 showTopControls={false}
                 onDemographicFiltersChange={setDemographicFilters}
                 onDirectionChange={setFlowDirection}
                 onIncludeInternalFlowsChange={setIncludeInternalFlows}
+                onSelectArea={handleSelectAreaFromChart}
               />
             </aside>
           </div>

@@ -22,6 +22,7 @@ interface AggregateDirectionalBalanceChartProps {
   geographyLevel?: GeographyLevel;
   includeInternalFlows?: boolean;
   topN?: number;
+  onSelectArea?: (areaCode: string, areaName: string) => void;
 }
 
 interface AggregateDirectionalBalanceDatum {
@@ -32,6 +33,10 @@ interface AggregateDirectionalBalanceDatum {
   balance: number;
 }
 
+interface BalanceClickPayload {
+  payload?: AggregateDirectionalBalanceDatum;
+}
+
 const POSITIVE_COLOR = MAP_COLORS.analytics.directional.positive;
 const NEGATIVE_COLOR = MAP_COLORS.analytics.directional.negative;
 
@@ -40,6 +45,7 @@ export function AggregateDirectionalBalanceChart({
   geographyLevel = 'aggregate',
   includeInternalFlows = false,
   topN = 15,
+  onSelectArea,
 }: AggregateDirectionalBalanceChartProps) {
   const [rows, setRows] = useState<AggregateDirectionalBalanceDatum[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,7 +131,10 @@ export function AggregateDirectionalBalanceChart({
     <div className="w-full">
       <div className="mb-3">
         <div className="flex items-center gap-1.5">
-          <p className="text-xs text-slate-500">Saldo = entrada - saida (positivo = area atratora)</p>
+          <p className="text-xs text-slate-500">
+            Saldo = entrada - saida (positivo = area atratora)
+            {onSelectArea ? '. Clique em uma barra para selecionar a area.' : ''}
+          </p>
           <ChartObjectiveHelp
             objective={`Identificar areas atratoras e emissoras com o saldo liquido (incoming - outgoing) por ${activeUnitLabel}.`}
           />
@@ -167,7 +176,18 @@ export function AggregateDirectionalBalanceChart({
               return `${row.aggregateAreaName} (${row.aggregateAreaCode})`;
             }}
           />
-          <Bar dataKey="balance" name="saldo" radius={[4, 4, 4, 4]} barSize={14}>
+          <Bar
+            dataKey="balance"
+            name="saldo"
+            radius={[4, 4, 4, 4]}
+            barSize={14}
+            cursor={onSelectArea ? 'pointer' : undefined}
+            onClick={(entry: unknown) => {
+              const row = (entry as BalanceClickPayload).payload;
+              if (!row || !onSelectArea) return;
+              onSelectArea(row.aggregateAreaCode, row.aggregateAreaName);
+            }}
+          >
             {rows.map((row) => (
               <Cell
                 key={row.aggregateAreaCode}

@@ -12,12 +12,17 @@ interface SocialGradeSmallMultiplesProps {
   geographyLevel?: GeographyLevel;
   includeInternalFlows?: boolean;
   topN?: number;
+  onSelectArea?: (areaCode: string, areaName: string) => void;
 }
 
 interface MultipleRow {
   aggregateAreaCode: string;
   aggregateAreaName: string;
   balance: number;
+}
+
+interface MultipleClickPayload {
+  payload?: MultipleRow;
 }
 
 interface MultipleChart {
@@ -45,6 +50,7 @@ export function SocialGradeSmallMultiples({
   geographyLevel = 'aggregate',
   includeInternalFlows = false,
   topN = 6,
+  onSelectArea,
 }: SocialGradeSmallMultiplesProps) {
   const [charts, setCharts] = useState<MultipleChart[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,7 +140,10 @@ export function SocialGradeSmallMultiples({
     <div className="w-full">
       <div className="mb-3">
         <div className="flex items-center gap-1.5">
-          <p className="text-xs text-slate-500">Comparacao lado a lado com o mesmo eixo visual</p>
+          <p className="text-xs text-slate-500">
+            Comparacao lado a lado com o mesmo eixo visual
+            {onSelectArea ? '. Clique em uma barra para selecionar a area.' : ''}
+          </p>
           <ChartObjectiveHelp objective={`Comparar rapidamente o mesmo indicador entre categorias de ${dimension.label.toLowerCase()} usando paineis padronizados.`} />
         </div>
       </div>
@@ -167,7 +176,18 @@ export function SocialGradeSmallMultiples({
                     return `${row.aggregateAreaName} (${row.aggregateAreaCode})`;
                   }}
                 />
-                <Bar dataKey="balance" fill={COLORS[index % COLORS.length]} barSize={10} radius={[0, 4, 4, 0]} />
+                <Bar
+                  dataKey="balance"
+                  fill={COLORS[index % COLORS.length]}
+                  barSize={10}
+                  radius={[0, 4, 4, 0]}
+                  cursor={onSelectArea ? 'pointer' : undefined}
+                  onClick={(entry: unknown) => {
+                    const row = (entry as MultipleClickPayload).payload;
+                    if (!row || !onSelectArea) return;
+                    onSelectArea(row.aggregateAreaCode, row.aggregateAreaName);
+                  }}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>

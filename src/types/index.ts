@@ -21,6 +21,11 @@ export type DemographicFilters = Record<string, string>;
 export type MobilityIntensityMetric = 'total' | 'incoming' | 'outgoing' | 'balance';
 export type DimensionMatchMode = 'equals' | 'contains';
 export type DatasetAnalyticsMode = 'uk-legacy' | 'generic';
+export interface FlowConnectionFilter {
+  code: string;
+  name: string;
+}
+
 export type DatasetChartId =
   | 'socialPie'
   | 'ageBar'

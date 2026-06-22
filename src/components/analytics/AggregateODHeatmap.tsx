@@ -11,6 +11,7 @@ interface AggregateODHeatmapProps {
   geographyLevel?: GeographyLevel;
   includeInternalFlows?: boolean;
   initialTopN?: number;
+  onSelectArea?: (areaCode: string, areaName: string) => void;
 }
 
 interface MatrixArea {
@@ -38,6 +39,7 @@ export function AggregateODHeatmap({
   geographyLevel = 'aggregate',
   includeInternalFlows = false,
   initialTopN = 10,
+  onSelectArea,
 }: AggregateODHeatmapProps) {
   const [topN, setTopN] = useState<number>(initialTopN);
   const [loading, setLoading] = useState(true);
@@ -197,7 +199,16 @@ export function AggregateODHeatmap({
               <th className="sticky left-0 z-10 bg-slate-50 px-2 py-2 text-left">Origem / Destino</th>
               {areas.map((area) => (
                 <th key={area.code} className="min-w-[92px] px-2 py-2 text-center" title={area.name}>
-                  {truncate(area.name)}
+                  <button
+                    type="button"
+                    onClick={() => onSelectArea?.(area.code, area.name)}
+                    className={`rounded px-1 py-0.5 font-semibold ${
+                      onSelectArea ? 'hover:bg-slate-200 hover:text-slate-950' : ''
+                    }`}
+                    disabled={!onSelectArea}
+                  >
+                    {truncate(area.name)}
+                  </button>
                 </th>
               ))}
             </tr>
@@ -206,7 +217,16 @@ export function AggregateODHeatmap({
             {areas.map((origin) => (
               <tr key={origin.code} className="border-t border-slate-100">
                 <td className="sticky left-0 z-10 bg-white px-2 py-2 font-medium text-slate-700" title={origin.name}>
-                  {truncate(origin.name)}
+                  <button
+                    type="button"
+                    onClick={() => onSelectArea?.(origin.code, origin.name)}
+                    className={`rounded px-1 py-0.5 text-left font-semibold ${
+                      onSelectArea ? 'hover:bg-slate-100 hover:text-slate-950' : ''
+                    }`}
+                    disabled={!onSelectArea}
+                  >
+                    {truncate(origin.name)}
+                  </button>
                 </td>
                 {areas.map((dest) => {
                   const value = matrixData.get(origin.code)?.get(dest.code) || 0;

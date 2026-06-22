@@ -4,6 +4,7 @@ import type { MapRef } from '@vis.gl/react-maplibre';
 import type {
   DatasetProfile,
   DemographicFilters,
+  FlowConnectionFilter,
   GeographyLevel,
   MobilityIntensityMetric,
   Point,
@@ -35,6 +36,7 @@ interface InteractiveMapProps {
   geographyLevel: GeographyLevel;
   datasetProfile: DatasetProfile;
   demographicFilters?: DemographicFilters;
+  connectionFilter?: FlowConnectionFilter | null;
   includeInternalFlows?: boolean;
   showMobilityIntensity?: boolean;
   mobilityIntensityMetric?: MobilityIntensityMetric;
@@ -59,6 +61,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   geographyLevel,
   datasetProfile,
   demographicFilters = {},
+  connectionFilter = null,
   includeInternalFlows = false,
   showMobilityIntensity = false,
   mobilityIntensityMetric = 'total',
@@ -170,6 +173,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             isFullscreen={isFullscreen}
             datasetProfile={datasetProfile}
             demographicFilters={demographicFilters}
+            connectionFilter={connectionFilter}
             showInternal={includeInternalFlows}
             showMobilityIntensity={showMobilityIntensity}
             mobilityIntensityMetric={mobilityIntensityMetric}
@@ -187,6 +191,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             isFullscreen={isFullscreen}
             datasetProfile={datasetProfile}
             demographicFilters={demographicFilters}
+            connectionFilter={connectionFilter}
             showInternal={includeInternalFlows}
             showMobilityIntensity={showMobilityIntensity}
             mobilityIntensityMetric={mobilityIntensityMetric}

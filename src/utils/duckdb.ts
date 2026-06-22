@@ -1197,7 +1197,8 @@ export async function getDemographicDimensionStats(
   areaCode: string,
   dimension: DemographicDimensionConfig,
   direction: 'incoming' | 'outgoing' = 'incoming',
-  includeInternalFlows: boolean = false
+  includeInternalFlows: boolean = false,
+  counterpartCode?: string | null
 ): Promise<Array<{ value: string; label: string; total: number; percentage: number }>> {
   debugLog(`getDemographicDimensionStats ${dimension.key} para: ${areaCode} (${direction})`);
 
@@ -1217,7 +1218,21 @@ export async function getDemographicDimensionStats(
     return [];
   }
 
+  const counterpartWhereClause = counterpartCode
+    ? (await resolveAreaWhereClause(
+        counterpartCode,
+        direction === 'incoming' ? 'outgoing' : 'incoming'
+      )).whereClause
+    : null;
+
+  if (counterpartWhereClause === '1=0') {
+    return [];
+  }
+
   const internalFlowCondition = getInternalFlowCondition(includeInternalFlows);
+  const routeWhereClause = counterpartWhereClause
+    ? `${whereClause} AND ${counterpartWhereClause}`
+    : whereClause;
   const validOptions = dimension.options.filter((option) => option.value !== 'all');
   const optionConditions =
     validOptions.length > 0
@@ -1233,7 +1248,7 @@ export async function getDemographicDimensionStats(
           ${dimension.categoryColumn} AS category_value,
           SUM(count) AS total
         FROM ${dimension.dataset.tableName}
-        WHERE ${whereClause}
+        WHERE ${routeWhereClause}
           AND ${internalFlowCondition}
           AND (${optionConditions})
         GROUP BY ${dimension.categoryColumn}
