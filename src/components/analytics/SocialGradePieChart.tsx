@@ -10,7 +10,7 @@ interface SocialGradePieChartProps {
   areaCode: string;
   dimension: DemographicDimensionConfig;
   direction?: 'incoming' | 'outgoing';
-  connectionFilter?: FlowConnectionFilter | null;
+  connectionFilters?: FlowConnectionFilter[];
   includeInternalFlows?: boolean;
   selectedValue?: string;
   onSelectValue?: (value: string) => void;
@@ -47,12 +47,13 @@ const CATEGORY_COLORS = [
   MAP_COLORS.analytics.palette.purple,
   '#64748B',
 ];
+const EMPTY_CONNECTION_FILTERS: FlowConnectionFilter[] = [];
 
 export function SocialGradePieChart({
   areaCode,
   dimension,
   direction = 'incoming',
-  connectionFilter = null,
+  connectionFilters = EMPTY_CONNECTION_FILTERS,
   includeInternalFlows = false,
   selectedValue = 'all',
   onSelectValue,
@@ -86,7 +87,7 @@ export function SocialGradePieChart({
           dimension,
           direction,
           includeInternalFlows,
-          connectionFilter?.code
+          connectionFilters.map((filter) => filter.code)
         );
         debugLog('[SocialGradePieChart] stats recebidas', stats);
 
@@ -123,7 +124,7 @@ export function SocialGradePieChart({
       debugLog(`[SocialGradePieChart] limpando dados de ${areaCode}`);
       setData([]);
     };
-  }, [areaCode, dimension, direction, connectionFilter, includeInternalFlows]);
+  }, [areaCode, dimension, direction, connectionFilters, includeInternalFlows]);
 
   if (loading) {
     return (
@@ -182,8 +183,8 @@ export function SocialGradePieChart({
       <div className="mb-2">
         <div className="flex items-center gap-1.5">
           <p className="text-xs text-slate-500">
-            {connectionFilter
-              ? `${connectionFilter.name || connectionFilter.code} por ${dimension.label.toLowerCase()}`
+            {connectionFilters.length > 0
+              ? `${connectionFilters.length} fluxo${connectionFilters.length > 1 ? 's' : ''} por ${dimension.label.toLowerCase()}`
               : `${direction === 'incoming' ? 'Entrada' : 'Saida'} por ${dimension.label.toLowerCase()}`}
           </p>
           <ChartObjectiveHelp objective={`Mostrar a composicao dos fluxos por ${dimension.label.toLowerCase()} na area selecionada.`} />

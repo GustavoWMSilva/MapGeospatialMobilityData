@@ -1198,7 +1198,7 @@ export async function getDemographicDimensionStats(
   dimension: DemographicDimensionConfig,
   direction: 'incoming' | 'outgoing' = 'incoming',
   includeInternalFlows: boolean = false,
-  counterpartCode?: string | null
+  counterpartCodes?: string[] | null
 ): Promise<Array<{ value: string; label: string; total: number; percentage: number }>> {
   debugLog(`getDemographicDimensionStats ${dimension.key} para: ${areaCode} (${direction})`);
 
@@ -1218,20 +1218,30 @@ export async function getDemographicDimensionStats(
     return [];
   }
 
-  const counterpartWhereClause = counterpartCode
-    ? (await resolveAreaWhereClause(
-        counterpartCode,
-        direction === 'incoming' ? 'outgoing' : 'incoming'
-      )).whereClause
-    : null;
+  const selectedCounterpartCodes = Array.from(
+    new Set((counterpartCodes ?? []).filter((code): code is string => Boolean(code)))
+  );
+  const counterpartWhereClauses = selectedCounterpartCodes.length > 0
+    ? await Promise.all(
+        selectedCounterpartCodes.map((counterpartCode) =>
+          resolveAreaWhereClause(
+            counterpartCode,
+            direction === 'incoming' ? 'outgoing' : 'incoming'
+          )
+        )
+      )
+    : [];
+  const validCounterpartWhereClauses = counterpartWhereClauses
+    .map((result) => result.whereClause)
+    .filter((whereClause) => whereClause !== '1=0');
 
-  if (counterpartWhereClause === '1=0') {
+  if (selectedCounterpartCodes.length > 0 && validCounterpartWhereClauses.length === 0) {
     return [];
   }
 
   const internalFlowCondition = getInternalFlowCondition(includeInternalFlows);
-  const routeWhereClause = counterpartWhereClause
-    ? `${whereClause} AND ${counterpartWhereClause}`
+  const routeWhereClause = validCounterpartWhereClauses.length > 0
+    ? `${whereClause} AND (${validCounterpartWhereClauses.map((clause) => `(${clause})`).join(' OR ')})`
     : whereClause;
   const validOptions = dimension.options.filter((option) => option.value !== 'all');
   const optionConditions =

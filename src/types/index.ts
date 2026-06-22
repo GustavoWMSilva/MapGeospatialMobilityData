@@ -24,6 +24,7 @@ export type DatasetAnalyticsMode = 'uk-legacy' | 'generic';
 export interface FlowConnectionFilter {
   code: string;
   name: string;
+  color?: string;
 }
 
 export type DatasetChartId =

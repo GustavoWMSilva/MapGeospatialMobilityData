@@ -10,7 +10,7 @@ interface AgeBarChartProps {
   areaCode: string;
   dimension: DemographicDimensionConfig;
   direction?: 'incoming' | 'outgoing';
-  connectionFilter?: FlowConnectionFilter | null;
+  connectionFilters?: FlowConnectionFilter[];
   includeInternalFlows?: boolean;
   selectedValue?: string;
   onSelectValue?: (value: string) => void;
@@ -45,6 +45,7 @@ const CATEGORY_COLORS = [
   MAP_COLORS.analytics.palette.purple,
   '#64748B',
 ];
+const EMPTY_CONNECTION_FILTERS: FlowConnectionFilter[] = [];
 
 function getShortCategoryLabel(label: string, value: string): string {
   const ageRange = label.match(/\d+\s*[-–]\s*\d+/);
@@ -69,7 +70,7 @@ export function AgeBarChart({
   areaCode,
   dimension,
   direction = 'incoming',
-  connectionFilter = null,
+  connectionFilters = EMPTY_CONNECTION_FILTERS,
   includeInternalFlows = false,
   selectedValue = 'all',
   onSelectValue,
@@ -103,7 +104,7 @@ export function AgeBarChart({
           dimension,
           direction,
           includeInternalFlows,
-          connectionFilter?.code
+          connectionFilters.map((filter) => filter.code)
         );
         debugLog('[AgeBarChart] stats recebidas', stats);
 
@@ -142,7 +143,7 @@ export function AgeBarChart({
       debugLog(`[AgeBarChart] limpando dados de ${areaCode}`);
       setData([]);
     };
-  }, [areaCode, dimension, direction, connectionFilter, includeInternalFlows]);
+  }, [areaCode, dimension, direction, connectionFilters, includeInternalFlows]);
 
   if (loading) {
     return (
@@ -174,8 +175,8 @@ export function AgeBarChart({
       <div className="mb-2">
         <div className="flex items-center gap-1.5">
           <p className="text-xs text-slate-500">
-            {connectionFilter
-              ? `${connectionFilter.name || connectionFilter.code} por ${dimension.label.toLowerCase()}`
+            {connectionFilters.length > 0
+              ? `${connectionFilters.length} fluxo${connectionFilters.length > 1 ? 's' : ''} por ${dimension.label.toLowerCase()}`
               : `${direction === 'incoming' ? 'Entrada' : 'Saida'} por ${dimension.label.toLowerCase()}`}
           </p>
           <ChartObjectiveHelp objective={`Evidenciar a distribuicao dos fluxos por ${dimension.label.toLowerCase()}.`} />

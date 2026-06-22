@@ -17,6 +17,8 @@ import { AggregateAreaPoints } from './AggregateAreaPoints';
 import { FlowsVisualization } from './FlowsVisualization';
 import { MAP_COLORS } from '../constants/mapColors';
 
+const EMPTY_CONNECTION_FILTERS: FlowConnectionFilter[] = [];
+
 interface InteractiveMapProps {
   mapRef: React.RefObject<MapRef | null>;
   viewState: ViewState;
@@ -36,7 +38,7 @@ interface InteractiveMapProps {
   geographyLevel: GeographyLevel;
   datasetProfile: DatasetProfile;
   demographicFilters?: DemographicFilters;
-  connectionFilter?: FlowConnectionFilter | null;
+  connectionFilters?: FlowConnectionFilter[];
   includeInternalFlows?: boolean;
   showMobilityIntensity?: boolean;
   mobilityIntensityMetric?: MobilityIntensityMetric;
@@ -61,7 +63,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   geographyLevel,
   datasetProfile,
   demographicFilters = {},
-  connectionFilter = null,
+  connectionFilters = EMPTY_CONNECTION_FILTERS,
   includeInternalFlows = false,
   showMobilityIntensity = false,
   mobilityIntensityMetric = 'total',
@@ -173,7 +175,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             isFullscreen={isFullscreen}
             datasetProfile={datasetProfile}
             demographicFilters={demographicFilters}
-            connectionFilter={connectionFilter}
+            connectionFilters={connectionFilters}
             showInternal={includeInternalFlows}
             showMobilityIntensity={showMobilityIntensity}
             mobilityIntensityMetric={mobilityIntensityMetric}
@@ -191,7 +193,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             isFullscreen={isFullscreen}
             datasetProfile={datasetProfile}
             demographicFilters={demographicFilters}
-            connectionFilter={connectionFilter}
+            connectionFilters={connectionFilters}
             showInternal={includeInternalFlows}
             showMobilityIntensity={showMobilityIntensity}
             mobilityIntensityMetric={mobilityIntensityMetric}

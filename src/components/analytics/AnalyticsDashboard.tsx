@@ -25,12 +25,14 @@ import type {
 } from '../../types';
 import { debugLog, getAnalyticsErrorMessage } from './analyticsUtils';
 
+const EMPTY_CONNECTION_FILTERS: FlowConnectionFilter[] = [];
+
 interface AnalyticsDashboardProps {
   selectedArea?: string;
   areaName?: string;
   datasetProfile: DatasetProfile;
   demographicFilters?: DemographicFilters;
-  connectionFilter?: FlowConnectionFilter | null;
+  connectionFilters?: FlowConnectionFilter[];
   direction?: 'incoming' | 'outgoing';
   geographyLevel?: GeographyLevel;
   includeInternalFlows?: boolean;
@@ -76,7 +78,7 @@ export function AnalyticsDashboard({
   areaName,
   datasetProfile,
   demographicFilters = {},
-  connectionFilter = null,
+  connectionFilters = EMPTY_CONNECTION_FILTERS,
   direction = 'incoming',
   geographyLevel = 'base',
   includeInternalFlows = false,
@@ -213,7 +215,7 @@ export function AnalyticsDashboard({
               areaCode={areaCode}
               dimension={pieDimension}
               direction={direction}
-              connectionFilter={connectionFilter}
+              connectionFilters={connectionFilters}
               includeInternalFlows={includeInternalFlows}
               selectedValue={demographicFilters[pieDimension.key] ?? 'all'}
               onSelectValue={(value) =>
@@ -243,7 +245,7 @@ export function AnalyticsDashboard({
               areaCode={areaCode}
               dimension={barDimension}
               direction={direction}
-              connectionFilter={connectionFilter}
+              connectionFilters={connectionFilters}
               includeInternalFlows={includeInternalFlows}
               selectedValue={demographicFilters[barDimension.key] ?? 'all'}
               onSelectValue={(value) =>
@@ -270,7 +272,7 @@ export function AnalyticsDashboard({
               geographyLevel={geographyLevel}
               direction={direction}
               demographicFilters={demographicFilters}
-              connectionFilter={connectionFilter}
+              connectionFilters={connectionFilters}
               includeInternalFlows={includeInternalFlows}
               topN={params.topN ?? 10}
               onSelectArea={onSelectArea}
@@ -438,11 +440,18 @@ export function AnalyticsDashboard({
                     ? datasetProfile.dashboard.directionValues.incoming
                     : datasetProfile.dashboard.directionValues.outgoing}
                 </span>
-                {connectionFilter && (
-                  <span className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-1 font-medium text-purple-800">
-                    Conexao: {connectionFilter.name || connectionFilter.code}
+                {connectionFilters.map((filter) => (
+                  <span
+                    key={filter.code}
+                    className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2.5 py-1 font-medium text-purple-800"
+                  >
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ backgroundColor: filter.color || 'currentColor' }}
+                    />
+                    {filter.name || filter.code}
                   </span>
-                )}
+                ))}
               </div>
             </div>
 
@@ -496,11 +505,18 @@ export function AnalyticsDashboard({
                 ? datasetProfile.dashboard.directionValues.incoming
                 : datasetProfile.dashboard.directionValues.outgoing}
             </span>
-            {connectionFilter && (
-              <span className="inline-flex items-center rounded-full bg-white px-2 py-0.5 font-medium text-slate-600">
-                Conexao: {connectionFilter.name || connectionFilter.code}
+            {connectionFilters.map((filter) => (
+              <span
+                key={filter.code}
+                className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 font-medium text-slate-600"
+              >
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ backgroundColor: filter.color || 'currentColor' }}
+                />
+                {filter.name || filter.code}
               </span>
-            )}
+            ))}
           </div>
         </div>
       </div>

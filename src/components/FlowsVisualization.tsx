@@ -60,6 +60,7 @@ const FLOW_SEGMENT_COUNT = 7;
 const FLOW_ALPHA_MIDPOINT = 0.45;
 const FLOW_ARROW_SPACING = 72;
 const FLOW_ARROW_MAX_FEATURES = 220;
+const EMPTY_CONNECTION_FILTERS: FlowConnectionFilter[] = [];
 
 function buildCountColorExpression(colors: readonly string[]): ExpressionSpecification {
   return [
@@ -159,7 +160,7 @@ interface FlowsVisualizationProps {
   geographyLevel: GeographyLevel;
   datasetProfile: DatasetProfile;
   demographicFilters?: DemographicFilters;
-  connectionFilter?: FlowConnectionFilter | null;
+  connectionFilters?: FlowConnectionFilter[];
   showInternal?: boolean;
   showMobilityIntensity?: boolean;
   mobilityIntensityMetric?: MobilityIntensityMetric;
@@ -188,6 +189,25 @@ function getConnectedAreaCode(
   return code && code !== selectedCode ? code : null;
 }
 
+function buildConnectionColorExpression(
+  connectionFilters: FlowConnectionFilter[],
+  flowDirection: 'incoming' | 'outgoing',
+  fallbackExpression: ExpressionSpecification
+): ExpressionSpecification {
+  if (connectionFilters.length === 0) {
+    return fallbackExpression;
+  }
+
+  const codeProperty = flowDirection === 'incoming' ? 'origin_code' : 'dest_code';
+
+  return ([
+    'match',
+    ['get', codeProperty],
+    ...connectionFilters.flatMap((filter) => [filter.code, filter.color || MAP_COLORS.analytics.topFlowsBar[0]]),
+    fallbackExpression,
+  ] as unknown) as ExpressionSpecification;
+}
+
 export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   selectedCode,
   isVisible = true,
@@ -196,7 +216,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   geographyLevel,
   datasetProfile,
   demographicFilters = {},
-  connectionFilter = null,
+  connectionFilters = EMPTY_CONNECTION_FILTERS,
   showInternal = false,
   showMobilityIntensity = false,
   mobilityIntensityMetric = 'total',
@@ -300,16 +320,20 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   const connectionFilteredFlows = useMemo(() => {
     if (!selectedCode || baseRelevantFlows.length === 0) return [];
 
-    if (connectionFilter) {
+    if (connectionFilters.length > 0) {
+      const selectedConnectionCodes = new Set(connectionFilters.map((filter) => filter.code));
       return baseRelevantFlows.filter(
-        (feature) => getConnectedAreaCode(feature, selectedCode, flowDirection) === connectionFilter.code
+        (feature) => {
+          const connectedCode = getConnectedAreaCode(feature, selectedCode, flowDirection);
+          return connectedCode ? selectedConnectionCodes.has(connectedCode) : false;
+        }
       );
     }
 
     return baseRelevantFlows;
-  }, [baseRelevantFlows, connectionFilter, flowDirection, selectedCode]);
+  }, [baseRelevantFlows, connectionFilters, flowDirection, selectedCode]);
 
-  const activeConnectionLabel = connectionFilter?.name || connectionFilter?.code || null;
+  const hasConnectionComparison = connectionFilters.length > 0;
   const totalAvailableFlows = connectionFilteredFlows.length;
 
   const filteredFlows = useMemo(() => {
@@ -348,7 +372,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
       geographyLevel,
       flowDirection,
       filtersActive ? 'filters' : 'nofilters',
-      connectionFilter?.code ?? 'all',
+      connectionFilters.map((filter) => filter.code).join(',') || 'all',
       minCount,
       maxFlows,
       totalAvailableFlows,
@@ -381,7 +405,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
     loading,
     maxFlows,
     minCount,
-    connectionFilter,
+    connectionFilters,
     selectedCode,
     stats,
     totalAvailableFlows,
@@ -432,6 +456,14 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
   const flowColors = MAP_COLORS.flows.legend;
   const lineColorExpression = useMemo(() => buildCountColorExpression(flowColors), [flowColors]);
   const glowColorExpression = useMemo(() => buildCountColorExpression(flowColors), [flowColors]);
+  const displayLineColorExpression = useMemo(
+    () => buildConnectionColorExpression(connectionFilters, flowDirection, lineColorExpression),
+    [connectionFilters, flowDirection, lineColorExpression]
+  );
+  const displayGlowColorExpression = useMemo(
+    () => buildConnectionColorExpression(connectionFilters, flowDirection, glowColorExpression),
+    [connectionFilters, flowDirection, glowColorExpression]
+  );
   const isCompactUI = !isFullscreen;
   const overlayPanelWidth = isCompactUI ? 240 : 280;
   const bottomOverlayContainerClass = isCompactUI
@@ -515,17 +547,29 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
               <div className="mt-2 border-t border-slate-200 pt-2">
                 <p className="text-[10px] leading-relaxed text-slate-500">
                   {visibleStats.count > 0
-                    ? 'Tamanho, cor e opacidade das setas indicam volume e direcao do fluxo.'
+                    ? hasConnectionComparison
+                      ? 'Cores identificam os fluxos comparados; espessura indica volume.'
+                      : 'Tamanho, cor e opacidade das setas indicam volume e direcao do fluxo.'
                     : 'Nenhum fluxo atende aos filtros atuais.'}
                 </p>
               </div>
 
-              {activeConnectionLabel && (
-                <div className="mt-2 rounded-md bg-slate-50 px-2 py-1.5 text-[10px] leading-4 text-slate-600">
-                  <span className="font-semibold text-slate-700">Conexao: </span>
-                  {flowDirection === 'incoming'
-                    ? `${activeConnectionLabel} -> area selecionada`
-                    : `area selecionada -> ${activeConnectionLabel}`}
+              {hasConnectionComparison && (
+                <div className="mt-2 space-y-1 rounded-md bg-slate-50 px-2 py-1.5 text-[10px] leading-4 text-slate-600">
+                  <span className="font-semibold text-slate-700">Comparacao:</span>
+                  {connectionFilters.map((filter) => (
+                    <div key={filter.code} className="flex min-w-0 items-center gap-1.5">
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: filter.color || MAP_COLORS.analytics.topFlowsBar[0] }}
+                      />
+                      <span className="truncate">
+                        {flowDirection === 'incoming'
+                          ? `${filter.name || filter.code} -> area selecionada`
+                          : `area selecionada -> ${filter.name || filter.code}`}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               )}
             </>
@@ -554,26 +598,78 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
 
           {!isIntensityMinimized && (
             <>
-              <div className="mt-2">
-                <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                    Fluxos
-                  </span>
-                  <span className="text-[10px] font-medium text-slate-500">Volume</span>
+              {hasConnectionComparison ? (
+                <div className="mt-2 space-y-2">
+                  <div>
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        Fluxos
+                      </span>
+                      <span className="text-[10px] font-medium text-slate-500">Cor = rota</span>
+                    </div>
+
+                    <div className="space-y-1">
+                      {connectionFilters.map((filter) => (
+                        <div key={filter.code} className="flex min-w-0 items-center gap-2 text-[10px] text-slate-600">
+                          <span
+                            className="h-2.5 w-2.5 shrink-0 rounded-full"
+                            style={{ backgroundColor: filter.color || MAP_COLORS.analytics.topFlowsBar[0] }}
+                          />
+                          <span className="truncate">{filter.name || filter.code}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-200 pt-2">
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        Volume
+                      </span>
+                      <span className="text-[10px] font-medium text-slate-500">Espessura</span>
+                    </div>
+                    <div className="flex h-8 items-center justify-between gap-2 rounded-md bg-slate-50 px-2">
+                      {[1, 3, 5].map((height, index) => (
+                        <div key={height} className="flex flex-1 flex-col gap-1">
+                          <span
+                            className="rounded-full bg-slate-700"
+                            style={{ height, opacity: 0.35 + index * 0.25 }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-1 flex justify-between px-0.5">
+                      <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-medium text-slate-500`}>
+                        Menor
+                      </span>
+                      <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-medium text-slate-500`}>
+                        {visibleStats.max.toLocaleString('pt-BR')}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div
-                  className="h-2.5 overflow-hidden rounded-full border border-slate-200"
-                  style={{
-                    background: MAP_COLORS.gradients.flow,
-                  }}
-                />
-                <div className="mt-1 flex justify-between px-0.5">
-                  <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-medium text-slate-500`}>0</span>
-                  <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-medium text-slate-500`}>
-                    {visibleStats.max.toLocaleString('pt-BR')}
-                  </span>
+              ) : (
+                <div className="mt-2">
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                      Fluxos
+                    </span>
+                    <span className="text-[10px] font-medium text-slate-500">Volume</span>
+                  </div>
+                  <div
+                    className="h-2.5 overflow-hidden rounded-full border border-slate-200"
+                    style={{
+                      background: MAP_COLORS.gradients.flow,
+                    }}
+                  />
+                  <div className="mt-1 flex justify-between px-0.5">
+                    <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-medium text-slate-500`}>0</span>
+                    <span className={`${isCompactUI ? 'text-[10px]' : 'text-xs'} font-medium text-slate-500`}>
+                      {visibleStats.max.toLocaleString('pt-BR')}
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {showMobilityIntensity && (
                 <div className="mt-3 border-t border-slate-200 pt-3">
@@ -613,7 +709,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
             id={`${geographyLevel}-flow-glow`}
             type="line"
             paint={{
-              'line-color': glowColorExpression,
+              'line-color': displayGlowColorExpression,
               'line-width': [
                 'interpolate',
                 ['linear'],
@@ -633,7 +729,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
             id={`${geographyLevel}-flow-lines`}
             type="line"
             paint={{
-              'line-color': lineColorExpression,
+              'line-color': displayLineColorExpression,
               'line-width': [
                 'interpolate',
                 ['linear'],
@@ -676,7 +772,7 @@ export const FlowsVisualization: React.FC<FlowsVisualizationProps> = ({
               'text-rotation-alignment': 'map',
             }}
             paint={{
-              'text-color': lineColorExpression,
+              'text-color': displayLineColorExpression,
               'text-halo-color': '#FFFFFF',
               'text-halo-width': 1,
               'text-opacity': 0.72,

@@ -92,7 +92,7 @@ export default function App() {
   const [includeInternalFlows, setIncludeInternalFlows] = React.useState(false);
   const [showMobilityIntensity, setShowMobilityIntensity] = React.useState(false);
   const [mobilityIntensityMetric, setMobilityIntensityMetric] = React.useState<MobilityIntensityMetric>('total');
-  const [flowConnectionFilter, setFlowConnectionFilter] = React.useState<FlowConnectionFilter | null>(null);
+  const [flowConnectionFilters, setFlowConnectionFilters] = React.useState<FlowConnectionFilter[]>([]);
   const [showShortcutsHelp, setShowShortcutsHelp] = React.useState(false);
   const [showDatasetDocumentation, setShowDatasetDocumentation] = React.useState(false);
   const [showDatasetBuilder, setShowDatasetBuilder] = React.useState(false);
@@ -391,7 +391,7 @@ export default function App() {
       : ACTIVE_DATASET_PROFILE.labels.base.singular;
 
   useEffect(() => {
-    setFlowConnectionFilter(null);
+    setFlowConnectionFilters([]);
   }, [selectedArea, geographyLevel, flowDirection]);
 
   const map = (
@@ -413,7 +413,7 @@ export default function App() {
       geographyLevel={geographyLevel}
       datasetProfile={ACTIVE_DATASET_PROFILE}
       demographicFilters={demographicFilters}
-      connectionFilter={flowConnectionFilter}
+      connectionFilters={flowConnectionFilters}
       includeInternalFlows={includeInternalFlows}
       showMobilityIntensity={showMobilityIntensity}
       mobilityIntensityMetric={mobilityIntensityMetric}
@@ -653,8 +653,8 @@ export default function App() {
                       geographyLevel={geographyLevel}
                       demographicFilters={demographicFilters}
                       includeInternalFlows={includeInternalFlows}
-                      value={flowConnectionFilter}
-                      onChange={setFlowConnectionFilter}
+                      value={flowConnectionFilters}
+                      onChange={setFlowConnectionFilters}
                     />
                   </div>
 
@@ -754,7 +754,7 @@ export default function App() {
                 geographyLevel={geographyLevel}
                 datasetProfile={ACTIVE_DATASET_PROFILE}
                 demographicFilters={demographicFilters}
-                connectionFilter={flowConnectionFilter}
+                connectionFilters={flowConnectionFilters}
                 direction={flowDirection}
                 includeInternalFlows={includeInternalFlows}
                 showTopControls={false}

@@ -5,6 +5,7 @@ import type {
   FlowConnectionFilter,
   GeographyLevel,
 } from '../types';
+import { MAP_COLORS } from '../constants/mapColors';
 
 interface FlowConnectionSelectorProps {
   selectedAreaCode?: string;
@@ -12,8 +13,8 @@ interface FlowConnectionSelectorProps {
   geographyLevel: GeographyLevel;
   demographicFilters?: DemographicFilters;
   includeInternalFlows?: boolean;
-  value: FlowConnectionFilter | null;
-  onChange: (value: FlowConnectionFilter | null) => void;
+  value: FlowConnectionFilter[];
+  onChange: (value: FlowConnectionFilter[]) => void;
 }
 
 interface FlowConnectionOption {
@@ -33,6 +34,9 @@ interface FlowFeatureProperties {
 interface FlowFeature {
   properties: FlowFeatureProperties;
 }
+
+const MAX_COMPARED_CONNECTIONS = 3;
+const COMPARISON_COLORS = MAP_COLORS.analytics.topFlowsBar.slice(0, MAX_COMPARED_CONNECTIONS);
 
 function normalizeSearchText(value: string): string {
   return value
@@ -70,6 +74,13 @@ function getCounterpartName(
     : (properties.dest_name || properties.dest_code);
 }
 
+function getNextConnectionColor(currentFilters: FlowConnectionFilter[]): string {
+  return (
+    COMPARISON_COLORS.find((color) => !currentFilters.some((filter) => filter.color === color)) ||
+    COMPARISON_COLORS[currentFilters.length % COMPARISON_COLORS.length]
+  );
+}
+
 export function FlowConnectionSelector({
   selectedAreaCode,
   direction,
@@ -89,12 +100,8 @@ export function FlowConnectionSelector({
   const placeholder = direction === 'incoming'
     ? 'Buscar origem conectada'
     : 'Buscar destino conectado';
-
-  useEffect(() => {
-    if (value) {
-      setSearchTerm(value.name || value.code);
-    }
-  }, [value]);
+  const selectedCodes = useMemo(() => new Set(value.map((filter) => filter.code)), [value]);
+  const hasReachedLimit = value.length >= MAX_COMPARED_CONNECTIONS;
 
   useEffect(() => {
     setSearchTerm('');
@@ -183,20 +190,43 @@ export function FlowConnectionSelector({
   ]);
 
   const visibleOptions = useMemo(() => {
+    const availableOptions = options.filter((option) => !selectedCodes.has(option.code));
     const filteredOptions = query
-      ? options.filter((option) =>
+      ? availableOptions.filter((option) =>
           normalizeSearchText(`${option.name} ${option.code}`).includes(query)
         )
-      : options;
+      : availableOptions;
 
     return filteredOptions.slice(0, 8);
-  }, [options, query]);
+  }, [options, query, selectedCodes]);
 
   const showDropdown =
     selectedAreaCode &&
     isFocused &&
     !loading &&
+    !hasReachedLimit &&
     (visibleOptions.length > 0 || searchTerm.trim().length > 0);
+
+  const handleAddConnection = (option: FlowConnectionOption) => {
+    if (hasReachedLimit || selectedCodes.has(option.code)) {
+      return;
+    }
+
+    onChange([
+      ...value,
+      {
+        code: option.code,
+        name: option.name || option.code,
+        color: getNextConnectionColor(value),
+      },
+    ]);
+    setSearchTerm('');
+    setIsFocused(false);
+  };
+
+  const handleRemoveConnection = (code: string) => {
+    onChange(value.filter((filter) => filter.code !== code));
+  };
 
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -207,12 +237,12 @@ export function FlowConnectionSelector({
           </p>
           <h4 className="text-xs font-bold text-slate-900">{counterpartLabel} do fluxo</h4>
         </div>
-        {value && (
+        {value.length > 0 && (
           <button
             type="button"
             onClick={() => {
               setSearchTerm('');
-              onChange(null);
+              onChange([]);
             }}
             className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 transition-colors hover:text-slate-900"
           >
@@ -220,6 +250,31 @@ export function FlowConnectionSelector({
           </button>
         )}
       </div>
+
+      {value.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {value.map((filter) => (
+            <span
+              key={filter.code}
+              className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700"
+            >
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: filter.color || COMPARISON_COLORS[0] }}
+              />
+              <span className="truncate">{filter.name || filter.code}</span>
+              <button
+                type="button"
+                onClick={() => handleRemoveConnection(filter.code)}
+                className="ml-0.5 text-slate-400 transition-colors hover:text-slate-900"
+                title={`Remover ${filter.name || filter.code}`}
+              >
+                x
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
 
       <div
         className="relative"
@@ -236,15 +291,18 @@ export function FlowConnectionSelector({
         <input
           type="text"
           value={searchTerm}
-          disabled={!selectedAreaCode}
+          disabled={!selectedAreaCode || hasReachedLimit}
           onChange={(event) => {
             setSearchTerm(event.target.value);
-            if (value) {
-              onChange(null);
-            }
           }}
           onFocus={() => setIsFocused(true)}
-          placeholder={selectedAreaCode ? placeholder : 'Selecione uma area primeiro'}
+          placeholder={
+            !selectedAreaCode
+              ? 'Selecione uma area primeiro'
+              : hasReachedLimit
+                ? 'Limite de 3 fluxos atingido'
+                : placeholder
+          }
           className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 placeholder-slate-400 transition-all disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
         />
 
@@ -256,8 +314,7 @@ export function FlowConnectionSelector({
                   key={option.code}
                   type="button"
                   onClick={() => {
-                    onChange({ code: option.code, name: option.name || option.code });
-                    setIsFocused(false);
+                    handleAddConnection(option);
                   }}
                   className="w-full border-b border-slate-100 px-3 py-2 text-left transition-colors hover:bg-slate-50 last:border-b-0"
                 >
@@ -286,9 +343,9 @@ export function FlowConnectionSelector({
           ? 'Carregando conexoes...'
           : error
             ? error
-            : value
-              ? `Mapa e graficos filtrados por ${value.name || value.code}.`
-              : 'Opcional: escolha um local para ver apenas esse par origem-destino.'}
+            : value.length > 0
+              ? `${value.length}/${MAX_COMPARED_CONNECTIONS} fluxos em comparacao no mapa e nos graficos.`
+              : 'Opcional: adicione ate 3 locais para comparar fluxos origem-destino.'}
       </p>
     </div>
   );

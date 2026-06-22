@@ -21,7 +21,7 @@ interface TopFlowsRankingChartProps {
   geographyLevel: GeographyLevel;
   direction?: 'incoming' | 'outgoing';
   demographicFilters?: DemographicFilters;
-  connectionFilter?: FlowConnectionFilter | null;
+  connectionFilters?: FlowConnectionFilter[];
   includeInternalFlows?: boolean;
   topN?: number;
   onSelectArea?: (areaCode: string, areaName: string) => void;
@@ -59,6 +59,7 @@ interface RankingClickPayload {
 }
 
 const BAR_COLORS = MAP_COLORS.analytics.topFlowsBar;
+const EMPTY_CONNECTION_FILTERS: FlowConnectionFilter[] = [];
 
 function isFlowFeature(value: unknown): value is FlowFeature {
   if (!value || typeof value !== 'object') return false;
@@ -121,7 +122,7 @@ export function TopFlowsRankingChart({
   geographyLevel,
   direction = 'incoming',
   demographicFilters = {},
-  connectionFilter = null,
+  connectionFilters = EMPTY_CONNECTION_FILTERS,
   includeInternalFlows = false,
   topN = 10,
   onSelectArea,
@@ -155,9 +156,10 @@ export function TopFlowsRankingChart({
         const withoutInternal = includeInternalFlows
           ? directional
           : directional.filter((feature) => feature.properties.origin_code !== feature.properties.dest_code);
-        const connectionScoped = connectionFilter
-          ? withoutInternal.filter(
-              (feature) => getCounterpartCode(feature.properties, direction) === connectionFilter.code
+        const selectedConnectionCodes = new Set(connectionFilters.map((filter) => filter.code));
+        const connectionScoped = selectedConnectionCodes.size > 0
+          ? withoutInternal.filter((feature) =>
+              selectedConnectionCodes.has(getCounterpartCode(feature.properties, direction))
             )
           : withoutInternal;
 
@@ -192,7 +194,7 @@ export function TopFlowsRankingChart({
     return () => {
       cancelled = true;
     };
-  }, [areaCode, geographyLevel, direction, demographicFilters, connectionFilter, includeInternalFlows, topN]);
+  }, [areaCode, geographyLevel, direction, demographicFilters, connectionFilters, includeInternalFlows, topN]);
 
   const chartHeight = useMemo(() => Math.max(240, rows.length * 26 + 58), [rows.length]);
 
@@ -226,8 +228,8 @@ export function TopFlowsRankingChart({
       <div className="mb-2">
         <div className="flex items-center gap-2">
           <p className="text-xs text-slate-500">
-            {connectionFilter
-              ? `Fluxo com ${connectionFilter.name || connectionFilter.code}, com filtros ativos`
+            {connectionFilters.length > 0
+              ? `${connectionFilters.length} fluxo${connectionFilters.length > 1 ? 's' : ''} em comparacao, com filtros ativos`
               : `${direction === 'incoming' ? 'Principais origens' : 'Principais destinos'} por volume, com filtros ativos`}
             {onSelectArea ? '. Clique em uma barra para selecionar a area.' : ''}
           </p>
@@ -287,9 +289,15 @@ export function TopFlowsRankingChart({
               dataKey="routeLabel"
               content={renderSingleLineLabel}
             />
-            {rows.map((entry, index) => (
-              <Cell key={`${entry.fullRouteLabel}-${index}`} fill={BAR_COLORS[index % BAR_COLORS.length]} />
-            ))}
+            {rows.map((entry, index) => {
+              const selectedFilter = connectionFilters.find((filter) => filter.code === entry.counterpartCode);
+              return (
+                <Cell
+                  key={`${entry.fullRouteLabel}-${index}`}
+                  fill={selectedFilter?.color || BAR_COLORS[index % BAR_COLORS.length]}
+                />
+              );
+            })}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
