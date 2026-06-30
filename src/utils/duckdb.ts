@@ -1277,15 +1277,35 @@ export async function getDemographicDimensionStats(
     const optionLabelByValue = new Map(validOptions.map((option) => [option.value, option.label]));
     const result = await conn.query(query);
 
-    return result.toArray().map((row: any) => {
-      const value = String(row.category_value);
-      return {
+    const statsByValue = new Map<string, { value: string; label: string; total: number }>();
+
+    result.toArray().forEach((row: any) => {
+      const rawValue = String(row.category_value);
+      const matchedOption = findDimensionOption(rawValue, validOptions);
+      const value = matchedOption?.value || rawValue;
+      const current = statsByValue.get(value);
+      const total = Number(row.total);
+
+      if (current) {
+        current.total += total;
+        return;
+      }
+
+      statsByValue.set(value, {
         value,
-        label: optionLabelByValue.get(value) || value,
-        total: Number(row.total),
-        percentage: Number(row.percentage),
-      };
+        label: matchedOption?.label || optionLabelByValue.get(value) || rawValue,
+        total,
+      });
     });
+
+    const grandTotal = Array.from(statsByValue.values()).reduce((sum, stat) => sum + stat.total, 0);
+
+    return Array.from(statsByValue.values()).map((stat) => {
+      return {
+        ...stat,
+        percentage: grandTotal > 0 ? Math.round((stat.total * 10000) / grandTotal) / 100 : 0,
+      };
+    }).sort((a, b) => b.total - a.total);
   } catch (error) {
     console.error(`Erro ao calcular estatisticas de ${dimension.key}:`, error);
     throw error;
