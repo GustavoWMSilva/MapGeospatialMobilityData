@@ -68,7 +68,7 @@ export function SocialGradeSmallMultiples({
           [
             { value: 'all', label: 'Todos' },
             ...dimension.options.filter((option) => option.value !== 'all'),
-          ].slice(0, 4).map(async (config) => {
+          ].slice(0, 5).map(async (config) => {
             const nextFilters =
               config.value === 'all'
                 ? demographicFilters
